@@ -17,15 +17,16 @@ public class BlockchainServer
     private readonly ConcurrentDictionary<string, DateTime>
         _registeredNodes = new(); // Registered node addresses and their last heartbeat timestamp
 
-    private readonly string _serverAddress; // Address of this server 
+    private readonly string _serverAddressExtern; // Extern Address of this server 
+    private readonly string _serverAddressIntern; // Intern address of this server 
     private Blockchain _blockchain;
 
-    public BlockchainServer(Blockchain blockchain, string ip)
-    {
-        var serverAddress = $"tcp://{ip}:{Config.Default.Port}";
-        Console.WriteLine($"Starting server at {serverAddress}...");
+    public BlockchainServer(Blockchain blockchain, string externIP, string internIP)
+    {  
+        _serverAddressExtern = $"tcp://{externIP}:{Config.Default.Port}";
+        _serverAddressIntern = $"tcp://{internIP}:{Config.Default.Port}";
 
-        _serverAddress = serverAddress;
+        Console.WriteLine($"Starting server at {_serverAddressIntern}/{_serverAddressExtern}...");
         _blockchain = blockchain;
     }
 
@@ -55,11 +56,14 @@ public class BlockchainServer
     public static Task<BlockchainServer?> StartServerAsync()
     {
         Blockchain nodeChain = null;
-        var threadNode = new Thread(async () =>
+
+        async void ThreadStart()
         {
             var (consensus, blockchain, node) = await StartNode(Config.Default.MinerAddress);
             nodeChain = blockchain;
-        })
+        }
+
+        var threadNode = new Thread(ThreadStart)
         {
             IsBackground = true
         };
@@ -71,7 +75,7 @@ public class BlockchainServer
         {
             try
             {
-                server = new BlockchainServer(nodeChain, NetworkUtils.IP);
+                server = new BlockchainServer(nodeChain, NetworkUtils.IP, NetworkUtils.GetLocalIP());
                 server.Start();
 
                 Console.WriteLine(
@@ -109,7 +113,8 @@ public class BlockchainServer
             foreach (var peer in Config.Default.Peers)
                 if (!string.IsNullOrEmpty(peer) && peer.StartsWith("tcp://"))
                 {
-                    if (peer == _serverAddress) continue;
+                    if (peer == _serverAddressExtern) continue;
+                    if (peer == _serverAddressIntern) continue;
 
                     _peerServers.Add(peer);
                     validPeers.Add(peer);
@@ -130,13 +135,13 @@ public class BlockchainServer
             using var server = new ResponseSocket();
             try
             {
-                server.Bind(_serverAddress);
-                Console.WriteLine($"SmartXchain {Config.Default.SmartXchain} bound to: {_serverAddress}");
+                server.Bind(_serverAddressIntern); 
+                Console.WriteLine($"SmartXchain {Config.Default.SmartXchain} bound to: {_serverAddressIntern}/{_serverAddressExtern}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine(
-                    $"Error starting SmartXchain {Config.Default.SmartXchain} at {_serverAddress}: {ex.Message}");
+                    $"Error binding SmartXchain {Config.Default.SmartXchain} to {_serverAddressExtern} {ex.Message} {ex.InnerException.Message}");
                 return; // Exit if the server cannot start
             }
 
@@ -236,8 +241,7 @@ public class BlockchainServer
     {
         return message.Substring(Crypt.AssemblyFingerprint.Length + 1);
     }
-
-
+     
     private void HandleRegistration(string message, ResponseSocket server)
     {
         // Example message: "Register:tcp://127.0.0.1:signature"
@@ -407,7 +411,7 @@ public class BlockchainServer
                     using (var client = new RequestSocket())
                     {
                         client.Connect(peer);
-                        client.SendFrame(message);
+                        client.SendFrame(Crypt.AssemblyFingerprint + "#" + message);
                         client.ReceiveFrameString(); // Ignore the response
                     }
                 }
@@ -428,8 +432,8 @@ public class BlockchainServer
                 {
                     using (var client = new RequestSocket())
                     {
-                        client.Connect(peer);
-                        client.SendFrame("GetNodes");
+                        client.Connect(peer);  
+                        client.SendFrame(Crypt.AssemblyFingerprint + "#" + "GetNodes");
                         var response = client.ReceiveFrameString();
 
                         // Synchronize nodes from the response
@@ -476,14 +480,14 @@ public class BlockchainServer
             var chunk = serializedChain.Substring(offset, chunkSize);
 
             // Send each chunk with an identifier
-            await Task.Run(() => server.SendFrame(chunk));
+            await Task.Run(() => server.SendFrame(Crypt.AssemblyFingerprint + "#" + chunk));
             offset += chunkSize;
 
             Console.WriteLine($"Sent chunk {offset}/{totalLength}");
         }
 
         // Send a termination message to indicate the end of the chain
-        await Task.Run(() => server.SendFrame("END"));
+        await Task.Run(() => server.SendFrame(Crypt.AssemblyFingerprint + "#" + "END"));
         Console.WriteLine("Finished sending blockchain in chunks.");
     }
 
@@ -515,7 +519,7 @@ public class BlockchainServer
                 using (var client = new RequestSocket())
                 {
                     client.Connect(peer);
-                    client.SendFrame("GetChain");
+                    client.SendFrame(Crypt.AssemblyFingerprint + "#" + "GetChain");
                     var response = client.ReceiveFrameString();
 
                     var peerChain = JsonSerializer.Deserialize<Blockchain>(response);

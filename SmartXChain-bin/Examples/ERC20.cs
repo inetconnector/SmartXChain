@@ -33,7 +33,6 @@ public class ERC20Token
 
     [JsonInclude] public ulong TotalSupply { get; private set; }
 
-
     [JsonInclude] private Dictionary<string, ulong> Balances { get; set; }
 
     [JsonInclude] private Dictionary<string, Dictionary<string, ulong>> Allowances { get; set; }

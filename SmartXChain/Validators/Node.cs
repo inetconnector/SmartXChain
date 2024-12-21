@@ -62,14 +62,14 @@ public class Node
 
         Console.WriteLine("Node successfully registered.");
 
-        // Step 5: Send heartbeat (every 10 seconds)
+        // Step 5: Send heartbeat (every 20 seconds)
         Task.Run(async () =>
         {
             while (true)
                 try
                 {
                     foreach (var server in discoveredServers) await node.SendHeartbeatAsync(server);
-                    Thread.Sleep(10000); // Heartbeat interval
+                    Thread.Sleep(20000); // Heartbeat interval
                 }
                 catch (Exception ex)
                 {
