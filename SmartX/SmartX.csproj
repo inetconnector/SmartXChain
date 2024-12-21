@@ -1,0 +1,54 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Compile Remove="BlockchainProject\**" />
+		<Compile Remove="IPFS\**" />
+		<Compile Remove="Utilities\**" />
+		<EmbeddedResource Remove="BlockchainProject\**" />
+		<EmbeddedResource Remove="IPFS\**" />
+		<EmbeddedResource Remove="Utilities\**" />
+		<None Remove="BlockchainProject\**" />
+		<None Remove="IPFS\**" />
+		<None Remove="Utilities\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Compile Remove="Miner.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Content Include="config.txt">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</Content>
+		<Content Include="Examples\ERC20.cs">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</Content>
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="IpfsShipyard.Ipfs.Http.Client" Version="0.6.0" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.12.0" />
+		<PackageReference Include="NBitcoin" Version="7.0.46" />
+		<PackageReference Include="Nethereum.Web3" Version="4.26.0" />
+		<PackageReference Include="NetMQ" Version="4.0.1.13" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Block\Block\SmartXChain.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Compile Update="Examples\GoldCoin.cs">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </Compile>
+	</ItemGroup>
+
+</Project>
