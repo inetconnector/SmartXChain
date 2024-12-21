@@ -8,13 +8,13 @@ namespace BlockchainProject.Validators;
 public class Node
 {
     public static List<string> CurrentNodeIPs = new();
+    private readonly string _chainId;
     private readonly string _nodeAddress;
-    private readonly string _sharedSecret;
 
-    public Node(string nodeAddress, string sharedSecret)
+    public Node(string nodeAddress, string chainId)
     {
         _nodeAddress = nodeAddress;
-        _sharedSecret = sharedSecret;
+        _chainId = chainId;
     }
 
     public static async Task<Node> Start(bool localRegistrationServer = false)
@@ -158,7 +158,7 @@ public class Node
     {
         try
         {
-            var signature = GenerateHMACSignature(_nodeAddress, _sharedSecret);
+            var signature = GenerateHMACSignature(_nodeAddress, _chainId);
             var response = await SocketManager.GetInstance(serverAddress)
                 .SendMessageAsync($"Register:{_nodeAddress}:{signature}");
             Console.WriteLine($"Response from server {serverAddress}: {response}");

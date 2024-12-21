@@ -22,7 +22,7 @@ public class BlockchainServer
     private Blockchain _blockchain;
 
     public BlockchainServer(Blockchain blockchain, string externIP, string internIP)
-    {  
+    {
         _serverAddressExtern = $"tcp://{externIP}:{Config.Default.Port}";
         _serverAddressIntern = $"tcp://{internIP}:{Config.Default.Port}";
 
@@ -30,67 +30,61 @@ public class BlockchainServer
         _blockchain = blockchain;
     }
 
-    public static async Task<(SnowmanConsensus consensus, Blockchain blockchain, Node node)> StartNode(
-        string walletAddress)
+    public static async Task<(BlockchainServer?, NodeStartupResult?)> StartServerAsync()
+    {
+        NodeStartupResult? result = null;
+
+        // Initialize and start the node
+        await Task.Run(async () => { result = await StartNode(Config.Default.MinerAddress); });
+
+        if (result is null or { Blockchain: null })
+            throw new InvalidOperationException("Failed to initialize the blockchain node.");
+
+        BlockchainServer? server = null;
+
+        // Initialize and start the server
+        await Task.Run(() =>
+        {
+            try
+            {
+                server = new BlockchainServer(result.Blockchain, NetworkUtils.IP, NetworkUtils.GetLocalIP());
+                server.Start();
+
+                Console.WriteLine(
+                    $"Server node for blockchain '{Config.Default.SmartXchain}' started at {NetworkUtils.IP}");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error starting server: {ex.Message}");
+            }
+        });
+
+        return (server, result);
+    }
+
+    public static async Task<NodeStartupResult> StartNode(string walletAddress)
     {
         var node = await Node.Start();
         var consensus = new SnowmanConsensus(10, node);
 
-        //create blockchain
+        // Create blockchain
         var blockchain = new Blockchain(2, 5, walletAddress, consensus);
 
-        //publish serverip
+        // Publish server IP
         var nodeTransaction = new Transaction
         {
             Sender = Blockchain.SystemAddress,
             Recipient = Blockchain.SystemAddress,
             Amount = 0, // No monetary value, just storing state
-            Data = Convert.ToBase64String(Encoding.ASCII.GetBytes(NetworkUtils.IP)), // Store  data as Base64 string
+            Data = Convert.ToBase64String(Encoding.ASCII.GetBytes(NetworkUtils.IP)), // Store data as Base64 string
             Timestamp = DateTime.UtcNow
         };
 
         blockchain.AddTransaction(nodeTransaction);
-        return (consensus, blockchain, node);
+
+        return new NodeStartupResult(consensus, blockchain, node);
     }
 
-    public static Task<BlockchainServer?> StartServerAsync()
-    {
-        Blockchain nodeChain = null;
-
-        async void ThreadStart()
-        {
-            var (consensus, blockchain, node) = await StartNode(Config.Default.MinerAddress);
-            nodeChain = blockchain;
-        }
-
-        var threadNode = new Thread(ThreadStart)
-        {
-            IsBackground = true
-        };
-        threadNode.Start();
-
-
-        BlockchainServer? server = null;
-        var threadServer = new Thread(() =>
-        {
-            try
-            {
-                server = new BlockchainServer(nodeChain, NetworkUtils.IP, NetworkUtils.GetLocalIP());
-                server.Start();
-
-                Console.WriteLine(
-                    $"Server node for blockchain {Config.Default.SmartXchain} started at {NetworkUtils.IP}");
-            }
-            catch (Exception e)
-            {
-            }
-        })
-        {
-            IsBackground = true
-        };
-        threadServer.Start();
-        return Task.FromResult(server);
-    }
 
     public void Start()
     {
@@ -135,8 +129,9 @@ public class BlockchainServer
             using var server = new ResponseSocket();
             try
             {
-                server.Bind(_serverAddressIntern); 
-                Console.WriteLine($"SmartXchain {Config.Default.SmartXchain} bound to: {_serverAddressIntern}/{_serverAddressExtern}");
+                server.Bind(_serverAddressIntern);
+                Console.WriteLine(
+                    $"SmartXchain {Config.Default.SmartXchain} bound to: {_serverAddressIntern}/{_serverAddressExtern}");
             }
             catch (Exception ex)
             {
@@ -241,7 +236,7 @@ public class BlockchainServer
     {
         return message.Substring(Crypt.AssemblyFingerprint.Length + 1);
     }
-     
+
     private void HandleRegistration(string message, ResponseSocket server)
     {
         // Example message: "Register:tcp://127.0.0.1:signature"
@@ -432,7 +427,7 @@ public class BlockchainServer
                 {
                     using (var client = new RequestSocket())
                     {
-                        client.Connect(peer);  
+                        client.Connect(peer);
                         client.SendFrame(Crypt.AssemblyFingerprint + "#" + "GetNodes");
                         var response = client.ReceiveFrameString();
 
@@ -448,6 +443,20 @@ public class BlockchainServer
 
             Thread.Sleep(5000); // Synchronize every 5 seconds
         }
+    }
+
+    public class NodeStartupResult
+    {
+        public NodeStartupResult(SnowmanConsensus consensus, Blockchain blockchain, Node node)
+        {
+            Consensus = consensus;
+            Blockchain = blockchain;
+            Node = node;
+        }
+
+        public SnowmanConsensus Consensus { get; private set; }
+        public Blockchain Blockchain { get; }
+        public Node Node { get; private set; }
     }
 
     #region Chain

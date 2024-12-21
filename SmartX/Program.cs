@@ -13,9 +13,14 @@ internal class Program
             Config.Default.ReloadConfig();
         }
 
+        var result = await BlockchainServer.StartServerAsync();
+        var blockchainServer = result.Item1;
+        var startupResult = result.Item2;
+
+
         //show menu
         Console.WriteLine(
-            "\nEnter mode; \n1 Coin class tester \n2 Demo\n3 Start node\n4 Exit\n");
+            "\nEnter mode; \n1 Coin class tester \n2 Demo\n3 Exit\n");
         while (true)
         {
             var mode = Console.ReadKey().KeyChar;
@@ -61,34 +66,20 @@ internal class Program
                 var wallet1Addresses = SmartXWallet.LoadWalletAdresses();
                 var wallet2Addresses = SmartXWallet.LoadWalletAdresses();
 
-                var (consensus, blockchain, node) = await BlockchainServer.StartNode(wallet1Addresses[0]);
+                var node = await BlockchainServer.StartNode(wallet1Addresses[0]);
 
-                await ERC20Example(wallet1Addresses[0], wallet1Addresses, consensus, blockchain);
+                await ERC20Example(wallet1Addresses[0], wallet1Addresses, node.Consensus, node.Blockchain);
 
-                await GoldCoinExample(wallet1Addresses[0], wallet1Addresses, wallet2Addresses, consensus, blockchain);
+                await GoldCoinExample(wallet1Addresses[0], wallet1Addresses, wallet2Addresses, node.Consensus,
+                    node.Blockchain);
 
                 // Display Blockchain state 
                 Console.WriteLine("Blockchain State:");
-                foreach (var block in blockchain.Chain)
-                    Console.WriteLine($"Block {blockchain.Chain.IndexOf(block)}: {block.Hash}");
-            }
+                var chain = node.Blockchain.Chain;
+                foreach (var block in chain)
+                    Console.WriteLine($"Block {chain.IndexOf(block)}: {block.Hash}");
+            } 
             else if (mode == '3')
-            {
-                var blockchainServer = await BlockchainServer.StartServerAsync();
-
-                //Console.WriteLine("Press Enter to push the chain to a peer...");
-                //Console.ReadLine();
-                //networkManager.PushChain("tcp://peer_address:port", "Mocked Blockchain Data");
-
-                //Console.WriteLine("Press Enter to pull the chain from a peer...");
-                //Console.ReadLine();
-                //var chainData = networkManager.PullChain("tcp://peer_address:port");
-                //Console.WriteLine($"Pulled chain: {chainData}");
-
-                //Console.WriteLine("Press Enter to exit...");
-                //Console.ReadLine();
-            }
-            else if (mode == '4')
             {
                 break;
             }
@@ -97,6 +88,52 @@ internal class Program
                 Console.WriteLine("\nInvalid mode.");
             }
         }
+    } 
+    private static async Task ERC20Example(string ownerAddress, List<string> walletAddresses,
+        SnowmanConsensus consensus,
+        Blockchain blockchain)
+    {
+        // Add the smart contract \Examples\ERC20.cs to the blockchain
+        var contractFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Examples", "ERC20.cs");
+        var contractCode = File.ReadAllText(contractFile);
+        var contract = await SmartContract.Create("SmartXchain", blockchain, ownerAddress, contractCode);
+
+        // Mint and execute the smart contract
+        string[] inputs =
+        [
+            $"var token = new ERC20Token(\"SmartXchain\", \"SXC\", 18, 1000000, \"{ownerAddress}\");",
+            $"token.Transfer(\"{ownerAddress}\", \"{walletAddresses[1]}\", 100);",
+            $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 50);",
+            "Console.WriteLine(\"[ERC20Token] \" + JsonSerializer.Serialize(token, new JsonSerializerOptions { WriteIndented = true }));"
+        ];
+
+        var result = await ExecuteSmartContract(blockchain, contract, inputs);
+
+        //Console.WriteLine($"Smartcontract result: {result.result}");
+        //Console.WriteLine($"Smartcontract state: {result.updatedSerializedState}");
+        //await blockchain.MinePendingTransactions(ownerAddress);
+
+        //save and reload the chain
+        var tmpFile = Path.GetTempFileName();
+        blockchain.Save(tmpFile);
+        blockchain = Blockchain.Load(tmpFile, consensus);
+
+        //Execute the contract again and display balances
+        inputs =
+        [
+            $"var token = new ERC20Token(\"SmartXchain\", \"SXC\", 18, 1000000, \"{ownerAddress}\");",
+            $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 25);",
+            "//token.GetBalances[\"hacker\"]=1000;",
+            "//token.Balances[\"hacker\"]=1000;",
+            "//File.WriteAllText(\"hacker.txt\", \"example.txt\");",
+            "//Shell.Execute(\"cmd.exe\")",
+            $"Console.WriteLine(\"[ERC20Token] \" + token.GetBalances[\"{walletAddresses[0]}\"]);",
+            $"Console.WriteLine(\"[ERC20Token] \" + token.GetBalances[\"{walletAddresses[1]}\"]);",
+            $"Console.WriteLine(\"[ERC20Token] \" + token.GetBalances[\"{walletAddresses[2]}\"]);",
+            "Console.WriteLine(\"[ERC20Token] \" + JsonSerializer.Serialize(token, new JsonSerializerOptions { WriteIndented = true }));"
+        ];
+
+        result = await ExecuteSmartContract(blockchain, contract, inputs);
     }
 
     private static async Task GoldCoinExample(string minerAddress,
@@ -149,54 +186,7 @@ internal class Program
         result = await ExecuteSmartContract(blockchain, contract, transferFromInputs);
 
         Console.WriteLine("\nGoldCoin Smart Contract finished");
-    }
-
-    private static async Task ERC20Example(string ownerAddress, List<string> walletAddresses,
-        SnowmanConsensus consensus,
-        Blockchain blockchain)
-    {
-        // Add the smart contract \Examples\ERC20.cs to the blockchain
-        var contractFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Examples", "ERC20.cs");
-        var contractCode = File.ReadAllText(contractFile);
-        var contract = await SmartContract.Create("SmartXchain", blockchain, ownerAddress, contractCode);
-
-        // Mint and execute the smart contract
-        string[] inputs =
-        [
-            $"var token = new ERC20Token(\"SmartXchain\", \"SXC\", 18, 1000000, \"{ownerAddress}\");",
-            $"token.Transfer(\"{ownerAddress}\", \"{walletAddresses[1]}\", 100);",
-            $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 50);",
-            "Console.WriteLine(\"[ERC20Token] \" + JsonSerializer.Serialize(token, new JsonSerializerOptions { WriteIndented = true }));"
-        ];
-
-        var result = await ExecuteSmartContract(blockchain, contract, inputs);
-
-        //Console.WriteLine($"Smartcontract result: {result.result}");
-        //Console.WriteLine($"Smartcontract state: {result.updatedSerializedState}");
-        //await blockchain.MinePendingTransactions(ownerAddress);
-
-        //save and reload the chain
-        var tmpFile = Path.GetTempFileName();
-        blockchain.Save(tmpFile);
-        blockchain = Blockchain.Load(tmpFile, consensus);
-
-        //Execute the contract again and display balances
-        inputs =
-        [
-            $"var token = new ERC20Token(\"SmartXchain\", \"SXC\", 18, 1000000, \"{ownerAddress}\");",
-            $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 25);",
-            "//token.GetBalances[\"hacker\"]=1000;",
-            "//token.Balances[\"hacker\"]=1000;",
-            "//File.WriteAllText(\"hacker.txt\", \"example.txt\");",
-            "//Shell.Execute(\"cmd.exe\")",
-            $"Console.WriteLine(\"[ERC20Token] \" + token.GetBalances[\"{walletAddresses[0]}\"]);",
-            $"Console.WriteLine(\"[ERC20Token] \" + token.GetBalances[\"{walletAddresses[1]}\"]);",
-            $"Console.WriteLine(\"[ERC20Token] \" + token.GetBalances[\"{walletAddresses[2]}\"]);",
-            "Console.WriteLine(\"[ERC20Token] \" + JsonSerializer.Serialize(token, new JsonSerializerOptions { WriteIndented = true }));"
-        ];
-
-        result = await ExecuteSmartContract(blockchain, contract, inputs);
-    }
+    } 
 
     private static async Task<(string result, string updatedSerializedState)> ExecuteSmartContract(
         Blockchain blockchain, SmartContract contract, string[] inputs, bool debug = false)
@@ -214,10 +204,21 @@ internal class Program
 
             // Deserialize the contract state and extract balances
             var stateBase64 = result.updatedSerializedState;
-            var deserializedState = Serializer.DeserializeFromBase64<ERC20Token>(stateBase64);
-            if (debug)
-                foreach (var balance in deserializedState.GetBalances)
-                    Console.WriteLine($"balance: {balance.Key}: {balance.Value}");
+
+            if (contract.Name== "SmartXchain")
+            {
+                var deserializedState = Serializer.DeserializeFromBase64<ERC20Token>(stateBase64);
+                if (debug)
+                    foreach (var balance in deserializedState.GetBalances)
+                        Console.WriteLine($"balance: {balance.Key}: {balance.Value}");
+            }
+            else if (contract.Name == "GoldCoin")
+            {
+                var deserializedState = Serializer.DeserializeFromBase64<GoldCoin>(stateBase64);
+                if (debug)
+                    foreach (var balance in deserializedState.GetBalances)
+                        Console.WriteLine($"balance: {balance.Key}: {balance.Value}");
+            } 
         }
         catch (Exception e)
         {
@@ -226,4 +227,5 @@ internal class Program
 
         return result;
     }
+
 }
