@@ -1,12 +1,14 @@
 ﻿// Name: GoldCoin
 // License: MIT
 
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Net.Http;
 using System.Threading.Tasks;
-
 public class GoldCoin
 {
+    private static readonly HttpClient HttpClient = new();
+
     // Constructor: Initializes default values for balances, allowances, and investment percentages.
     public GoldCoin()
     {
@@ -14,7 +16,7 @@ public class GoldCoin
         LastGoldPriceUpdate = DateTime.MinValue;
 
         Balances = new Dictionary<string, ulong>();
-        Allowances = new Dictionary<string, Dictionary<string, ulong>>();  
+        Allowances = new Dictionary<string, Dictionary<string, ulong>>();
     }
 
     // Constructor: Initializes token properties and assigns the initial supply to the owner's balance.
@@ -27,15 +29,13 @@ public class GoldCoin
         Decimals = decimals;
         TotalSupply = initialSupply;
         Balances = new Dictionary<string, ulong>();
-        Allowances = new Dictionary<string, Dictionary<string, ulong>>();   
+        Allowances = new Dictionary<string, Dictionary<string, ulong>>();
 
         // Assign initial supply to the owner's balance
         Balances[owner] = initialSupply;
     }
 
-    private static readonly HttpClient HttpClient = new HttpClient();
-
-    [JsonInclude] public DateTime LastGoldPriceUpdate  { get; private set; }
+    [JsonInclude] public DateTime LastGoldPriceUpdate { get; private set; }
 
     // Property: Token name.
     [JsonInclude] public decimal CurrentGoldPrice { get; private set; }
@@ -57,16 +57,15 @@ public class GoldCoin
 
     // Private: Stores allowances for accounts to spend on behalf of others.
     [JsonInclude] private Dictionary<string, Dictionary<string, ulong>> Allowances { get; set; }
-    
+
     // Property: Gets the balances as a read-only dictionary.
-    [JsonIgnore]
-    public IReadOnlyDictionary<string, ulong> GetBalances => Balances;
+    [JsonIgnore] public IReadOnlyDictionary<string, ulong> GetBalances => Balances;
 
     // Property: Gets the allowances as a read-only dictionary.
     [JsonIgnore]
     public IReadOnlyDictionary<string, IReadOnlyDictionary<string, ulong>> GetAllowances =>
         Allowances.ToDictionary(k => k.Key, v => (IReadOnlyDictionary<string, ulong>)v.Value);
- 
+
     // Method: Returns the balance of a specific account.
     public ulong BalanceOf(string account)
     {
@@ -119,7 +118,7 @@ public class GoldCoin
         Log($"Transfer successful: {amount} tokens sender {sender} to {to}.");
         Log($"TotalSupply: {TotalSupply}");
         return true;
-    } 
+    }
 
     // Method: Approves a spender to transfer up to a specified amount of tokens on behalf of the owner.
     public bool Approve(string owner, string spender, ulong amount)
@@ -161,8 +160,8 @@ public class GoldCoin
         Log($"TransferFrom successful: {spender} transferred {amount} tokens sender {sender} to {to}.");
         return true;
     }
-     
-     
+
+
     // Private Method: Reduces the token supply proportionally.
     private void BurnTokens(decimal percentage)
     {
@@ -177,7 +176,7 @@ public class GoldCoin
 
         foreach (var account in Balances.Keys.ToList())
         {
-            ulong burnAmount = (ulong)(Balances[account] * (percentage / 100));
+            var burnAmount = (ulong)(Balances[account] * (percentage / 100));
             Balances[account] -= burnAmount;
             totalBurnAmount += burnAmount;
         }
@@ -190,7 +189,7 @@ public class GoldCoin
             foreach (var account in Balances.Keys.ToList())
             {
                 // Adjust burn amounts proportionally to enforce the minimum total supply
-                ulong adjustedBurnAmount = (ulong)(Balances[account] * ((decimal)totalBurnAmount / TotalSupply));
+                var adjustedBurnAmount = (ulong)(Balances[account] * ((decimal)totalBurnAmount / TotalSupply));
                 Balances[account] -= adjustedBurnAmount;
             }
         }
@@ -213,7 +212,7 @@ public class GoldCoin
 
         foreach (var account in Balances.Keys.ToList())
         {
-            ulong mintAmount = (ulong)(Balances[account] * (percentage / 100));
+            var mintAmount = (ulong)(Balances[account] * (percentage / 100));
             Balances[account] += mintAmount;
             totalMintAmount += mintAmount;
         }
@@ -244,13 +243,13 @@ public class GoldCoin
         if (newGoldPrice > CurrentGoldPrice)
         {
             // Gold price has increased -> Execute BurnTokens
-            decimal increasePercentage = ((newGoldPrice - CurrentGoldPrice) / CurrentGoldPrice) * 100;
+            var increasePercentage = (newGoldPrice - CurrentGoldPrice) / CurrentGoldPrice * 100;
             BurnTokens(increasePercentage);
         }
         else if (newGoldPrice < CurrentGoldPrice)
         {
             // Gold price has decreased -> Execute MintTokens
-            decimal decreasePercentage = ((CurrentGoldPrice - newGoldPrice) / CurrentGoldPrice) * 100;
+            var decreasePercentage = (CurrentGoldPrice - newGoldPrice) / CurrentGoldPrice * 100;
             MintTokens(decreasePercentage);
         }
 
@@ -264,16 +263,16 @@ public class GoldCoin
     {
         try
         {
-            string apiUrl = "https://www.goldapi.io/api/XAU/USD";
+            var apiUrl = "https://www.goldapi.io/api/XAU/USD";
             using (var client = new HttpClient())
             {
                 client.DefaultRequestHeaders.Add("x-access-token", "goldapi-43irpsm4vsl288-io");
                 var response = await client.GetStringAsync(apiUrl);
-                var json = System.Text.Json.JsonDocument.Parse(response);
+                var json = JsonDocument.Parse(response);
 
                 if (json.RootElement.TryGetProperty("price", out var priceElement) && priceElement.GetDecimal() > 0)
                 {
-                    decimal newGoldPrice = priceElement.GetDecimal();
+                    var newGoldPrice = priceElement.GetDecimal();
                     UpdateGoldPrice(newGoldPrice);
                 }
                 else
@@ -286,5 +285,5 @@ public class GoldCoin
         {
             Log($"Error fetching gold price: {ex.Message}");
         }
-    }  
+    }
 }

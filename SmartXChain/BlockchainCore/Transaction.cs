@@ -42,7 +42,7 @@ public class Transaction
         var transactionData = $"{Sender}{Recipient}{Amount}{Timestamp}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(transactionData));
         var signature = ecdsa.SignHash(hash);
-        Signature = Convert.ToBase64String(signature) + "|" + Crypt.GetExecutingAssemblyFingerprint();
+        Signature = Convert.ToBase64String(signature) + "|" + Crypt.AssemblyFingerprint;
     }
 
     public bool VerifySignature(string publicKey)
@@ -58,7 +58,7 @@ public class Transaction
         var sp = Signature.Split('|');
         var signatureBytes = Convert.FromBase64String(sp[0]);
 
-        return ecdsa.VerifyHash(hash, signatureBytes) && sp[1] == Crypt.GetExecutingAssemblyFingerprint();
+        return ecdsa.VerifyHash(hash, signatureBytes) && sp[1] == Crypt.AssemblyFingerprint;
     }
 
     private void CalculateGas()

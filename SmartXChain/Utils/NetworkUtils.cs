@@ -6,6 +6,16 @@ namespace BlockchainProject.Utils;
 
 public class NetworkUtils
 {
+    public static string IP { get; set; }
+
+    public static bool IsValidIP(string ipString)
+    {
+        if (string.IsNullOrWhiteSpace(ipString))
+            return false;
+
+        return IPAddress.TryParse(ipString, out _);
+    }
+
     public static string GetLocalIP()
     {
         var host = Dns.GetHostEntry(Dns.GetHostName());
@@ -47,6 +57,7 @@ public class NetworkUtils
                     publicIP = publicIP.Trim();
 
                     Console.WriteLine($"\nPublic IP Address retrieved: {publicIP}");
+                    IP = publicIP;
                     return publicIP;
                 }
             }

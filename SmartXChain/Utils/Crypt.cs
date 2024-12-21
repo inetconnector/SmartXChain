@@ -7,7 +7,7 @@ public class Crypt
 {
     public static readonly Crypt Default = new();
 
-    private static readonly Lazy<string> _executingAssemblyFingerprint = new(GenerateExecutingAssemblyFingerprint);
+    private static readonly Lazy<string> _assemblyFingerprint = new(GenerateAssemblyFingerprint);
 
     public Crypt()
     {
@@ -18,6 +18,7 @@ public class Crypt
 
     public string PrivateKey { get; }
     public string PublicKey { get; }
+    public static string AssemblyFingerprint => _assemblyFingerprint.Value;
 
     public static string GenerateBinaryFingerprint(string dllPath)
     {
@@ -29,17 +30,12 @@ public class Crypt
         return Convert.ToBase64String(hash);
     }
 
-    public static string GetExecutingAssemblyFingerprint()
+    private static string GenerateAssemblyFingerprint()
     {
-        return _executingAssemblyFingerprint.Value;
-    }
-
-    private static string GenerateExecutingAssemblyFingerprint()
-    {
-        var executingAssembly = Assembly.GetExecutingAssembly();
+        var assembly = Assembly.GetAssembly(typeof(Blockchain));
         using var sha256 = SHA256.Create();
         using var stream = new MemoryStream();
-        executingAssembly.GetManifestResourceStream(executingAssembly.ManifestModule.Name)?.CopyTo(stream);
+        assembly.GetManifestResourceStream(assembly.ManifestModule.Name)?.CopyTo(stream);
         stream.Position = 0;
         var hash = sha256.ComputeHash(stream);
         return Convert.ToBase64String(hash);

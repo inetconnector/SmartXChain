@@ -42,7 +42,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\..\Block\Block\SmartXChain.csproj" />
+	  <ProjectReference Include="..\SmartXChain\SmartXChain.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

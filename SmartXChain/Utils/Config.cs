@@ -15,13 +15,37 @@ public class Config
         LoadConfig(filePath);
     }
 
-    public string ServerSecret { get; private set; }
+    public string SmartXchain { get; private set; }
     public string MinerAddress { get; private set; }
     public string Mnemonic { get; private set; }
     public List<string> Peers { get; }
     public int Port { get; private set; }
-
+    public string IP { get; private set; }
+    public bool Debug { get; private set; }
     public static Config Default => _defaultInstance.Value;
+
+    public void ReloadConfig()
+    {
+        var appDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        var configFilePath = Path.Combine(appDirectory, "config.txt");
+        if (!File.Exists(configFilePath))
+        {
+            Console.WriteLine("Config file not found during reload.");
+            return;
+        }
+
+        // Clear the existing configuration
+        Peers.Clear();
+        SmartXchain = null;
+        MinerAddress = null;
+        Mnemonic = null;
+        Port = 0;
+
+        // Reload the configuration from the file
+        LoadConfig(configFilePath);
+
+        Console.WriteLine("Configuration reloaded successfully.");
+    }
 
     private void LoadConfig(string filePath)
     {
@@ -71,6 +95,10 @@ public class Config
 
                     if (key.Equals("Port", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var port))
                         Port = port;
+                    if (key.Equals("IP", StringComparison.OrdinalIgnoreCase))
+                        IP = value;
+                    if (key.Equals("Debug", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var debug))
+                        Debug = debug;
                 }
                 else
                 {
@@ -85,8 +113,8 @@ public class Config
                     var key = parts[0].Trim();
                     var value = parts[1].Trim();
 
-                    if (key.Equals("ServerSecret", StringComparison.OrdinalIgnoreCase))
-                        ServerSecret = value;
+                    if (key.Equals("SmartXchain", StringComparison.OrdinalIgnoreCase))
+                        SmartXchain = value;
                     else if (key.Equals("MinerAddress", StringComparison.OrdinalIgnoreCase))
                         MinerAddress = value;
                     else if (key.Equals("Mnemonic", StringComparison.OrdinalIgnoreCase)) Mnemonic = value;

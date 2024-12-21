@@ -7,6 +7,7 @@ using SmartXChain.Utils;
 
 public class Blockchain
 {
+    public const string SystemAddress = "smartX0000000000000000000000000000000000000000";
     [JsonInclude] private readonly SnowmanConsensus _consensus;
 
     [JsonInclude] private readonly Dictionary<string, string> _contractStates;
@@ -66,16 +67,19 @@ public class Blockchain
 
     private void PayGas(string type, string payer, int gas)
     {
-        Console.ForegroundColor = ConsoleColor.Gray;
-        Console.WriteLine($"[Gas] {payer} has to pay {gas} for {type}");
-        Console.ResetColor();
+        if (gas > 0)
+        {
+            Console.ForegroundColor = ConsoleColor.Gray;
+            Console.WriteLine($"[Gas] {payer} has to pay {gas} for {type}");
+            Console.ResetColor();
+        }
     }
 
     public bool AddTransaction(Transaction transaction)
     {
         transaction.SignTransaction(Crypt.Default.PrivateKey);
 
-        var payer = "System";
+        var payer = SystemAddress;
         var gas = transaction.Gas;
         if (transaction.Sender == payer)
         {
@@ -205,7 +209,7 @@ public class Blockchain
         var stateTransaction = new Transaction
         {
             Sender = contract.Owner,
-            Recipient = "System",
+            Recipient = SystemAddress,
             Amount = 0, // No monetary value, just storing state
             Data = Convert.ToBase64String(compressedState), // Store compressed data as Base64 string
             Timestamp = DateTime.UtcNow,
@@ -222,7 +226,7 @@ public class Blockchain
     {
         for (var i = Chain.Count - 1; i >= 0; i--)
             foreach (var transaction in Chain[i].Transactions)
-                if (transaction.Recipient == "System" && transaction.Info == "$" + contract.Name &&
+                if (transaction.Recipient == SystemAddress && transaction.Info == "$" + contract.Name &&
                     !string.IsNullOrEmpty(transaction.Data))
                 {
                     // Decompress the data
@@ -272,7 +276,7 @@ public class Blockchain
             {
                 var rewardTransaction = new Transaction
                 {
-                    Sender = "System",
+                    Sender = SystemAddress,
                     Recipient = minerAddress,
                     Amount = _reward,
                     Timestamp = DateTime.UtcNow
@@ -288,7 +292,7 @@ public class Blockchain
 
                     rewardTransaction = new Transaction
                     {
-                        Sender = "System",
+                        Sender = SystemAddress,
                         Recipient = address,
                         Amount = _reward,
                         Timestamp = DateTime.UtcNow

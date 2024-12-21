@@ -7,7 +7,8 @@ namespace SecureCodeRunnerLib;
 
 public class CodeRunner
 {
-    private const string serializerClassImports = @"
+    private const string serializerClassImports =
+        @"
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
@@ -120,7 +121,7 @@ public static class Serializer
 
     public class Globals
     {
-        public string CurrentState { get; set; } // Aktueller Zustand des Contracts
-        public object Output { get; set; } // Ausgabe des Scripts
+        public string CurrentState { get; set; } // Current state of contracts
+        public object Output { get; set; } // Script output
     }
 }

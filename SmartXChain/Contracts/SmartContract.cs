@@ -27,7 +27,7 @@ public class SmartContract
     public async Task<(string result, string serializedState)> Execute(string[] inputs, string currentState)
     {
         CalculateGas();
-        Console.WriteLine($"Executing contract {Name} ...(Gas:{Gas})");
+        Console.WriteLine($"Executing contract {Name} (Gas:{Gas})");
 
         // Deserialize state before execution
         var contractCode = Serializer.DeserializeFromBase64<string>(SerializedContractCode);

@@ -6,7 +6,7 @@ public class CodeSecurityAnalyzer
     // Allowed Namespaces
     private static readonly string[] AllowedNamespaces =
     {
-        "System",
+        Blockchain.SystemAddress,
         "System.Collections.Generic",
         "System.Text",
         "System.Text.Json",
@@ -43,7 +43,7 @@ public class CodeSecurityAnalyzer
         "Flush", "Bind", "Connect", "Listen", "Send", "Receive",
         "Attach", "Detach", "Kill", "Stop", "Pause", "Resume",
         "LoadFrom", "LoadFile", "LoadModule", "DefineDynamicAssembly",
-        "LoadLibrary", "QueueUserWorkItem", "Process.Start"//, "Run"
+        "LoadLibrary", "QueueUserWorkItem", "Process.Start" //, "Run"
     };
 
     // Forbidden Keywords
@@ -51,7 +51,7 @@ public class CodeSecurityAnalyzer
     {
         "unsafe", "dynamic", "DllImport", "extern", "lock",
         "goto", "volatile", "fixed", "stackalloc", "yield", "sealed", "base",
-        "ref","partial", "override" //, "async",  "out" ,"await", 
+        "ref", "partial", "override" //, "async",  "out" ,"await", 
     };
 
     public static bool IsCodeSafe(string code)

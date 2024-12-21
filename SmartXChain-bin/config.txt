@@ -1,0 +1,15 @@
+[Config]
+Port=5555 
+IP=auto
+Debug=true
+
+[Miner]
+SmartXchain = {3683DDE3-C2D3-4565-8E1C-50C8E0E2AAC2}
+MinerAddress=smartX462FC3654F3D27b538d91696d6f93c6EFF381010
+Mnemonic=energy holiday shy guitar real charge hedgehog select skirt submit veteran large
+
+[Peers]
+#tcp://192.168.1.78:5555
+tcp://netregservice.com:5555
+#tcp://netregservice.com:5556 
+#tcp://localhost:5555 

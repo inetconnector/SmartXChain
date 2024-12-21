@@ -78,7 +78,7 @@ public class SocketManager : IDisposable
                     try
                     {
                         // Nachricht senden
-                        socket.SendFrame(Crypt.GetExecutingAssemblyFingerprint() + "#" + message);
+                        socket.SendFrame(Crypt.AssemblyFingerprint + "#" + message);
 
                         // Antwort empfangen mit Timeout
                         var response = socket.TryReceiveFrameString(TimeSpan.FromSeconds(5), out var frame)

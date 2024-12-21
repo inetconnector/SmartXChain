@@ -1,5 +1,4 @@
 ﻿using System.Net;
-using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using BlockchainProject.Utils;
@@ -20,14 +19,14 @@ public class Node
 
     public static async Task<Node> Start(bool localRegistrationServer = false)
     {
-        // Node Configuration
-        var ip = await NetworkUtils.GetPublicIPAsync();
+        // Node Configuration 
+        var ip = NetworkUtils.IP;
         if (ip == "") ip = NetworkUtils.GetLocalIP();
         if (localRegistrationServer)
             ip = "127.0.0.1";
 
         var nodeAddress = $"tcp://{ip}:{Config.Default.Port}"; // Own node address
-        var sharedSecret = Config.Default.ServerSecret; // Shared secret with the servers
+        var sharedSecret = Config.Default.SmartXchain; // Shared secret with the servers
 
         // Create a node instance
         var node = new Node(nodeAddress, sharedSecret);
@@ -40,78 +39,74 @@ public class Node
         // Step 1: Query primary discovery servers
         var discoveredServers = node.DiscoverServers(peers.ToArray());
 
-        // Step 2: If no servers were found, use broadcast discovery
+        // Step 2: If no servers were found, start a loop to wait for servers
         if (discoveredServers.Length == 0)
         {
-            Console.WriteLine("No servers found via DNS or static list. Attempting broadcast...");
-            var broadcastServer = node.DiscoverServerViaBroadcast();
+            Console.WriteLine("No active servers found. Waiting for a server...");
 
-            if (!string.IsNullOrEmpty(broadcastServer))
-            {
-                discoveredServers = new[] { broadcastServer };
-                Console.WriteLine($"Server found via broadcast: {broadcastServer}");
-            }
+            while (discoveredServers.Length == 0)
+                try
+                {
+                    await Task.Delay(5000); // Check every 5 seconds
+                    discoveredServers = node.DiscoverServers(peers.ToArray());
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error during server discovery: {ex.Message}");
+                }
         }
 
-        // Step 3: If no servers were found, terminate the program
-        if (discoveredServers.Length == 0)
+        // Step 4: Register with an active server
+        Console.WriteLine("Registering with a discovery server...");
+        await node.RegisterWithDiscoveryAsync(discoveredServers);
+
+        Console.WriteLine("Node successfully registered.");
+
+        // Step 5: Send heartbeat (every 10 seconds)
+        Task.Run(async () =>
         {
-            Console.WriteLine("No active servers found. Node cannot start.");
-        }
-        else
+            while (true)
+                try
+                {
+                    foreach (var server in discoveredServers) await node.SendHeartbeatAsync(server);
+                    Thread.Sleep(10000); // Heartbeat interval
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error sending heartbeat: {ex.Message}");
+                }
+        });
+
+        // Step 6: Retrieve registered nodes (every 30 seconds)
+        Task.Run(async () =>
         {
-            // Step 4: Register with an active server
-            Console.WriteLine("Registering with a discovery server...");
-            await node.RegisterWithDiscoveryAsync(discoveredServers);
-
-            Console.WriteLine("Node successfully registered.");
-
-            // Step 5: Send heartbeat (every 10 seconds)
-            Task.Run(async () =>
-            {
-                while (true)
-                    try
+            while (true)
+                try
+                {
+                    foreach (var server in discoveredServers)
                     {
-                        foreach (var server in discoveredServers) await node.SendHeartbeatAsync(server);
-                        Thread.Sleep(10000); // Heartbeat interval
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Error sending heartbeat: {ex.Message}");
-                    }
-            });
+                        var nodeIPList = await node.GetRegisteredNodesAsync(server);
+                        if (!nodeIPList.Contains(server))
+                            nodeIPList.Add(server);
+                        if (nodeIPList.Contains(nodeAddress))
+                            nodeIPList.Remove(nodeAddress);
 
-            // Step 6: Retrieve registered nodes (every 30 seconds)
-            Task.Run(async () =>
-            {
-                while (true)
-                    try
-                    {
-                        foreach (var server in discoveredServers)
-                        {
-                            var nodeIPList = await node.GetRegisteredNodesAsync(server);
-                            if (!nodeIPList.Contains(server))
-                                nodeIPList.Add(server);
-                            if (nodeIPList.Contains(nodeAddress))
-                                nodeIPList.Remove(nodeAddress);
-
-                            foreach (var nodeIP in nodeIPList)
-                                if (!string.IsNullOrEmpty(nodeIP))
-                                    lock (CurrentNodeIPs)
-                                    {
-                                        if (!CurrentNodeIPs.Contains(nodeIP))
-                                            CurrentNodeIPs.Add(nodeIP);
-                                    }
-                        }
-
-                        Thread.Sleep(30000); // Retrieve nodes every 30 seconds
+                        foreach (var nodeIP in nodeIPList)
+                            if (!string.IsNullOrEmpty(nodeIP))
+                                lock (CurrentNodeIPs)
+                                {
+                                    if (!CurrentNodeIPs.Contains(nodeIP))
+                                        CurrentNodeIPs.Add(nodeIP);
+                                }
                     }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Error retrieving nodes: {ex.Message}");
-                    }
-            });
-        }
+
+                    Thread.Sleep(30000); // Retrieve nodes every 30 seconds
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error retrieving nodes: {ex.Message}");
+                }
+        });
 
         return node;
     }
@@ -142,6 +137,9 @@ public class Node
         foreach (var serverAddress in discoveryServers)
             try
             {
+                if (serverAddress.Contains(NetworkUtils.IP))
+                    continue;
+
                 var response = await SocketManager.GetInstance(serverAddress).SendMessageAsync("GetNodes");
                 var activeServers = response.Split(',');
                 foreach (var activeServer in activeServers)
@@ -186,7 +184,6 @@ public class Node
 
         try
         {
-            // Nachricht senden und Antwort abwarten
             var response = await SocketManager.GetInstance(serverAddress).SendMessageAsync("GetNodes");
 
             if (response == "ERROR: Timeout" || string.IsNullOrEmpty(response))
@@ -195,7 +192,6 @@ public class Node
                 return ret;
             }
 
-            // Antwort verarbeiten
             foreach (var nodeAddress in response.Split(','))
                 if (!string.IsNullOrEmpty(nodeAddress))
                     ret.Add(nodeAddress);
@@ -224,32 +220,6 @@ public class Node
         }
     }
 
-    public string DiscoverServerViaBroadcast()
-    {
-        try
-        {
-            using (var udpClient = new UdpClient())
-            {
-                udpClient.EnableBroadcast = true;
-
-                var broadcastAddress = new IPEndPoint(IPAddress.Broadcast, 5555);
-                var request = Encoding.UTF8.GetBytes("DISCOVER");
-
-                udpClient.Send(request, request.Length, broadcastAddress);
-
-                var response = udpClient.Receive(ref broadcastAddress);
-                var serverAddress = Encoding.UTF8.GetString(response);
-
-                Console.WriteLine("Server discovered via broadcast: " + serverAddress);
-                return serverAddress;
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine("Broadcast discovery failed: " + ex.Message);
-            return null;
-        }
-    }
 
     public string[] DiscoverServers(string[] staticServers)
     {
@@ -295,7 +265,7 @@ public class Node
             Console.WriteLine("Error during server discovery: " + ex.Message);
         }
 
-        Console.WriteLine("Falling back to static discovery servers.");
+        //Console.WriteLine("Falling back to static discovery servers.");
         return staticServers;
     }
 }

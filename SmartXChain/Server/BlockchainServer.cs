@@ -19,24 +19,63 @@ public class BlockchainServer
 
     private readonly string _serverAddress; // Address of this server 
     private Blockchain _blockchain;
-    public static async Task<BlockchainServer?> StartServerAsync()
-    {
-        var serverAddress = $"tcp://{NetworkUtils.GetLocalIP()}:{Config.Default.Port}";
 
-        var ip = await NetworkUtils.GetPublicIPAsync();
-        var nodeAddress = $"tcp://{ip}:{Config.Default.Port}"; // Own node address
-        var sharedSecret = Config.Default.ServerSecret; // Shared secret with the servers 
-        var node = new Node(nodeAddress, sharedSecret);
+    public BlockchainServer(Blockchain blockchain, string ip)
+    {
+        var serverAddress = $"tcp://{ip}:{Config.Default.Port}";
+        Console.WriteLine($"Starting server at {serverAddress}...");
+
+        _serverAddress = serverAddress;
+        _blockchain = blockchain;
+    }
+
+    public static async Task<(SnowmanConsensus consensus, Blockchain blockchain, Node node)> StartNode(
+        string walletAddress)
+    {
+        var node = await Node.Start();
+        var consensus = new SnowmanConsensus(10, node);
+
+        //create blockchain
+        var blockchain = new Blockchain(2, 5, walletAddress, consensus);
+
+        //publish serverip
+        var nodeTransaction = new Transaction
+        {
+            Sender = Blockchain.SystemAddress,
+            Recipient = Blockchain.SystemAddress,
+            Amount = 0, // No monetary value, just storing state
+            Data = Convert.ToBase64String(Encoding.ASCII.GetBytes(NetworkUtils.IP)), // Store  data as Base64 string
+            Timestamp = DateTime.UtcNow
+        };
+
+        blockchain.AddTransaction(nodeTransaction);
+        return (consensus, blockchain, node);
+    }
+
+    public static Task<BlockchainServer?> StartServerAsync()
+    {
+        Blockchain nodeChain = null;
+        var threadNode = new Thread(async () =>
+        {
+            var (consensus, blockchain, node) = await StartNode(Config.Default.MinerAddress);
+            nodeChain = blockchain;
+        })
+        {
+            IsBackground = true
+        };
+        threadNode.Start();
+
+
         BlockchainServer? server = null;
-        Console.WriteLine("Starting server node...");
-        var thread = new Thread(() =>
+        var threadServer = new Thread(() =>
         {
             try
             {
-                server = new BlockchainServer(serverAddress, node);
+                server = new BlockchainServer(nodeChain, NetworkUtils.IP);
                 server.Start();
 
-                Console.WriteLine($"Server node for blockchain {Config.Default.ServerSecret} started at {serverAddress}");
+                Console.WriteLine(
+                    $"Server node for blockchain {Config.Default.SmartXchain} started at {NetworkUtils.IP}");
             }
             catch (Exception e)
             {
@@ -45,17 +84,8 @@ public class BlockchainServer
         {
             IsBackground = true
         };
-        thread.Start();
-        return server;
-    }
-    public BlockchainServer(string serverAddress, Node node)
-    {
-        _serverAddress = serverAddress;
-
-        var consensus = new SnowmanConsensus(10, node);
-        var blockchain = new Blockchain(2, 5, GetMinerAddress(), consensus);
-
-        _blockchain = blockchain;
+        threadServer.Start();
+        return Task.FromResult(server);
     }
 
     public void Start()
@@ -95,39 +125,51 @@ public class BlockchainServer
 
     private void StartMainServer()
     {
-        using (var server = new ResponseSocket())
+        while (true)
         {
+            using var server = new ResponseSocket();
             try
             {
                 server.Bind(_serverAddress);
-                Console.WriteLine($"Registration server {Config.Default.ServerSecret} running at: {_serverAddress}");
+                Console.WriteLine($"SmartXchain {Config.Default.SmartXchain} bound to: {_serverAddress}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error starting server at {_serverAddress}: {ex.Message}");
+                Console.WriteLine(
+                    $"Error starting SmartXchain {Config.Default.SmartXchain} at {_serverAddress}: {ex.Message}");
                 return; // Exit if the server cannot start
             }
 
             while (true)
+            {
+                var message = "";
                 try
                 {
-                    var message = server.ReceiveFrameString();
-                    if (!message.StartsWith(Crypt.GetExecutingAssemblyFingerprint()))
+                    message = server.ReceiveFrameString();
+                    if (!string.IsNullOrEmpty(message))
                     {
-                        Console.WriteLine("Invalid fingerprint detected. Dropping message.");
-                        continue;
+                        if (!Config.Default.Debug && !message.StartsWith(Crypt.AssemblyFingerprint))
+                        {
+                            var response = "Invalid fingerprint detected";
+                            Console.WriteLine($"{response} Dropping message '{message}'");
+                            server.SendFrame(response);
+                            continue;
+                        }
+
+                        // Remove fingerprint and handle message
+                        var strippedMessage = RemoveFingerprint(message);
+                        Console.WriteLine($"Received message: {strippedMessage}");
+
+                        ProcessMessage(strippedMessage, server);
                     }
-
-                    // Remove fingerprint and handle message
-                    var strippedMessage = RemoveFingerprint(message);
-                    Console.WriteLine($"Received message: {strippedMessage}");
-
-                    ProcessMessage(strippedMessage, server);
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error processing message: {ex.Message}");
+                    Console.WriteLine($"Error processing message '{message}'\n{ex.Message}");
+                    server.Close();
+                    break;
                 }
+            }
         }
     }
 
@@ -152,6 +194,10 @@ public class BlockchainServer
         else if (message.StartsWith("Heartbeat:"))
         {
             HandleHeartbeat(message);
+            server.SendFrame("OK");
+        }
+        else if (message.StartsWith("GetBlockCount"))
+        {
             server.SendFrame("OK");
         }
         else if (message.StartsWith("GetChain"))
@@ -188,7 +234,7 @@ public class BlockchainServer
 
     private string RemoveFingerprint(string message)
     {
-        return message.Substring(Crypt.GetExecutingAssemblyFingerprint().Length + 1);
+        return message.Substring(Crypt.AssemblyFingerprint.Length + 1);
     }
 
 
@@ -341,7 +387,7 @@ public class BlockchainServer
     private bool ValidateSignature(string nodeAddress, string signature)
     {
         // Validate the signature using HMACSHA256 with the server secret
-        using (var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(Config.Default.ServerSecret)))
+        using (var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(Config.Default.SmartXchain)))
         {
             var computedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(nodeAddress));
             var computedSignature = Convert.ToBase64String(computedHash);
@@ -453,27 +499,13 @@ public class BlockchainServer
         _blockchain.AddTransaction(transaction);
 
         // Mine a new block after adding the transaction
-        var newBlock = _blockchain.MinePendingTransactions(GetMinerAddress());
+        var newBlock = _blockchain.MinePendingTransactions(Config.Default.MinerAddress);
         BroadcastToPeers("NewBlock:" + JsonSerializer.Serialize(newBlock));
 
         Console.WriteLine("Transaction added and new block mined.");
         return true;
     }
 
-    private string GetMinerAddress()
-    {
-        var minerAddress = Config.Default.MinerAddress;
-
-        if (string.IsNullOrEmpty(minerAddress))
-        {
-            var newWallet = TrustWalletCompatibleWallet.GenerateWallet();
-            minerAddress = newWallet.Item1.First();
-            Config.Default.SetMinerAddress(minerAddress, newWallet.Item3);
-            Console.WriteLine("New miner address generated and saved.");
-        }
-
-        return minerAddress;
-    }
 
     private bool IsChainCurrent()
     {
