@@ -1,0 +1,13 @@
+[Config]
+Port=5555 
+IP=auto
+Debug=true
+
+[Miner]
+SmartXchain = {3683DDE3-C2D3-4565-8E1C-50C8E0E2AAC2}
+
+[Peers]
+tcp://netregservice.com:5555
+#tcp://netregservice.com:5556 
+#tcp://localhost:5555 
+#tcp://192.168.1.78:5555
