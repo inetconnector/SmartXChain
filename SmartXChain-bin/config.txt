@@ -5,6 +5,8 @@ Debug=true
 
 [Miner]
 SmartXchain = {3683DDE3-C2D3-4565-8E1C-50C8E0E2AAC2}
+MinerAddress=smartX11FaA63F871d7999e2B3b3B30f9Db5A839e67CA9
+Mnemonic=zone never long daughter flower lobster option glove bicycle stairs vivid blush
 
 [Peers]
 tcp://netregservice.com:5555

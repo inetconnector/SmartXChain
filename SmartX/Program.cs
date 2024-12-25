@@ -1,5 +1,11 @@
-using BlockchainProject.Utils;
-using BlockchainProject.Validators;
+using SmartXChain;
+using SmartXChain.BlockchainCore;
+using SmartXChain.Contracts;
+using SmartXChain.Server;
+using SmartXChain.Utils;
+using SmartXChain.Validators;
+
+namespace SmartX;
 
 internal class Program
 {
@@ -15,8 +21,7 @@ internal class Program
 
         var result = await BlockchainServer.StartServerAsync();
         var blockchainServer = result.Item1;
-        var startupResult = result.Item2;
-
+        var node = result.Item2;
 
         //show menu
         Console.WriteLine(
@@ -34,22 +39,21 @@ internal class Program
                 token.Transfer(wallet1Addresses[0], wallet1Addresses[1], 100);
                 token.Transfer(wallet1Addresses[1], wallet1Addresses[2], 50);
 
-                // Serialisierung in Base64
+                // Serialization to Base64
                 var serializedData = Serializer.SerializeToBase64(token);
 
-
-                // Deserialisierung aus Base64
+                // Deserialization from Base64
                 var deserializedToken = Serializer.DeserializeFromBase64<ERC20Token>(serializedData);
+               
+                // Transfer after serialization
                 deserializedToken.Transfer(wallet1Addresses[2], wallet1Addresses[3], 25);
-
-                // Ausgabe der deserialisierten Daten
+                 
                 Console.WriteLine("\nDeserialized Token:");
                 Console.WriteLine($"Name: {deserializedToken.Name}");
                 Console.WriteLine($"Symbol: {deserializedToken.Symbol}");
                 Console.WriteLine($"Decimals: {deserializedToken.Decimals}");
                 Console.WriteLine($"Total Supply: {deserializedToken.TotalSupply}");
-
-                // Beispiel für Zugriff auf Balances und Allowances
+                 
                 Console.WriteLine("\nBalances:");
                 foreach (var balance in deserializedToken.GetBalances)
                     Console.WriteLine($"{balance.Key}: {balance.Value}");
@@ -66,8 +70,6 @@ internal class Program
                 var wallet1Addresses = SmartXWallet.LoadWalletAdresses();
                 var wallet2Addresses = SmartXWallet.LoadWalletAdresses();
 
-                var node = await BlockchainServer.StartNode(wallet1Addresses[0]);
-
                 await ERC20Example(wallet1Addresses[0], wallet1Addresses, node.Consensus, node.Blockchain);
 
                 await GoldCoinExample(wallet1Addresses[0], wallet1Addresses, wallet2Addresses, node.Consensus,
@@ -78,7 +80,7 @@ internal class Program
                 var chain = node.Blockchain.Chain;
                 foreach (var block in chain)
                     Console.WriteLine($"Block {chain.IndexOf(block)}: {block.Hash}");
-            } 
+            }
             else if (mode == '3')
             {
                 break;
@@ -88,7 +90,8 @@ internal class Program
                 Console.WriteLine("\nInvalid mode.");
             }
         }
-    } 
+    }
+
     private static async Task ERC20Example(string ownerAddress, List<string> walletAddresses,
         SnowmanConsensus consensus,
         Blockchain blockchain)
@@ -186,7 +189,7 @@ internal class Program
         result = await ExecuteSmartContract(blockchain, contract, transferFromInputs);
 
         Console.WriteLine("\nGoldCoin Smart Contract finished");
-    } 
+    }
 
     private static async Task<(string result, string updatedSerializedState)> ExecuteSmartContract(
         Blockchain blockchain, SmartContract contract, string[] inputs, bool debug = false)
@@ -205,7 +208,7 @@ internal class Program
             // Deserialize the contract state and extract balances
             var stateBase64 = result.updatedSerializedState;
 
-            if (contract.Name== "SmartXchain")
+            if (contract.Name == "SmartXchain")
             {
                 var deserializedState = Serializer.DeserializeFromBase64<ERC20Token>(stateBase64);
                 if (debug)
@@ -218,14 +221,13 @@ internal class Program
                 if (debug)
                     foreach (var balance in deserializedState.GetBalances)
                         Console.WriteLine($"balance: {balance.Key}: {balance.Value}");
-            } 
+            }
         }
         catch (Exception e)
         {
-            Console.WriteLine($"error: {result}");
+            Console.WriteLine($"error: {result} {e.Message}");
         }
 
         return result;
     }
-
 }

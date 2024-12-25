@@ -42,7 +42,7 @@ public class Node
 
         // Step 1: Query primary discovery servers
         var discoveredServers = node.DiscoverServers(peers);
-
+         
 
         // Step 2: If no servers were found, start a loop to wait for servers
         if (discoveredServers.Count == 0)
@@ -82,7 +82,7 @@ public class Node
                         await node.SendHeartbeatAsync(server);
                         await CheckBlockchainSize(server);
                     }
-
+              
                     Thread.Sleep(20000); // Heartbeat interval
                 }
                 catch (Exception ex)
@@ -127,7 +127,7 @@ public class Node
 
     private static async Task CheckBlockchainSize(string server)
     {
-        if (StartupResult != null && StartupResult.Blockchain != null)
+        if (StartupResult!=null && StartupResult.Blockchain != null)
         {
             Console.WriteLine("CheckBlockchainSize...");
             var newchain = await UpdateBlockchain(StartupResult.Blockchain, StartupResult.Node, StartupResult.Consensus);
@@ -135,7 +135,7 @@ public class Node
             {
                 StartupResult.Blockchain = newchain;
             }
-        }
+        } 
     }
     private static async Task<Blockchain?> UpdateBlockchain(Blockchain blockchain, Node node, SnowmanConsensus consensus)
     {
@@ -245,7 +245,7 @@ public class Node
         foreach (var serverAddress in discoveryServers)
             try
             {
-                if (serverAddress.Contains(NetworkUtils.IP))
+                if (serverAddress.Contains(NetworkUtils.IP)) 
                     continue;
 
                 var response = await SocketManager.GetInstance(serverAddress).SendMessageAsync("GetNodes");
@@ -257,7 +257,7 @@ public class Node
                             continue;
                         await RegisterWithServerAsync(activeServer);
                     }
-
+                    
                     else
                         Console.WriteLine($"Error: no nodes from server {serverAddress}");
             }
