@@ -215,40 +215,52 @@ internal class Program
     private static async Task<(string result, string updatedSerializedState)> ExecuteSmartContract(
         Blockchain blockchain, SmartContract contract, string[] inputs, bool debug = false)
     {
-        var result = await blockchain.ExecuteSmartContract(contract.Name, inputs);
+        (string result, string updatedSerializedState) executionResult = (null, null);
+
         try
         {
-            // Show Balances (assuming balances are part of the contract's output)
+            // Execute the smart contract
+            executionResult = await blockchain.ExecuteSmartContract(contract.Name, inputs);
+
             if (debug)
             {
                 Console.WriteLine("Smart Contract Execution Completed.");
-                Console.WriteLine("Result:");
-                Console.WriteLine(result);
+                Console.WriteLine("Execution Result:");
+                Console.WriteLine($"Result: {executionResult.result}");
             }
 
-            // Deserialize the contract state and extract balances
-            var stateBase64 = result.updatedSerializedState;
+            // Deserialize the contract state and extract balances if applicable
+            var stateBase64 = executionResult.updatedSerializedState;
 
             if (contract.Name == "SmartXchain")
             {
                 var deserializedState = Serializer.DeserializeFromBase64<ERC20Token>(stateBase64);
                 if (debug)
                     foreach (var balance in deserializedState.GetBalances)
-                        Console.WriteLine($"balance: {balance.Key}: {balance.Value}");
+                        Console.WriteLine($"Balance: {balance.Key}: {balance.Value}");
             }
             else if (contract.Name == "GoldCoin")
             {
                 var deserializedState = Serializer.DeserializeFromBase64<GoldCoin>(stateBase64);
                 if (debug)
                     foreach (var balance in deserializedState.GetBalances)
-                        Console.WriteLine($"balance: {balance.Key}: {balance.Value}");
+                        Console.WriteLine($"Balance: {balance.Key}: {balance.Value}");
             }
         }
         catch (Exception e)
         {
-            Console.WriteLine($"error: {result} {e.Message}");
+            // Adjust error logging logic
+            if (!string.IsNullOrEmpty(executionResult.result) || !string.IsNullOrEmpty(executionResult.updatedSerializedState))
+            {
+                Console.WriteLine($"Error: {executionResult.result} {e.Message}");
+            }
+            else
+            {
+                Console.WriteLine($"Error: {e.Message}");
+            }
         }
 
-        return result;
+        return executionResult;
     }
+
 }
