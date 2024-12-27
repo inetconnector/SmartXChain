@@ -1,6 +1,6 @@
-﻿using System.Text.Json.Serialization;
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
 
 public class ERC20Token
 {
@@ -78,7 +78,7 @@ public class ERC20Token
     }
 
     private bool IsValidAddress(string address)
-    { 
+    {
         return !string.IsNullOrWhiteSpace(address) && address.Length >= 5 && address.StartsWith("smartX");
     }
 

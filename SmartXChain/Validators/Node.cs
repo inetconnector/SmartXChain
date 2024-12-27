@@ -1,7 +1,6 @@
 ﻿using System.Net;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Server;
 using SmartXChain.Utils;
@@ -11,15 +10,16 @@ namespace SmartXChain.Validators;
 public class Node
 {
     public static List<string> CurrentNodeIPs = new();
-    public string ChainId { get; }
-    public string NodeAddress { get; }
-    public static BlockchainServer.NodeStartupResult StartupResult { get; set; }
 
     public Node(string nodeAddress, string chainId)
     {
         NodeAddress = nodeAddress;
         ChainId = chainId;
     }
+
+    public string ChainId { get; }
+    public string NodeAddress { get; }
+    public  BlockchainServer.NodeStartupResult StartupResult { get; set; }
 
     public static async Task<Node> Start(bool localRegistrationServer = false)
     {
@@ -80,7 +80,7 @@ public class Node
                     foreach (var server in discoveredServers)
                     {
                         await node.SendHeartbeatAsync(server);
-                        await CheckBlockchainSize(server);
+                        await node.CheckBlockchainSize(server);
                     }
 
                     Thread.Sleep(20000); // Heartbeat interval
@@ -125,85 +125,109 @@ public class Node
         return node;
     }
 
-    private static async Task CheckBlockchainSize(string server)
+    private async Task CheckBlockchainSize(string server)
     {
         if (StartupResult != null && StartupResult.Blockchain != null)
         {
             Console.WriteLine("CheckBlockchainSize...");
-            var newchain = await UpdateBlockchain(StartupResult.Blockchain, StartupResult.Node, StartupResult.Consensus);
-            if (newchain != null)
-            {
-                StartupResult.Blockchain = newchain;
-            }
+            var newchain =
+                await UpdateBlockchain(StartupResult.Blockchain, StartupResult.Node, StartupResult.Consensus);
+            if (newchain != null) StartupResult.Blockchain = newchain;
         }
     }
+
     private static async Task<Blockchain?> UpdateBlockchain(Blockchain blockchain, Node node, SnowmanConsensus consensus)
     {
         Blockchain newChain = null;
-        var cnt = StartupResult.Blockchain.Chain.Count;
-        var blockchainSizeResponse = await SocketManager.GetInstance(node.NodeAddress)
-            .SendMessageAsync("GetBlockCount:" + cnt);
+        var currentBlockCount = blockchain.Chain.Count;
 
-        if (int.TryParse(blockchainSizeResponse, out var remoteBlockCount))
+        try
         {
-            Console.WriteLine($"Server blockchain {remoteBlockCount} Local chain: {blockchain.Chain.Count}).");
-
-            if (remoteBlockCount > blockchain.Chain.Count)
+            foreach (var remoteNode in Node.CurrentNodeIPs)
             {
-                Console.WriteLine($"Server blockchain is larger ({remoteBlockCount} > {blockchain.Chain.Count}). Syncing...");
+                // 1. Anfrage: Größe der entfernten Blockchain abrufen
+                var blockchainSizeResponse = await SocketManager.GetInstance(remoteNode)
+                    .SendMessageAsync("GetBlockCount:" + currentBlockCount);
 
+                if (!int.TryParse(blockchainSizeResponse, out var remoteBlockCount))
+                {
+                    Console.WriteLine($"Invalid blockchain size response from node {remoteNode}.");
+                    continue;
+                }
+
+                Console.WriteLine($"Node {remoteNode} blockchain: {remoteBlockCount}, Local blockchain: {currentBlockCount}.");
+
+                if (remoteBlockCount <= currentBlockCount)
+                {
+                    Console.WriteLine($"Local blockchain is already up to date with node {remoteNode}.");
+                    continue;
+                }
+
+                Console.WriteLine($"Node {remoteNode} blockchain is larger. Starting synchronization...");
+
+                // 2. Temporäre Datei erstellen
                 var tmpFile = Path.GetTempFileName();
 
                 try
                 {
                     using (var fileStream = new FileStream(tmpFile, FileMode.Create, FileAccess.Write))
                     {
+                        // 3. Blockchain in Chunks abrufen
                         while (true)
                         {
-                            // Receive the next chunk from the server
-                            var chunkResponse = await SocketManager.GetInstance(node.NodeAddress).SendMessageAsync("GetChain");
+                            var chunkResponse = await SocketManager.GetInstance(remoteNode)
+                                .SendMessageAsync("GetChain");
 
-                            // Check if the "END" signal is received
                             if (chunkResponse == "END")
                             {
-                                Console.WriteLine("Received all chunks from server.");
+                                Console.WriteLine($"Received all chunks from node {remoteNode}.");
                                 break;
                             }
 
-                            // Split the response to remove assembly fingerprint and get the chunk data
+                            // Chunk-Daten verarbeiten
                             var chunkData = chunkResponse.Split('#', 2);
-                            if (chunkData.Length == 2)
+                            if (chunkData.Length != 2)
+                            {
+                                Console.WriteLine($"Invalid chunk format received from node {remoteNode}.");
+                                continue;
+                            }
+
+                            try
                             {
                                 var base64Data = chunkData[1];
-
-                                // Decode the Base64 encoded chunk to get the original data
                                 var chunkBytes = Convert.FromBase64String(base64Data);
-
-                                // Write the decoded chunk to the temporary file
                                 await fileStream.WriteAsync(chunkBytes, 0, chunkBytes.Length);
+                            }
+                            catch (FormatException)
+                            {
+                                Console.WriteLine($"Failed to decode chunk data from node {remoteNode}. Skipping...");
                             }
                         }
                     }
 
-                    // Load the blockchain from the temporary file
+                    // 4. Blockchain laden und validieren
                     var updatedBlockchain = Blockchain.Load(tmpFile, consensus);
-                    if (updatedBlockchain != null && updatedBlockchain.IsValid())
+                    if (updatedBlockchain == null || !updatedBlockchain.IsValid())
                     {
-                        newChain = updatedBlockchain;
-                        Console.WriteLine("Blockchain updated from server.");
+                        Console.WriteLine($"Failed to load or validate the updated blockchain from node {remoteNode}.");
+                        continue;
                     }
-                    else
+
+                    // 5. Konfliktlösung (z. B. gleiche Länge, aber andere Chains)
+                    if (updatedBlockchain.Chain.Count == blockchain.Chain.Count &&
+                        !updatedBlockchain.Chain.SequenceEqual(blockchain.Chain))
                     {
-                        Console.WriteLine("Received blockchain is invalid or deserialization failed.");
+                        Console.WriteLine($"Conflict detected: Chains of equal length but different content from node {remoteNode}.");
+                        continue;
                     }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error while syncing blockchain: {ex.Message}");
+
+                    Console.WriteLine($"Blockchain successfully updated from node {remoteNode}.");
+                    newChain = updatedBlockchain;
+                    break;
                 }
                 finally
                 {
-                    // Ensure the temporary file is deleted after use
+                    // Temporäre Datei löschen
                     if (File.Exists(tmpFile))
                     {
                         File.Delete(tmpFile);
@@ -211,13 +235,14 @@ public class Node
                 }
             }
         }
-        else
+        catch (Exception ex)
         {
-            Console.WriteLine("Failed to retrieve blockchain size from server.");
+            Console.WriteLine($"Error during blockchain synchronization: {ex.Message}");
         }
 
         return newChain;
     }
+
 
     public async Task<(bool, string)> SendVoteRequestAsync(string targetValidator, Block block)
     {
@@ -259,7 +284,9 @@ public class Node
                     }
 
                     else
+                    {
                         Console.WriteLine($"Error: no nodes from server {serverAddress}");
+                    }
             }
             catch (Exception ex)
             {
@@ -332,6 +359,7 @@ public class Node
             Console.WriteLine($"Error sending heartbeat to {serverAddress}: {ex.Message}");
         }
     }
+
     public List<string> DiscoverServers(List<string> staticServers)
     {
         try
@@ -379,5 +407,4 @@ public class Node
         // Console.WriteLine("Falling back to static discovery servers.");
         return staticServers;
     }
-
 }

@@ -8,13 +8,6 @@ public class Transaction
 {
     private string _data;
     private string _info;
-    private static Dictionary<string, Dictionary<string, double>> Allowances { get; set; } = new Dictionary<string, Dictionary<string, double>>();
-    private static Dictionary<string, string> AuthenticatedUsers { get; set; } = new Dictionary<string, string>();
-    public static Dictionary<string, double> Balances
-    {
-        get;
-        private set;
-    } = new Dictionary<string, double>();
 
     public Transaction()
     {
@@ -26,14 +19,16 @@ public class Transaction
         TotalSupply = initialSupply;
 
         // Assign initial supply to the owner's balance
-        if (!Balances.ContainsKey(owner))
-        {
-            Balances.Add(owner, initialSupply);
-        }
+        if (!Balances.ContainsKey(owner)) Balances.Add(owner, initialSupply);
 
         Version = "1.0.0";
         TransactionDate = DateTime.UtcNow;
     }
+
+    private static Dictionary<string, Dictionary<string, double>> Allowances { get; set; } = new();
+    private static Dictionary<string, string> AuthenticatedUsers { get; } = new();
+
+    public static Dictionary<string, double> Balances { get; } = new();
 
     public string Sender { get; set; } // The address of the sender
     public string Recipient { get; set; } // The address of the recipient

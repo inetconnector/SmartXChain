@@ -20,7 +20,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Compile Remove="Miner.cs" />
+		<Compile Remove="Miner.cs" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -42,13 +42,13 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\SmartXChain\SmartXChain.csproj" />
+		<ProjectReference Include="..\SmartXChain\SmartXChain.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Compile Update="Examples\GoldCoin.cs">
-	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-	  </Compile>
+		<Compile Update="Examples\GoldCoin.cs">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</Compile>
 	</ItemGroup>
 
 </Project>

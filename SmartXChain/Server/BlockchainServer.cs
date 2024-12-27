@@ -71,13 +71,13 @@ public class BlockchainServer
         var consensus = new SnowmanConsensus(10, node);
 
         // Create blockchain
-        var blockchain = new Blockchain(2,   walletAddress, consensus);
+        var blockchain = new Blockchain(2, walletAddress, consensus);
 
         // Publish server IP
         var nodeTransaction = new Transaction
         {
             Sender = Blockchain.SystemAddress,
-            Recipient = Blockchain.SystemAddress, 
+            Recipient = Blockchain.SystemAddress,
             Data = Convert.ToBase64String(Encoding.ASCII.GetBytes(NetworkUtils.IP)), // Store data as Base64 string
             Timestamp = DateTime.UtcNow
         };
@@ -145,6 +145,7 @@ public class BlockchainServer
             while (true)
             {
                 var message = "";
+                var responseSent = false;
                 try
                 {
                     message = server.ReceiveFrameString();
@@ -155,21 +156,31 @@ public class BlockchainServer
                             var response = "Invalid fingerprint detected";
                             Console.WriteLine($"{response} Dropping message '{message}'");
                             server.SendFrame(response);
+                            responseSent = true;
                             continue;
                         }
 
                         // Remove fingerprint and handle message
                         var strippedMessage = RemoveFingerprint(message);
+
                         Console.WriteLine($"Received message: {strippedMessage}");
 
                         ProcessMessage(strippedMessage, server);
+                        responseSent = true;
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error processing message '{message}'\n{ex.Message}");
-                    server.Close();
-                    break;
+                    Console.WriteLine($"Error processing message {message}\n{ex.Message}\n{ex.StackTrace}");
+                    if (!responseSent)
+                        try
+                        {
+                            server.SendFrame("ERROR: " + ex.Message);
+                        }
+                        catch (Exception sendEx)
+                        {
+                            Console.WriteLine($"Failed to send error response: {sendEx.Message}");
+                        }
                 }
             }
         }
@@ -308,7 +319,7 @@ public class BlockchainServer
             if (block != null)
             {
                 var hash = block.Hash;
-                if (block.CalculateHash() == hash) return "ok#"+ Config.Default.MinerAddress;
+                if (block.CalculateHash() == hash) return "ok#" + Config.Default.MinerAddress;
             }
         }
         catch (Exception e)
@@ -352,11 +363,11 @@ public class BlockchainServer
             Console.WriteLine("Invalid node address in heartbeat received.");
             return;
         }
-         
+
         var now = DateTime.UtcNow;
         _registeredNodes[nodeAddress] = now;
         Console.WriteLine($"Heartbeat {nodeAddress} - {now} (HandleHeartbeat)");
-         
+
         CleanupResources();
     }
 
@@ -479,6 +490,7 @@ public class BlockchainServer
         Console.WriteLine("Incoming chain is invalid or not longer.");
         return false;
     }
+
     private async Task PushChain(ResponseSocket server)
     {
         var tmpFile = Path.GetTempFileName();
@@ -508,7 +520,7 @@ public class BlockchainServer
 
         await Task.Run(() => server.SendFrame(Crypt.AssemblyFingerprint + "#" + "END"));
         Console.WriteLine("Finished sending blockchain file in chunks.");
-    } 
+    }
 
     public bool AddTransaction(Transaction transaction)
     {

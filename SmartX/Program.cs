@@ -18,10 +18,11 @@ internal class Program
             SmartXWallet.GenerateWallet();
             Config.Default.ReloadConfig();
         }
+
         if (string.IsNullOrEmpty(Config.Default.PublicKey))
             Config.Default.GenerateServerKeys();
 
-     var result = await BlockchainServer.StartServerAsync();
+        var result = await BlockchainServer.StartServerAsync();
         var blockchainServer = result.Item1;
         var node = result.Item2;
 
@@ -37,7 +38,7 @@ internal class Program
                 var wallet1Addresses = SmartXWallet.LoadWalletAdresses();
 
                 // Coin class tester 
-                var seed=File.ReadAllText("seed.txt");
+                var seed = File.ReadAllText("seed.txt");
                 var token = new ERC20Token("SmartXchain", "SXC", 18, 1000000000, wallet1Addresses[0]);
 
                 token.RegisterUser(wallet1Addresses[0], seed);
@@ -49,16 +50,16 @@ internal class Program
 
                 // Deserialization from Base64
                 var deserializedToken = Serializer.DeserializeFromBase64<ERC20Token>(serializedData);
-               
+
                 // Transfer after serialization
                 deserializedToken.Transfer(wallet1Addresses[2], wallet1Addresses[3], 25, File.ReadAllText("seed.txt"));
-                 
+
                 Console.WriteLine("\nDeserialized Token:");
                 Console.WriteLine($"Name: {deserializedToken.Name}");
                 Console.WriteLine($"Symbol: {deserializedToken.Symbol}");
                 Console.WriteLine($"Decimals: {deserializedToken.Decimals}");
                 Console.WriteLine($"Total Supply: {deserializedToken.TotalSupply}");
-                 
+
                 Console.WriteLine("\nBalances:");
                 foreach (var balance in deserializedToken.GetBalances)
                     Console.WriteLine($"{balance.Key}: {balance.Value}");
@@ -92,11 +93,8 @@ internal class Program
                 var blockchain = node.Blockchain;
                 var balances = blockchain.GetAllBalancesFromChain();
 
-                foreach (var (address, balance) in balances)
-                {
-                    Console.WriteLine($"{address}: {balance}");
-                }
-            }            
+                foreach (var (address, balance) in balances) Console.WriteLine($"{address}: {balance}");
+            }
             else if (mode == '4')
             {
                 break;
@@ -114,7 +112,7 @@ internal class Program
     {
         // Add the smart contract \Examples\ERC20.cs to the blockchain
         var contractFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Examples", "ERC20.cs");
-        var contractCode = File.ReadAllText(contractFile); 
+        var contractCode = File.ReadAllText(contractFile);
         var contract = await SmartContract.Create("SmartXchain", blockchain, ownerAddress, contractCode);
 
         // Mint and execute the smart contract
@@ -250,17 +248,13 @@ internal class Program
         catch (Exception e)
         {
             // Adjust error logging logic
-            if (!string.IsNullOrEmpty(executionResult.result) || !string.IsNullOrEmpty(executionResult.updatedSerializedState))
-            {
+            if (!string.IsNullOrEmpty(executionResult.result) ||
+                !string.IsNullOrEmpty(executionResult.updatedSerializedState))
                 Console.WriteLine($"Error: {executionResult.result} {e.Message}");
-            }
             else
-            {
                 Console.WriteLine($"Error: {e.Message}");
-            }
         }
 
         return executionResult;
     }
-
 }

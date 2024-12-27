@@ -1,9 +1,6 @@
-using System.ComponentModel;
-using System.Resources;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using Org.BouncyCastle.Cms;
 using SmartXChain.Contracts;
 using SmartXChain.Utils;
 using SmartXChain.Validators;
@@ -19,18 +16,18 @@ public class Blockchain
 
     [JsonInclude] private readonly int _difficulty;
     private readonly object _pendingTransactionsLock = new();
-     
+
 
     /// <summary>
     ///     Start blockchain and sign blocks with privateKey and receive reward at miner address
-    /// </summary> 
+    /// </summary>
     public Blockchain(int difficulty, string minerAdress, SnowmanConsensus consensus)
     {
         Chain = new List<Block>();
         PendingTransactions = new List<Transaction>();
         SmartContracts = new List<SmartContract>();
         _contractStates = new Dictionary<string, string>();
-        _difficulty = difficulty; 
+        _difficulty = difficulty;
 
         MinerAdress = minerAdress;
         _consensus = consensus;
@@ -46,7 +43,7 @@ public class Blockchain
 
     [JsonInclude] public List<SmartContract> SmartContracts { get; private set; }
     public static double CurrentNetworkLoad { get; set; } = .5d;
-     
+
 
     private Block CreateGenesisBlock()
     {
@@ -237,6 +234,7 @@ public class Blockchain
         await WriteContractStateToBlockchain(contract, newState);
         return newState;
     }
+
     public async Task MinePendingTransactions(string minerAddress)
     {
         while (Node.CurrentNodeIPs.Count == 0) Thread.Sleep(10);
@@ -266,7 +264,7 @@ public class Blockchain
                 Console.WriteLine("Block added to chain successfully: " + block.Hash);
             }
 
-            var rewardTransaction = new RewardTransaction(Config.Default.MinerAddress); 
+            var rewardTransaction = new RewardTransaction(Config.Default.MinerAddress);
 
             AddTransaction(rewardTransaction);
             Console.WriteLine($"Miner reward: Reward {rewardTransaction.Reward} to miner {minerAddress}");
@@ -275,12 +273,12 @@ public class Blockchain
             {
                 if (address == minerAddress)
                     continue;
-                
-                rewardTransaction = new RewardTransaction(address,true);
+
+                rewardTransaction = new RewardTransaction(address, true);
                 AddTransaction(rewardTransaction);
                 Console.WriteLine($"Validator reward: Reward {rewardTransaction.Reward} to validator {address}");
             }
-         
+
             //// Pay Validators
             //var contract = await SmartContract.Create("SmartXchain", this, SystemAddress, Properties.Resources.ERC20);
 
@@ -305,7 +303,7 @@ public class Blockchain
             Console.WriteLine("Block rejected");
         }
     }
-         
+
     public async Task<bool> ReachCodeConsensus(SmartContract contract)
     {
         try
@@ -408,6 +406,7 @@ public class Blockchain
             throw;
         }
     }
+
     public Dictionary<string, double> GetAllBalancesFromChain()
     {
         var balances = new Dictionary<string, double>();
@@ -422,10 +421,8 @@ public class Blockchain
                 var sortedTransactions = block.Transactions.OrderByDescending(transaction => transaction.Timestamp);
 
                 foreach (var (address, balance) in Transaction.Balances)
-                {
                     if (!balances.ContainsKey(address))
                         balances[address] = balance; // Aggregate balances
-                }
             }
         }
         catch (Exception e)
@@ -448,7 +445,7 @@ public class Blockchain
             var root = jsonDocument.RootElement;
 
             // manual initialization
-            var difficulty = root.GetProperty("_difficulty").GetInt32(); 
+            var difficulty = root.GetProperty("_difficulty").GetInt32();
             var minerAddress = root.GetProperty("MinerAdress").GetString();
 
             var blockchain = new Blockchain(difficulty, minerAddress, consensus);

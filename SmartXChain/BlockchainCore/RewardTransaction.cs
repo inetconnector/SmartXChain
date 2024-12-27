@@ -1,9 +1,10 @@
 using SmartXChain.Utils;
 
 namespace SmartXChain.BlockchainCore;
+
 public class RewardTransaction : Transaction
 {
-    internal RewardTransaction(string recipient, bool validator=false, string sender = Blockchain.SystemAddress)
+    internal RewardTransaction(string recipient, bool validator = false, string sender = Blockchain.SystemAddress)
     {
         Sender = sender;
         if (Balances.Count < 50000 && Sender == Blockchain.SystemAddress)
@@ -13,19 +14,11 @@ public class RewardTransaction : Transaction
             var minerReward = calculator.CalculateMinerReward(Balances.Count, Config.Default.MinerAddress);
             var validatorReward = calculator.CalculateValidatorReward(Balances.Count);
             if (validator)
-            {
                 reward = validatorReward;
-               
-            }
             else
-            {
-                reward = minerReward + reward; 
-            }
+                reward = minerReward + reward;
 
-            if (Transfer(Blockchain.SystemAddress, recipient, reward))
-            {
-                Reward=reward;
-            }
+            if (Transfer(Blockchain.SystemAddress, recipient, reward)) Reward = reward;
         }
     }
 

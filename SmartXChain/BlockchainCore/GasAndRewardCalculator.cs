@@ -1,6 +1,4 @@
-﻿using SmartXChain.Utils;
-
-namespace SmartXChain.BlockchainCore;
+﻿namespace SmartXChain.BlockchainCore;
 
 public class GasAndRewardCalculator
 {
@@ -30,13 +28,8 @@ public class GasAndRewardCalculator
         Gas = BaseGasTransaction + (dataLength + infoLength) * GasPerCharacter / GasFactor;
 
         if (Blockchain.CurrentNetworkLoad > 0.75)
-        {
             Gas = (int)(Gas * 1.2);
-        }
-        else if (Blockchain.CurrentNetworkLoad < 0.25)
-        {
-            Gas = (int)(Gas * 0.8);
-        }
+        else if (Blockchain.CurrentNetworkLoad < 0.25) Gas = (int)(Gas * 0.8);
     }
 
     public void CalculateGasForContract()
@@ -46,27 +39,16 @@ public class GasAndRewardCalculator
 
         Gas = BaseGasContract + dataLength * GasPerCharacter / GasFactor;
 
-        if (dataLength > 1000)
-        {
-            Gas = (int)(Gas * 1.5);
-        }
+        if (dataLength > 1000) Gas = (int)(Gas * 1.5);
 
         if (Blockchain.CurrentNetworkLoad > 0.75)
-        {
             Gas = (int)(Gas * 1.2);
-        }
-        else if (Blockchain.CurrentNetworkLoad < 0.25)
-        {
-            Gas = (int)(Gas * 0.8);
-        }
+        else if (Blockchain.CurrentNetworkLoad < 0.25) Gas = (int)(Gas * 0.8);
     }
 
     public double CalculateMinerReward(int walletCount, string address)
     {
-        if (Transaction.Balances.ContainsKey(address) && Transaction.Balances[address] == 0)
-        {
-            return MinerInitialReward;
-        }
+        if (Transaction.Balances.ContainsKey(address) && Transaction.Balances[address] == 0) return MinerInitialReward;
 
         var reward = MinerInitialReward * Math.Pow(MinerDecayFactor, walletCount);
         return Math.Max(reward, MinerMinimumReward);
