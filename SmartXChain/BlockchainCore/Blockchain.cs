@@ -1,6 +1,9 @@
+using System.ComponentModel;
+using System.Resources;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using Org.BouncyCastle.Cms;
 using SmartXChain.Contracts;
 using SmartXChain.Utils;
 using SmartXChain.Validators;
@@ -17,21 +20,13 @@ public class Blockchain
     [JsonInclude] private readonly int _difficulty;
     private readonly object _pendingTransactionsLock = new();
 
-    [JsonInclude] private readonly decimal _reward;
-
-    [JsonInclude] private readonly decimal _reward_validator;
-
-    [JsonInclude] private readonly List<string> _validators;
-
+    [JsonInclude] private readonly double _reward;
+     
 
     /// <summary>
     ///     Start blockchain and sign blocks with privateKey and receive reward at miner address
-    /// </summary>
-    /// <param name="difficulty"></param>
-    /// <param name="reward"></param>
-    /// <param name="minerAdress"></param>
-    /// <param name="privateKey"></param>
-    public Blockchain(int difficulty, decimal reward, string minerAdress, SnowmanConsensus consensus)
+    /// </summary> 
+    public Blockchain(int difficulty, double reward, string minerAdress, SnowmanConsensus consensus)
     {
         Chain = new List<Block>();
         PendingTransactions = new List<Transaction>();
@@ -53,6 +48,7 @@ public class Blockchain
     [JsonInclude] public List<Transaction> PendingTransactions { get; private set; }
 
     [JsonInclude] public List<SmartContract> SmartContracts { get; private set; }
+    public static int GasFactor { get; private set; } = 1000;
 
     private Block CreateGenesisBlock()
     {
@@ -67,9 +63,9 @@ public class Blockchain
         return true;
     }
 
-    private void PayGas(string type, string payer, int gas)
+    private static void PayGas(string type, string payer, int gas)
     {
-        if (gas > 0)
+        if (gas > 0 && payer != SystemAddress)
         {
             Console.ForegroundColor = ConsoleColor.Gray;
             Console.WriteLine($"[Gas] {payer} has to pay {gas} for {type}");
@@ -152,7 +148,7 @@ public class Blockchain
             var (result, updatedSerializedState) = await contract.Execute(ModifyInput(inputs), currentSerializedState);
 
             // Serialize updated state back to the blockchain
-            if (result == "Ok")
+            if (result == "ok")
                 await WriteContractStateToBlockchain(contract, updatedSerializedState);
 
             Console.WriteLine($"Smart Contract {contractName} Result: {result}");
@@ -212,7 +208,6 @@ public class Blockchain
         {
             Sender = contract.Owner,
             Recipient = SystemAddress,
-            Amount = 0, // No monetary value, just storing state
             Data = Convert.ToBase64String(compressedState), // Store compressed data as Base64 string
             Timestamp = DateTime.UtcNow,
             Info = "$" + contract.Name
@@ -220,7 +215,7 @@ public class Blockchain
 
         // Add the transaction to pending transactions
         AddTransaction(stateTransaction);
-        await MinePendingTransactions(MinerAdress, false);
+        await MinePendingTransactions(MinerAdress);
         Console.WriteLine($"State for contract '{contract.Name}' added to pending transactions.");
     }
 
@@ -236,7 +231,7 @@ public class Blockchain
                     return Compress.DecompressString(compressedState);
                 }
 
-        await MinePendingTransactions(MinerAdress, false);
+        await MinePendingTransactions(MinerAdress);
 
         Console.WriteLine(
             $"No state found for contract '{contract.Name}', initializing new state. Adding contract state to blockchain");
@@ -244,8 +239,7 @@ public class Blockchain
         await WriteContractStateToBlockchain(contract, newState);
         return newState;
     }
-
-    public async Task MinePendingTransactions(string minerAddress, bool reward = true)
+    public async Task MinePendingTransactions(string minerAddress)
     {
         while (Node.CurrentNodeIPs.Count == 0) Thread.Sleep(10);
 
@@ -265,7 +259,7 @@ public class Blockchain
 
         var block = new Block(DateTime.Now, transactionsToMine, Chain.Last().Hash);
 
-        var consensusReached = await _consensus.ReachConsensus(block);
+        var (consensusReached, rewardAddresses) = await _consensus.ReachConsensus(block);
         if (consensusReached)
         {
             if (ValidateChain())
@@ -274,44 +268,46 @@ public class Blockchain
                 Console.WriteLine("Block added to chain successfully: " + block.Hash);
             }
 
-            if (reward)
+            var rewardTransaction = new RewardTransaction(Config.Default.MinerAddress, _reward); 
+
+            AddTransaction(rewardTransaction);
+            Console.WriteLine($"Miner reward: Reward {_reward} to miner {minerAddress}");
+
+            foreach (var address in rewardAddresses)
             {
-                var rewardTransaction = new Transaction
-                {
-                    Sender = SystemAddress,
-                    Recipient = minerAddress,
-                    Amount = _reward,
-                    Timestamp = DateTime.UtcNow
-                };
-
+                if (address == minerAddress)
+                    continue;
+                
+                rewardTransaction = new RewardTransaction(address, _reward);
                 AddTransaction(rewardTransaction);
-                Console.WriteLine($"Miner reward: reward to {minerAddress}");
-
-                foreach (var address in _validators)
-                {
-                    if (address == minerAddress)
-                        continue;
-
-                    rewardTransaction = new Transaction
-                    {
-                        Sender = SystemAddress,
-                        Recipient = address,
-                        Amount = _reward,
-                        Timestamp = DateTime.UtcNow
-                    };
-
-                    AddTransaction(rewardTransaction);
-                    Console.WriteLine($"Validator reward: Reward to {address}");
-                }
+                Console.WriteLine($"Validator reward: Reward {_reward} to validator {address}");
             }
+         
+            //// Pay Validators
+            //var contract = await SmartContract.Create("SmartXchain", this, SystemAddress, Properties.Resources.ERC20);
+
+            //var privatKey = Config.Default.PrivateKey; //ToDo: system Adress Key
+            //var inputs = new List<string>
+            //{
+            //    $"var token = new ERC20Token(\"SmartXchain\", \"SXC\", 18, 1000000000, \"{SystemAddress}\");",
+            //    $"token.RegisterUser(\"{SystemAddress}\", \"{privatKey}\");"
+            //};
+            //foreach (var address in rewardAddresses)
+            //{
+            //    var amount = _reward * block.Base64Encoded.Length / 1000;
+            //    inputs.Add($"token.Transfer(\"{SystemAddress}\", \"{address}\", {amount}, \"{privatKey}\");");
+
+            //    Console.WriteLine($"Validator reward: Reward {_reward} to {address}");
+            //}
+
+            //var result = await ExecuteSmartContract(contract.Name, inputs.ToArray());
         }
         else
         {
             Console.WriteLine("Block rejected");
         }
     }
-
-
+         
     public async Task<bool> ReachCodeConsensus(SmartContract contract)
     {
         try
@@ -355,7 +351,7 @@ public class Blockchain
             Console.WriteLine($"Code {contract.Name} sent to {serverAddress} for verification.");
             Console.WriteLine($"Response from server for code {contract.Name}: {response}");
 
-            return response == "OK";
+            return response == "ok";
         }
         catch (Exception ex)
         {
@@ -414,6 +410,35 @@ public class Blockchain
             throw;
         }
     }
+    public Dictionary<string, double> GetAllBalancesFromChain()
+    { 
+        var balances = new Dictionary<string, double>();
+        try
+        {
+            foreach (var block in Chain)
+            {
+                foreach (var transaction in block.Transactions)
+                {
+                    // Merge the Balances from the transaction
+                    foreach (var (address, balance) in Transaction.Balances)
+                    {
+                        if (!balances.ContainsKey(address))
+                            balances[address] = 0;
+
+                        balances[address] += balance; // Aggregate balances
+                    }
+                }
+            }
+
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e); 
+        }
+       
+        return balances;
+    }
+
 
     public static Blockchain Load(string tmpFile, SnowmanConsensus consensus)
     {
@@ -427,7 +452,7 @@ public class Blockchain
 
             // manual initialization
             var difficulty = root.GetProperty("_difficulty").GetInt32();
-            var reward = root.GetProperty("_reward").GetDecimal();
+            var reward = root.GetProperty("_reward").GetDouble();
             var minerAddress = root.GetProperty("MinerAdress").GetString();
 
             var blockchain = new Blockchain(difficulty, reward, minerAddress, consensus);

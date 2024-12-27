@@ -11,6 +11,7 @@ public class CodeSecurityAnalyzer
     {
         Blockchain.SystemAddress,
         "System.Collections.Generic",
+        "System.Security.Cryptography",
         "System.Text",
         "System.Text.Json",
         "System.IO.Compression",

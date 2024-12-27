@@ -71,14 +71,13 @@ public class BlockchainServer
         var consensus = new SnowmanConsensus(10, node);
 
         // Create blockchain
-        var blockchain = new Blockchain(2, 5, walletAddress, consensus);
+        var blockchain = new Blockchain(2, 0.0005, walletAddress, consensus);
 
         // Publish server IP
         var nodeTransaction = new Transaction
         {
             Sender = Blockchain.SystemAddress,
-            Recipient = Blockchain.SystemAddress,
-            Amount = 0, // No monetary value, just storing state
+            Recipient = Blockchain.SystemAddress, 
             Data = Convert.ToBase64String(Encoding.ASCII.GetBytes(NetworkUtils.IP)), // Store data as Base64 string
             Timestamp = DateTime.UtcNow
         };
@@ -197,7 +196,7 @@ public class BlockchainServer
         else if (message.StartsWith("Heartbeat:"))
         {
             HandleHeartbeat(message);
-            server.SendFrame("OK");
+            server.SendFrame("ok");
         }
         else if (message.StartsWith("GetBlockCount"))
         {
@@ -226,7 +225,7 @@ public class BlockchainServer
         {
             var transactionJson = message.Substring("AddTransaction:".Length);
             var transaction = JsonSerializer.Deserialize<Transaction>(transactionJson);
-            server.SendFrame(transaction != null && AddTransaction(transaction) ? "OK" : "ERROR: Transaction rejected");
+            server.SendFrame(transaction != null && AddTransaction(transaction) ? "ok" : "ERROR: Transaction rejected");
         }
         else
         {
@@ -280,7 +279,7 @@ public class BlockchainServer
         BroadcastToPeers($"Register:{nodeAddress}");
 
         // Send confirmation response
-        server.SendFrame("OK");
+        server.SendFrame("ok");
     }
 
     private void HandleGetNodes(ResponseSocket server)
@@ -309,7 +308,7 @@ public class BlockchainServer
             if (block != null)
             {
                 var hash = block.Hash;
-                if (block.CalculateHash() == hash) return "OK";
+                if (block.CalculateHash() == hash) return "ok#"+ Config.Default.MinerAddress;
             }
         }
         catch (Exception e)
@@ -332,7 +331,7 @@ public class BlockchainServer
         var compressedBase64Data = message.Substring(prefix.Length);
         var code = Compress.DecompressString(Convert.FromBase64String(compressedBase64Data));
         var isCodeSafe = CodeSecurityAnalyzer.IsCodeSafe(code);
-        return isCodeSafe ? "OK" : "";
+        return isCodeSafe ? "ok" : "";
     }
 
     private void HandleHeartbeat(string message)

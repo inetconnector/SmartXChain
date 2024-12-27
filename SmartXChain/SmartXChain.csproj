@@ -8,11 +8,41 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+	  <Compile Remove="BlockchainCore\ERC20.cs" />
+	  <Compile Remove="Contracts.Designer.cs" />
+	  <Compile Remove="Resources\ERC20.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <EmbeddedResource Remove="Contracts.resx" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Include="Resources\ERC20.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.12.0" />
 		<PackageReference Include="NBitcoin" Version="7.0.46" />
 		<PackageReference Include="Nethereum.Web3" Version="4.26.0" />
 		<PackageReference Include="NetMQ" Version="4.0.1.13" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Compile Update="Properties\Resources.Designer.cs">
+	    <DesignTime>True</DesignTime>
+	    <AutoGen>True</AutoGen>
+	    <DependentUpon>Resources.resx</DependentUpon>
+	  </Compile>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <EmbeddedResource Update="Properties\Resources.resx">
+	    <Generator>ResXFileCodeGenerator</Generator>
+	    <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+	    <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+	  </EmbeddedResource>
 	</ItemGroup>
 
 </Project>

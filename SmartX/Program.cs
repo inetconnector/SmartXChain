@@ -18,14 +18,17 @@ internal class Program
             SmartXWallet.GenerateWallet();
             Config.Default.ReloadConfig();
         }
+        if (string.IsNullOrEmpty(Config.Default.PublicKey))
+            Config.Default.GenerateServerKeys();
 
-        var result = await BlockchainServer.StartServerAsync();
+     var result = await BlockchainServer.StartServerAsync();
         var blockchainServer = result.Item1;
         var node = result.Item2;
 
         //show menu
         Console.WriteLine(
-            "\nEnter mode; \n1 Coin class tester \n2 Demo\n3 Exit\n");
+            "\nEnter mode; \n1 Coin class tester \n2 SmartContract Demo\n3 SmartXChain info\n4 Exit\n");
+
         while (true)
         {
             var mode = Console.ReadKey().KeyChar;
@@ -33,11 +36,13 @@ internal class Program
             {
                 var wallet1Addresses = SmartXWallet.LoadWalletAdresses();
 
-                // Coin class tester
-                //var token1 = new GoldCoin("GoldXToken", "GLX", 18, 1000000, minerAddress);
-                var token = new ERC20Token("SmartXchain", "SXC", 18, 1000000, wallet1Addresses[0]);
-                token.Transfer(wallet1Addresses[0], wallet1Addresses[1], 100);
-                token.Transfer(wallet1Addresses[1], wallet1Addresses[2], 50);
+                // Coin class tester 
+                var seed=File.ReadAllText("seed.txt");
+                var token = new ERC20Token("SmartXchain", "SXC", 18, 1000000000, wallet1Addresses[0]);
+
+                token.RegisterUser(wallet1Addresses[0], seed);
+                token.Transfer(wallet1Addresses[0], wallet1Addresses[1], 100, seed);
+                token.Transfer(wallet1Addresses[1], wallet1Addresses[2], 50, seed);
 
                 // Serialization to Base64
                 var serializedData = Serializer.SerializeToBase64(token);
@@ -46,7 +51,7 @@ internal class Program
                 var deserializedToken = Serializer.DeserializeFromBase64<ERC20Token>(serializedData);
                
                 // Transfer after serialization
-                deserializedToken.Transfer(wallet1Addresses[2], wallet1Addresses[3], 25);
+                deserializedToken.Transfer(wallet1Addresses[2], wallet1Addresses[3], 25, File.ReadAllText("seed.txt"));
                  
                 Console.WriteLine("\nDeserialized Token:");
                 Console.WriteLine($"Name: {deserializedToken.Name}");
@@ -83,6 +88,17 @@ internal class Program
             }
             else if (mode == '3')
             {
+                Console.WriteLine("\nCurrent Wallet Balances:");
+                var blockchain = node.Blockchain;
+                var balances = blockchain.GetAllBalancesFromChain();
+
+                foreach (var (address, balance) in balances)
+                {
+                    Console.WriteLine($"{address}: {balance}");
+                }
+            }            
+            else if (mode == '4')
+            {
                 break;
             }
             else
@@ -98,15 +114,18 @@ internal class Program
     {
         // Add the smart contract \Examples\ERC20.cs to the blockchain
         var contractFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Examples", "ERC20.cs");
-        var contractCode = File.ReadAllText(contractFile);
+        var contractCode = File.ReadAllText(contractFile); 
         var contract = await SmartContract.Create("SmartXchain", blockchain, ownerAddress, contractCode);
 
         // Mint and execute the smart contract
+        var seedFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "seed.txt");
+        var seed = File.ReadAllText(seedFile);
         string[] inputs =
         [
-            $"var token = new ERC20Token(\"SmartXchain\", \"SXC\", 18, 1000000, \"{ownerAddress}\");",
-            $"token.Transfer(\"{ownerAddress}\", \"{walletAddresses[1]}\", 100);",
-            $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 50);",
+            $"var token = new ERC20Token(\"SmartXchain\", \"SXC\", 18, 1000000000, \"{ownerAddress}\");",
+            $"token.RegisterUser(\"{ownerAddress}\", \"{seed}\");",
+            $"token.Transfer(\"{ownerAddress}\", \"{walletAddresses[1]}\", 100, \"{seed}\");",
+            $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 50, \"{seed}\");",
             "Console.WriteLine(\"[ERC20Token] \" + JsonSerializer.Serialize(token, new JsonSerializerOptions { WriteIndented = true }));"
         ];
 
@@ -124,8 +143,9 @@ internal class Program
         //Execute the contract again and display balances
         inputs =
         [
-            $"var token = new ERC20Token(\"SmartXchain\", \"SXC\", 18, 1000000, \"{ownerAddress}\");",
-            $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 25);",
+            $"var token = new ERC20Token(\"SmartXchain\", \"SXC\", 18, 1000000000, \"{ownerAddress}\");",
+            $"token.RegisterUser(\"{ownerAddress}\", \"{seed}\");",
+            $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 25, \"{seed}\");",
             "//token.GetBalances[\"hacker\"]=1000;",
             "//token.Balances[\"hacker\"]=1000;",
             "//File.WriteAllText(\"hacker.txt\", \"example.txt\");",
@@ -148,7 +168,8 @@ internal class Program
         var contractFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Examples", "GoldCoin.cs");
         var contractCode = File.ReadAllText(contractFile);
         var contract = await SmartContract.Create("GoldCoin", blockchain, minerAddress, contractCode);
-
+        var seedFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "seed.txt");
+        var seed = File.ReadAllText(seedFile);
         // Create the token
         string[] inputs =
         [
@@ -161,9 +182,9 @@ internal class Program
         string[] transferInputs =
         [
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
-
-            $"token.Transfer(\"{minerAddress}\", \"{wallet1Addresses[1]}\", 50000);",
-            $"token.Transfer(\"{wallet1Addresses[1]}\", \"{wallet1Addresses[2]}\", 25000);"
+            $"token.RegisterUser(\"{minerAddress}\", \"{seed}\");",
+            $"token.Transfer(\"{minerAddress}\", \"{wallet1Addresses[1]}\", 50000, \"{seed}\");",
+            $"token.Transfer(\"{wallet1Addresses[1]}\", \"{wallet1Addresses[2]}\", 25000, \"{seed}\");"
         ];
         result = await ExecuteSmartContract(blockchain, contract, transferInputs);
 
@@ -171,8 +192,8 @@ internal class Program
         string[] approvalInputs =
         [
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
-
-            $"token.Approve(\"{wallet1Addresses[1]}\", \"{wallet2Addresses[0]}\", 20000);",
+            $"token.RegisterUser(\"{minerAddress}\", \"{seed}\");",
+            $"token.Approve(\"{wallet1Addresses[1]}\", \"{wallet2Addresses[0]}\", 20000, \"{seed}\");",
             $"var allowance = token.Allowance(\"{wallet1Addresses[1]}\", \"{wallet2Addresses[0]}\");",
             "Console.WriteLine($\"[GoldCoin] Allowance: {allowance}\");"
         ];
@@ -182,8 +203,8 @@ internal class Program
         string[] transferFromInputs =
         [
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
-
-            $"token.TransferFrom(\"{wallet2Addresses[0]}\", \"{wallet1Addresses[1]}\", \"{wallet1Addresses[3]}\", 15000);",
+            $"token.RegisterUser(\"{minerAddress}\", \"{seed}\");",
+            $"token.TransferFrom(\"{wallet2Addresses[0]}\", \"{wallet1Addresses[1]}\", \"{wallet1Addresses[3]}\", 15000, \"{seed}\");",
             "Console.WriteLine(\"[GoldCoin] \" + JsonSerializer.Serialize(token, new JsonSerializerOptions { WriteIndented = true }));"
         ];
         result = await ExecuteSmartContract(blockchain, contract, transferFromInputs);

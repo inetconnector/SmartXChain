@@ -1,4 +1,5 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 
 namespace SmartXChain.Utils;
 
@@ -24,6 +25,8 @@ public class Config
     public int Port { get; private set; }
     public string IP { get; private set; }
     public bool Debug { get; private set; }
+    public string PublicKey { get; private set; }
+    public string PrivateKey { get; private set; }
     public static Config Default => _defaultInstance.Value;
 
     public void ReloadConfig()
@@ -42,11 +45,48 @@ public class Config
         MinerAddress = null;
         Mnemonic = null;
         Port = 0;
+        PublicKey = null;
+        PrivateKey = null;
 
         // Reload the configuration from the file
         LoadConfig(configFilePath);
 
         Console.WriteLine("Configuration reloaded successfully.");
+    }
+
+    public void SetMinerAddress(string minerAddress, string mnemonic)
+    {
+        MinerAddress = minerAddress;
+        Mnemonic = mnemonic;
+        var filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.txt");
+
+        if (!File.Exists(filePath)) File.WriteAllText(filePath, "[Miner]\n");
+
+        var lines = File.ReadAllLines(filePath).ToList();
+        var minerSectionIndex = lines.FindIndex(l => l.Trim().Equals("[Miner]", StringComparison.OrdinalIgnoreCase));
+
+        if (minerSectionIndex >= 0)
+        {
+            // Update existing Miner section
+            for (var i = minerSectionIndex + 1; i < lines.Count; i++)
+                if (string.IsNullOrWhiteSpace(lines[i]) || lines[i].StartsWith("["))
+                {
+                    lines.Insert(i, $"MinerAddress={minerAddress}");
+                    lines.Insert(i + 1, $"Mnemonic={mnemonic}");
+                    break;
+                }
+        }
+        else
+        {
+            // Append new Miner section
+            lines.Add("");
+            lines.Add("[Miner]");
+            lines.Add($"MinerAddress={minerAddress}");
+            lines.Add($"Mnemonic={mnemonic}");
+        }
+
+        File.WriteAllLines(filePath, lines);
+        Console.WriteLine("Miner address and mnemonic saved to config.");
     }
 
     private void LoadConfig(string filePath)
@@ -57,6 +97,7 @@ public class Config
         var isPeerSection = false;
         var isMinerSection = false;
         var isConfigSection = false;
+        var isServerSection = false;
 
         foreach (var line in lines)
         {
@@ -70,18 +111,28 @@ public class Config
                 isConfigSection = true;
                 isPeerSection = false;
                 isMinerSection = false;
+                isServerSection = false;
             }
             else if (trimmedLine.Equals("[Peers]", StringComparison.OrdinalIgnoreCase))
             {
                 isPeerSection = true;
                 isConfigSection = false;
                 isMinerSection = false;
+                isServerSection = false;
             }
             else if (trimmedLine.Equals("[Miner]", StringComparison.OrdinalIgnoreCase))
             {
                 isMinerSection = true;
                 isConfigSection = false;
                 isPeerSection = false;
+                isServerSection = false;
+            }
+            else if (trimmedLine.Equals("[Server]", StringComparison.OrdinalIgnoreCase))
+            {
+                isServerSection = true;
+                isConfigSection = false;
+                isPeerSection = false;
+                isMinerSection = false;
             }
             else if (isPeerSection && Regex.IsMatch(trimmedLine, @"^tcp://[a-zA-Z0-9\-.]+:\d+$"))
             {
@@ -126,41 +177,60 @@ public class Config
                     Console.WriteLine($"Invalid miner line: {trimmedLine}");
                 }
             }
+            else if (isServerSection)
+            {
+                var parts = trimmedLine.Split('=', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 2)
+                {
+                    var key = parts[0].Trim();
+                    var value = parts[1].Trim();
+
+                    if (key.Equals("PublicKey", StringComparison.OrdinalIgnoreCase))
+                        PublicKey = value;
+                    else if (key.Equals("PrivateKey", StringComparison.OrdinalIgnoreCase))
+                        PrivateKey = value;
+                }
+                else
+                {
+                    Console.WriteLine($"Invalid server line: {trimmedLine}");
+                }
+            }
         }
     }
 
-    public void SetMinerAddress(string minerAddress, string mnemonic)
+    public void GenerateServerKeys()
     {
-        MinerAddress = minerAddress;
-        Mnemonic = mnemonic;
-        var filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.txt");
+        using var rsa = RSA.Create(2048);
+        PublicKey = Convert.ToBase64String(rsa.ExportRSAPublicKey());
+        PrivateKey = Convert.ToBase64String(rsa.ExportRSAPrivateKey());
 
-        if (!File.Exists(filePath)) File.WriteAllText(filePath, "[Miner]\n");
+        var filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.txt");
+        if (!File.Exists(filePath)) File.WriteAllText(filePath, "[Server]\n");
 
         var lines = File.ReadAllLines(filePath).ToList();
-        var minerSectionIndex = lines.FindIndex(l => l.Trim().Equals("[Miner]", StringComparison.OrdinalIgnoreCase));
+        var serverSectionIndex = lines.FindIndex(l => l.Trim().Equals("[Server]", StringComparison.OrdinalIgnoreCase));
 
-        if (minerSectionIndex >= 0)
+        if (serverSectionIndex >= 0)
         {
-            // Update existing Miner section
-            for (var i = minerSectionIndex + 1; i < lines.Count; i++)
+            // Update existing Server section
+            for (var i = serverSectionIndex + 1; i < lines.Count; i++)
                 if (string.IsNullOrWhiteSpace(lines[i]) || lines[i].StartsWith("["))
                 {
-                    lines.Insert(i, $"MinerAddress={minerAddress}");
-                    lines.Insert(i + 1, $"Mnemonic={mnemonic}");
+                    lines.Insert(i, $"PublicKey={PublicKey}");
+                    lines.Insert(i + 1, $"PrivateKey={PrivateKey}");
                     break;
                 }
         }
         else
         {
-            // Append new Miner section
+            // Append new Server section
             lines.Add("");
-            lines.Add("[Miner]");
-            lines.Add($"MinerAddress={minerAddress}");
-            lines.Add($"Mnemonic={mnemonic}");
+            lines.Add("[Server]");
+            lines.Add($"PublicKey={PublicKey}");
+            lines.Add($"PrivateKey={PrivateKey}");
         }
 
         File.WriteAllLines(filePath, lines);
-        Console.WriteLine("Miner address and mnemonic saved to config.");
+        Console.WriteLine("Keys generated and saved to config.");
     }
 }

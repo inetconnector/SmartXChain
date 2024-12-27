@@ -48,7 +48,7 @@ using System.IO;
 
             // Retrieve the output from the globals
             if (!string.IsNullOrEmpty(globals.Output + ""))
-                return ("Ok", globals.Output + "");
+                return ("ok", globals.Output + "");
             return ("Execution completed with no result.", currentState);
         }
         catch (CompilationErrorException ex)

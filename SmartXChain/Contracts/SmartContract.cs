@@ -53,14 +53,14 @@ public class SmartContract
     }
 
     private void CalculateGas()
-    {
+    { 
         var code = SerializedContractCode;
         var dataLength = string.IsNullOrEmpty(code) ? 0 : code.Length;
 
         const int baseGas = 10; // Base gas cost for any transaction
         const int gasPerCharacter = 2; // Gas cost per character in Data and Info
 
-        Gas = baseGas + dataLength * gasPerCharacter;
+        Gas = baseGas + dataLength * gasPerCharacter / Blockchain.GasFactor;
     }
 
     public static async Task<SmartContract> Create(string contractName, Blockchain blockchain, string ownerAddress,
