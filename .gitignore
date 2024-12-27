@@ -361,3 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/SmartXChain-bin/SmartX.dll
+/SmartXChain-bin/SmartX.exe
+/SmartXChain-bin/SmartXChain.dll
