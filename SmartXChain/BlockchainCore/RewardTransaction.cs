@@ -1,24 +1,41 @@
 using SmartXChain.Utils;
 
 namespace SmartXChain.BlockchainCore;
-
 public class RewardTransaction : Transaction
 {
-    internal RewardTransaction(string recipient, double reward, string sender=Blockchain.SystemAddress)
+    internal RewardTransaction(string recipient, bool validator=false, string sender = Blockchain.SystemAddress)
     {
         Sender = sender;
         if (Balances.Count < 50000 && Sender == Blockchain.SystemAddress)
         {
-            var minerReward = CalculateMinerReward(Balances.Count);
-            Transfer(Blockchain.SystemAddress, recipient,  minerReward + (double)reward);
+            double reward = 0;
+            var calculator = new GasAndRewardCalculator();
+            var minerReward = calculator.CalculateMinerReward(Balances.Count, Config.Default.MinerAddress);
+            var validatorReward = calculator.CalculateValidatorReward(Balances.Count);
+            if (validator)
+            {
+                reward = validatorReward;
+               
+            }
+            else
+            {
+                reward = minerReward + reward; 
+            }
+
+            if (Transfer(Blockchain.SystemAddress, recipient, reward))
+            {
+                Reward=reward;
+            }
         }
     }
+
+    public double Reward { get; internal set; }
 
     private bool Transfer(string sender, string recipient, double amount)
     {
         if (!Balances.ContainsKey(sender) || Balances[sender] < amount)
         {
-           Log($"Transfer failed: Insufficient balance in account '{sender}'.");
+            Log($"Transfer failed: Insufficient balance in account '{sender}'.");
             return false;
         }
 
@@ -29,18 +46,4 @@ public class RewardTransaction : Transaction
         Log($"Transfer successful: {amount} tokens from {sender} to {recipient}.");
         return true;
     }
-    private double CalculateMinerReward(int walletCount)
-    {
-        const double initialReward = 0.1;
-        const double decayFactor = 0.98; // Decrease reward as more wallets join
-
-        // Reward decays as wallet count increases but only if walletCount > 0
-        if (Balances.ContainsKey(Config.Default.MinerAddress) && Balances[Config.Default.MinerAddress] == 0)
-        {
-            return initialReward;
-        }
-
-        return (double)(initialReward * Math.Pow(decayFactor, walletCount));
-    }
-
 }

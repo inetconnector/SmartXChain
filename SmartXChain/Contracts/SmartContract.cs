@@ -26,9 +26,16 @@ public class SmartContract
 
 
     // Execute the contract using CodeRunner
+    // Execute the contract using CodeRunner
     public async Task<(string result, string serializedState)> Execute(string[] inputs, string currentState)
     {
-        CalculateGas();
+        var calculator = new GasAndRewardCalculator
+        {
+            SerializedContractCode = SerializedContractCode
+        };
+        calculator.CalculateGasForContract();
+        Gas = calculator.Gas;
+
         Console.WriteLine($"Executing contract {Name} (Gas:{Gas})");
 
         // Deserialize state before execution
@@ -52,16 +59,6 @@ public class SmartContract
         return result;
     }
 
-    private void CalculateGas()
-    { 
-        var code = SerializedContractCode;
-        var dataLength = string.IsNullOrEmpty(code) ? 0 : code.Length;
-
-        const int baseGas = 10; // Base gas cost for any transaction
-        const int gasPerCharacter = 2; // Gas cost per character in Data and Info
-
-        Gas = baseGas + dataLength * gasPerCharacter / Blockchain.GasFactor;
-    }
 
     public static async Task<SmartContract> Create(string contractName, Blockchain blockchain, string ownerAddress,
         string contractCode)

@@ -9,10 +9,10 @@ public class Transaction
     private string _data;
     private string _info;
     private static Dictionary<string, Dictionary<string, double>> Allowances { get; set; } = new Dictionary<string, Dictionary<string, double>>();
-    private static Dictionary<string, string> AuthenticatedUsers { get; set; }= new Dictionary<string, string>();
-    public static Dictionary<string, double> Balances 
-    { 
-        get; 
+    private static Dictionary<string, string> AuthenticatedUsers { get; set; } = new Dictionary<string, string>();
+    public static Dictionary<string, double> Balances
+    {
+        get;
         private set;
     } = new Dictionary<string, double>();
 
@@ -22,19 +22,19 @@ public class Transaction
         var owner = Blockchain.SystemAddress;
         Name = "SmartXchain";
         Symbol = "SXC";
-        Decimals = 18;  
-        TotalSupply = initialSupply; 
+        Decimals = 18;
+        TotalSupply = initialSupply;
 
         // Assign initial supply to the owner's balance
         if (!Balances.ContainsKey(owner))
         {
-            Balances.Add(owner,initialSupply);
+            Balances.Add(owner, initialSupply);
         }
-     
+
         Version = "1.0.0";
-        TransactionDate = DateTime.UtcNow; 
+        TransactionDate = DateTime.UtcNow;
     }
-     
+
     public string Sender { get; set; } // The address of the sender
     public string Recipient { get; set; } // The address of the recipient
 
@@ -44,9 +44,9 @@ public class Transaction
         set
         {
             _data = value;
-            CalculateGas();
+            RecalculateGas();
         }
-    } // Arbitrary data, such as contract state
+    }
 
     public string Info
     {
@@ -54,9 +54,9 @@ public class Transaction
         set
         {
             _info = value;
-            CalculateGas();
+            RecalculateGas();
         }
-    } // Info field
+    }
 
     public DateTime Timestamp { get; set; } = DateTime.UtcNow; // The time of the transaction
     public string Signature { get; private set; } // Digital signature of the transaction
@@ -68,6 +68,17 @@ public class Transaction
     public ulong TotalSupply { get; private set; }
     public string Version { get; private set; }
     public DateTime TransactionDate { get; private set; }
+
+    private void RecalculateGas()
+    {
+        var calculator = new GasAndRewardCalculator
+        {
+            Data = Data,
+            Info = Info
+        };
+        calculator.CalculateGas();
+        Gas = calculator.Gas;
+    }
 
     public void SignTransaction(string privateKey)
     {
@@ -96,18 +107,6 @@ public class Transaction
         return ecdsa.VerifyHash(hash, signatureBytes) && sp[1] == Crypt.AssemblyFingerprint;
     }
 
-    private void CalculateGas()
-    {
-        var dataLength = string.IsNullOrEmpty(Data) ? 0 : Data.Length;
-        var infoLength = string.IsNullOrEmpty(Info) ? 0 : Info.Length;
-
-        // Example formula for gas calculation: baseGas + (dataLength + infoLength) * factor
-        const int baseGas = 10; // Base gas cost for any transaction
-        const int gasPerCharacter = 2; // Gas cost per character in Data and Info
-
-        Gas = baseGas + (dataLength + infoLength) * gasPerCharacter / Blockchain.GasFactor;
-    }
-
     public bool RegisterUser(string address, string privateKey)
     {
         if (AuthenticatedUsers.ContainsKey(address)) return false;
@@ -122,6 +121,7 @@ public class Transaction
     {
         return Balances.TryGetValue(account, out var balance) ? balance : 0;
     }
+
     private bool Transfer(string sender, string recipient, double amount)
     {
         if (!Balances.ContainsKey(sender) || Balances[sender] < amount)
@@ -137,6 +137,7 @@ public class Transaction
         Log($"Transfer successful: {amount} tokens from {sender} to {recipient}.");
         return true;
     }
+
     public bool Transfer(string sender, string recipient, ulong amount, string privateKey)
     {
         if (!IsAuthenticated(sender, privateKey))
@@ -157,58 +158,6 @@ public class Transaction
 
         Log($"Transfer successful: {amount} tokens from {sender} to {recipient}.");
         return true;
-    }
-
-    public bool Approve(string owner, string spender, double amount, string privateKey)
-    {
-        if (!IsAuthenticated(owner, privateKey))
-        {
-            Log($"Approval failed: Unauthorized action by '{owner}'.");
-            return false;
-        }
-
-        if (!Allowances.ContainsKey(owner)) Allowances[owner] = new Dictionary<string, double>();
-        Allowances[owner][spender] = amount;
-
-        Log($"Approval successful: {spender} can spend {amount} tokens from {owner}.");
-        return true;
-    }
-
-    public bool TransferFrom(string spender, string sender, string recipient, double amount, string spenderKey)
-    {
-        if (!IsAuthenticated(spender, spenderKey))
-        {
-            Log($"TransferFrom failed: Unauthorized action by '{spender}'.");
-            return false;
-        }
-
-        var allowedAmount = Allowance(sender, spender);
-        if (allowedAmount < amount)
-        {
-            Log($"TransferFrom failed: Allowance of {spender} insufficient for {amount} tokens.");
-            return false;
-        }
-
-        if (!Balances.ContainsKey(sender) || Balances[sender] < amount)
-        {
-            Log($"TransferFrom failed: Insufficient balance in account '{sender}'.");
-            return false;
-        }
-
-        Balances[sender] -= amount;
-        if (!Balances.ContainsKey(recipient)) Balances[recipient] = 0;
-        Balances[recipient] += amount;
-        Allowances[sender][spender] -= amount;
-
-        Log($"TransferFrom successful: {spender} transferred {amount} tokens from {sender} to {recipient}.");
-        return true;
-    }
-
-    private double Allowance(string owner, string spender)
-    {
-        return Allowances.TryGetValue(owner, out var spenderDict) && spenderDict.TryGetValue(spender, out var allowed)
-            ? allowed
-            : 0;
     }
 
     private bool IsAuthenticated(string address, string privateKey)

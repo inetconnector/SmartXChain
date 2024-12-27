@@ -71,7 +71,7 @@ public class BlockchainServer
         var consensus = new SnowmanConsensus(10, node);
 
         // Create blockchain
-        var blockchain = new Blockchain(2, 0.0005, walletAddress, consensus);
+        var blockchain = new Blockchain(2,   walletAddress, consensus);
 
         // Publish server IP
         var nodeTransaction = new Transaction

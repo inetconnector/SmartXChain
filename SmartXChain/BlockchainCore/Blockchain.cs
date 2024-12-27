@@ -19,21 +19,18 @@ public class Blockchain
 
     [JsonInclude] private readonly int _difficulty;
     private readonly object _pendingTransactionsLock = new();
-
-    [JsonInclude] private readonly double _reward;
      
 
     /// <summary>
     ///     Start blockchain and sign blocks with privateKey and receive reward at miner address
     /// </summary> 
-    public Blockchain(int difficulty, double reward, string minerAdress, SnowmanConsensus consensus)
+    public Blockchain(int difficulty, string minerAdress, SnowmanConsensus consensus)
     {
         Chain = new List<Block>();
         PendingTransactions = new List<Transaction>();
         SmartContracts = new List<SmartContract>();
         _contractStates = new Dictionary<string, string>();
-        _difficulty = difficulty;
-        _reward = reward;
+        _difficulty = difficulty; 
 
         MinerAdress = minerAdress;
         _consensus = consensus;
@@ -48,7 +45,8 @@ public class Blockchain
     [JsonInclude] public List<Transaction> PendingTransactions { get; private set; }
 
     [JsonInclude] public List<SmartContract> SmartContracts { get; private set; }
-    public static int GasFactor { get; private set; } = 1000;
+    public static double CurrentNetworkLoad { get; set; } = .5d;
+     
 
     private Block CreateGenesisBlock()
     {
@@ -268,19 +266,19 @@ public class Blockchain
                 Console.WriteLine("Block added to chain successfully: " + block.Hash);
             }
 
-            var rewardTransaction = new RewardTransaction(Config.Default.MinerAddress, _reward); 
+            var rewardTransaction = new RewardTransaction(Config.Default.MinerAddress); 
 
             AddTransaction(rewardTransaction);
-            Console.WriteLine($"Miner reward: Reward {_reward} to miner {minerAddress}");
+            Console.WriteLine($"Miner reward: Reward {rewardTransaction.Reward} to miner {minerAddress}");
 
             foreach (var address in rewardAddresses)
             {
                 if (address == minerAddress)
                     continue;
                 
-                rewardTransaction = new RewardTransaction(address, _reward);
+                rewardTransaction = new RewardTransaction(address,true);
                 AddTransaction(rewardTransaction);
-                Console.WriteLine($"Validator reward: Reward {_reward} to validator {address}");
+                Console.WriteLine($"Validator reward: Reward {rewardTransaction.Reward} to validator {address}");
             }
          
             //// Pay Validators
@@ -411,31 +409,30 @@ public class Blockchain
         }
     }
     public Dictionary<string, double> GetAllBalancesFromChain()
-    { 
+    {
         var balances = new Dictionary<string, double>();
         try
         {
-            foreach (var block in Chain)
-            {
-                foreach (var transaction in block.Transactions)
-                {
-                    // Merge the Balances from the transaction
-                    foreach (var (address, balance) in Transaction.Balances)
-                    {
-                        if (!balances.ContainsKey(address))
-                            balances[address] = 0;
+            // Sort the blocks by Timestamp descending
+            var sortedBlocks = Chain.OrderByDescending(block => block.Timestamp);
 
-                        balances[address] += balance; // Aggregate balances
-                    }
+            foreach (var block in sortedBlocks)
+            {
+                // Sort the transactions by Timestamp descending
+                var sortedTransactions = block.Transactions.OrderByDescending(transaction => transaction.Timestamp);
+
+                foreach (var (address, balance) in Transaction.Balances)
+                {
+                    if (!balances.ContainsKey(address))
+                        balances[address] = balance; // Aggregate balances
                 }
             }
-
         }
         catch (Exception e)
         {
-            Console.WriteLine(e); 
+            Console.WriteLine(e);
         }
-       
+
         return balances;
     }
 
@@ -451,11 +448,10 @@ public class Blockchain
             var root = jsonDocument.RootElement;
 
             // manual initialization
-            var difficulty = root.GetProperty("_difficulty").GetInt32();
-            var reward = root.GetProperty("_reward").GetDouble();
+            var difficulty = root.GetProperty("_difficulty").GetInt32(); 
             var minerAddress = root.GetProperty("MinerAdress").GetString();
 
-            var blockchain = new Blockchain(difficulty, reward, minerAddress, consensus);
+            var blockchain = new Blockchain(difficulty, minerAddress, consensus);
 
             // Additional data (Chain, PendingTransactions etc.)
             blockchain.Chain = JsonSerializer.Deserialize<List<Block>>(root.GetProperty("Chain").GetRawText());
