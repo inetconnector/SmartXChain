@@ -3,7 +3,6 @@ using SmartXChain.BlockchainCore;
 using SmartXChain.Contracts;
 using SmartXChain.Server;
 using SmartXChain.Utils;
-using SmartXChain.Validators;
 
 namespace SmartX;
 
@@ -28,7 +27,7 @@ internal class Program
 
         //show menu
         Console.WriteLine(
-            "\nEnter mode; \n1 Coin class tester \n2 SmartContract Demo\n3 SmartXChain info\n4 Exit\n");
+            "\nEnter mode; \n1 Coin class tester \n2 SmartContract Demo\n3 Blockchain state\n4 Wallet Balances\n5 Exit\n");
 
         while (true)
         {
@@ -76,26 +75,27 @@ internal class Program
                 var wallet1Addresses = SmartXWallet.LoadWalletAdresses();
                 var wallet2Addresses = SmartXWallet.LoadWalletAdresses();
 
-                await ERC20Example(wallet1Addresses[0], wallet1Addresses, node.Consensus, node.Blockchain);
+                await ERC20Example(wallet1Addresses[0], wallet1Addresses, node.Blockchain);
 
-                await GoldCoinExample(wallet1Addresses[0], wallet1Addresses, wallet2Addresses, node.Consensus,
-                    node.Blockchain);
-
+                await GoldCoinExample(wallet1Addresses[0], wallet1Addresses, wallet2Addresses, node.Blockchain);
+            }
+            else if (mode == '3')
+            {
                 // Display Blockchain state 
                 Console.WriteLine("Blockchain State:");
                 var chain = node.Blockchain.Chain;
                 foreach (var block in chain)
                     Console.WriteLine($"Block {chain.IndexOf(block)}: {block.Hash}");
             }
-            else if (mode == '3')
+            else if (mode == '4')
             {
-                Console.WriteLine("\nCurrent Wallet Balances:");
+                Console.WriteLine("\n Wallet Balances:");
                 var blockchain = node.Blockchain;
                 var balances = blockchain.GetAllBalancesFromChain();
 
                 foreach (var (address, balance) in balances) Console.WriteLine($"{address}: {balance}");
             }
-            else if (mode == '4')
+            else if (mode == '5')
             {
                 break;
             }
@@ -106,9 +106,9 @@ internal class Program
         }
     }
 
-    private static async Task ERC20Example(string ownerAddress, List<string> walletAddresses,
-        SnowmanConsensus consensus,
-        Blockchain blockchain)
+    #region SmartContracts
+
+    private static async Task ERC20Example(string ownerAddress, List<string> walletAddresses, Blockchain blockchain)
     {
         // Add the smart contract \Examples\ERC20.cs to the blockchain
         var contractFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Examples", "ERC20.cs");
@@ -136,7 +136,7 @@ internal class Program
         //save and reload the chain
         var tmpFile = Path.GetTempFileName();
         blockchain.Save(tmpFile);
-        blockchain = Blockchain.Load(tmpFile, consensus);
+        blockchain = Blockchain.Load(tmpFile);
 
         //Execute the contract again and display balances
         inputs =
@@ -160,7 +160,6 @@ internal class Program
     private static async Task GoldCoinExample(string minerAddress,
         List<string> wallet1Addresses,
         List<string> wallet2Addresses,
-        SnowmanConsensus consensus,
         Blockchain blockchain)
     {
         var contractFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Examples", "GoldCoin.cs");
@@ -257,4 +256,6 @@ internal class Program
 
         return executionResult;
     }
+
+    #endregion
 }

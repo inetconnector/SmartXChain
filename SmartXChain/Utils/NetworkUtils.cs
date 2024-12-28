@@ -48,7 +48,7 @@ public class NetworkUtils
                 using (var httpClient = new HttpClient())
                 {
                     if (debug)
-                        Console.WriteLine($"Trying {ipServiceUrl}...");
+                        Logger.LogMessage($"Trying {ipServiceUrl}...");
 
                     // Attempt to retrieve the IP address
                     var publicIP = await httpClient.GetStringAsync(ipServiceUrl);
@@ -56,14 +56,14 @@ public class NetworkUtils
                     // Trim to ensure no extra whitespace
                     publicIP = publicIP.Trim();
 
-                    Console.WriteLine($"\nPublic IP Address retrieved: {publicIP}");
+                    Logger.LogMessage($"\nPublic IP Address retrieved: {publicIP}");
                     IP = publicIP;
                     return publicIP;
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to retrieve IP from {ipServiceUrl}: {ex.Message}");
+                Logger.LogMessage($"Failed to retrieve IP from {ipServiceUrl}: {ex.Message}");
             }
 
         // If all services fail, throw an exception

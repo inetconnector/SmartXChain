@@ -2,11 +2,18 @@
 
 public static class Logger
 {
-    public static void LogMessage(string message)
+    public static void LogMessage(string message = "")
     {
-        if (message.Length > 80)
-            Console.WriteLine(message.Substring(0, 80) + "...");
+        if (message.Contains("GetNodes") ||
+            message.Contains("Heartbeat"))
+            return;
+
+        var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+        var formattedMessage = timestamp + " - " + message;
+
+        if (formattedMessage.Length > 120)
+            Console.WriteLine(formattedMessage.Substring(0, 120) + "...");
         else
-            Console.WriteLine(message);
+            Console.WriteLine(formattedMessage);
     }
 }

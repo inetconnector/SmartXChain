@@ -2,7 +2,6 @@
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Server;
 using SmartXChain.Utils;
@@ -32,12 +31,12 @@ public class Node
             ip = "127.0.0.1";
 
         var nodeAddress = $"http://{ip}:{Config.Default.Port}"; // Own node address
-        var sharedSecret = Config.Default.SmartXchain; // Shared secret with the servers
+        var chainId = Config.Default.SmartXchain;
 
         // Create a node instance
-        var node = new Node(nodeAddress, sharedSecret);
+        var node = new Node(nodeAddress, chainId);
 
-        Console.WriteLine("Starting automatic server discovery...");
+        Logger.LogMessage("Starting automatic server discovery...");
 
         // Known discovery servers (starting points for the search) 
         var peers = Config.Default.Peers;
@@ -49,7 +48,7 @@ public class Node
         // Step 2: If no servers were found, start a loop to wait for servers
         if (discoveredServers.Count == 0)
         {
-            Console.WriteLine("No active servers found. Waiting for a server...");
+            Logger.LogMessage("No active servers found. Waiting for a server...");
 
             while (discoveredServers.Count == 0)
                 try
@@ -59,7 +58,7 @@ public class Node
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error during server discovery: {ex.Message}");
+                    Logger.LogMessage($"Error during server discovery: {ex.Message}");
                 }
         }
 
@@ -68,10 +67,10 @@ public class Node
             !ip.Contains(NetworkUtils.GetLocalIP())).ToList();
 
         // Step 4: Register with an active server
-        Console.WriteLine("Registering with a discovery server...");
+        Logger.LogMessage("Registering with a discovery server...");
         await node.RegisterWithDiscoveryAsync(discoveredServers);
 
-        Console.WriteLine("Node successfully registered.");
+        Logger.LogMessage("Node successfully registered.");
 
         // Step 5: Send heartbeat (every 20 seconds)
         Task.Run(async () =>
@@ -79,17 +78,40 @@ public class Node
             while (true)
                 try
                 {
+                    foreach (var ip in CurrentNodeIPs)
+                        if (!discoveredServers.Contains(ip))
+                            discoveredServers.Add(ip);
+
                     foreach (var server in discoveredServers)
                     {
                         await node.SendHeartbeatAsync(server);
-                        await node.CheckBlockchainSize(server);
+                        if (node != null && node.StartupResult != null)
+                            await UpdateBlockchainWithMissingBlocks(node.StartupResult.Blockchain,
+                                node.StartupResult.Node);
+                        else if (node != null && node.StartupResult == null)
+                            try
+                            {
+                                var response = await SocketManager.GetInstance(server)
+                                    .SendMessageAsync("GetChain#" + node.NodeAddress);
+
+                                BlockchainServer.Startup.Blockchain = Blockchain.FromBase64(response);
+                                node.StartupResult = BlockchainServer.Startup;
+
+                                Logger.LogMessage(
+                                    $"GetChain request to {server} success: Blockchain blocks: {BlockchainServer.Startup.Blockchain.Chain.Count}");
+                                Logger.LogMessage($"Response from server {server}: {response}");
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.LogMessage($"Error sending GetChain request to {server}: {ex.Message}");
+                            }
                     }
 
                     Thread.Sleep(20000); // Heartbeat interval
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error sending heartbeat: {ex.Message}");
+                    Logger.LogMessage($"Error sending heartbeat: {ex.Message}");
                 }
         });
 
@@ -102,6 +124,7 @@ public class Node
                     foreach (var server in discoveredServers)
                     {
                         var nodeIPList = await node.GetRegisteredNodesAsync(server);
+
                         if (!nodeIPList.Contains(server))
                             nodeIPList.Add(server);
                         if (nodeIPList.Contains(nodeAddress))
@@ -120,116 +143,240 @@ public class Node
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error retrieving nodes: {ex.Message}");
+                    Logger.LogMessage($"Error retrieving nodes: {ex.Message}");
                 }
         });
 
         return node;
     }
 
-    private async Task CheckBlockchainSize(string server)
+    private static async Task<Blockchain?> UpdateBlockchainWithMissingBlocks(Blockchain blockchain, Node node)
     {
-        if (StartupResult != null && StartupResult.Blockchain != null)
-        {
-            Console.WriteLine("CheckBlockchainSize...");
-            var newchain =
-                await UpdateBlockchain(StartupResult.Blockchain, StartupResult.Node, StartupResult.Consensus);
-            if (newchain != null) StartupResult.Blockchain = newchain;
-        }
-    }
+        if (blockchain == null || blockchain.Chain == null)
+            return null;
 
-    private static async Task<Blockchain?> UpdateBlockchain(Blockchain blockchain, Node node,
-        SnowmanConsensus consensus)
-    {
         var currentBlockCount = blockchain.Chain.Count;
 
         try
         {
             foreach (var remoteNode in CurrentNodeIPs)
             {
-                // 1. Anfrage: Größe der entfernten Blockchain abrufen
+                if (remoteNode.Contains(NetworkUtils.IP))
+                    continue;
+
+                Logger.LogMessage($"Checking blockchain with node {remoteNode}...");
+
                 var blockchainSizeResponse = await SocketManager.GetInstance(remoteNode)
-                    .SendMessageAsync("/api/GetBlockCount");
+                    .SendMessageAsync("GetBlockCount");
 
                 if (!int.TryParse(blockchainSizeResponse, out var remoteBlockCount))
                 {
-                    Console.WriteLine($"Invalid blockchain size response from node {remoteNode}.");
+                    Logger.LogMessage($"Invalid blockchain size response from node {remoteNode}.");
                     continue;
                 }
 
-                Console.WriteLine(
+                Logger.LogMessage(
                     $"Node {remoteNode} blockchain: {remoteBlockCount}, Local blockchain: {currentBlockCount}.");
 
-                if (remoteBlockCount <= currentBlockCount)
+                if (remoteBlockCount < currentBlockCount)
                 {
-                    Console.WriteLine($"Local blockchain is already up to date with node {remoteNode}.");
+                    Logger.LogMessage($"Local blockchain is longer than or equal to node {remoteNode}.");
                     continue;
                 }
 
-                Console.WriteLine($"Node {remoteNode} blockchain is larger. Starting synchronization...");
+                // Check and compare all blocks from the genesis block
+                var isRemoteBlockchainPreferred = true;
 
-                try
+                for (var i = 0; i < Math.Min(currentBlockCount, remoteBlockCount); i++)
                 {
-                    for (var i = currentBlockCount; i < remoteBlockCount; i++)
+                    var localBlock = blockchain.Chain[i];
+                    var remoteBlockResponse = await SocketManager.GetInstance(remoteNode)
+                        .SendMessageAsync($"GetBlock/{i}");
+
+                    if (string.IsNullOrEmpty(remoteBlockResponse))
+                    {
+                        Logger.LogMessage($"Failed to retrieve block {i} from node {remoteNode}.");
+                        isRemoteBlockchainPreferred = false;
+                        break;
+                    }
+
+                    var remoteBlock = Block.FromBase64(remoteBlockResponse);
+
+                    if (remoteBlock == null)
+                    {
+                        Logger.LogMessage($"Invalid block {i} received from node {remoteNode}.");
+                        isRemoteBlockchainPreferred = false;
+                        break;
+                    }
+
+                    // Compare timestamps
+                    if (remoteBlock.Timestamp < localBlock.Timestamp) continue; // Remote block is older, prefer remote
+
+                    if (remoteBlock.Timestamp > localBlock.Timestamp)
+                    {
+                        isRemoteBlockchainPreferred = false; // Local block is older, stop comparison
+                        break;
+                    }
+                }
+
+                if (!isRemoteBlockchainPreferred)
+                {
+                    Logger.LogMessage($"Local blockchain is preferred over the blockchain from node {remoteNode}.");
+                    continue;
+                }
+
+                // Synchronize missing blocks from remote node
+                Logger.LogMessage($"Node {remoteNode} blockchain is preferred. Adding missing blocks...");
+
+                for (var i = currentBlockCount; i < remoteBlockCount; i++)
+                    try
                     {
                         var blockResponse = await SocketManager.GetInstance(remoteNode)
-                            .SendMessageAsync("/api/GetBlock/");
+                            .SendMessageAsync($"GetBlock/{i}");
 
                         if (string.IsNullOrEmpty(blockResponse))
                         {
-                            Console.WriteLine($"Failed to retrieve block {i} from node {remoteNode}.");
+                            Logger.LogMessage($"Failed to retrieve block {i} from node {remoteNode}.");
                             break;
                         }
 
-                        var block = JsonSerializer.Deserialize<Block>(blockResponse);
-                        if (block == null)
+                        var block = Block.FromBase64(blockResponse);
+                        if (block == null || (blockchain.Chain.Count > 0 &&
+                                              block.PreviousHash != blockchain.Chain.Last().Hash))
                         {
-                            Console.WriteLine($"Invalid block data received for block {i} from node {remoteNode}.");
+                            Logger.LogMessage(
+                                $"Invalid or inconsistent block data received for block {i} from node {remoteNode}.");
                             break;
                         }
 
-                        blockchain.AddBlock(block);
-                        Console.WriteLine($"Added Block {i} to blockchain");
+                        blockchain.AddBlock(block, true, false);
+                        Logger.LogMessage($"Added block {i} to blockchain.");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogMessage($"Error retrieving block {i} from node {remoteNode}: {ex.Message}");
+                        break;
                     }
 
-                    Console.WriteLine($"Blockchain successfully updated from node {remoteNode}.");
+                Logger.LogMessage(
+                    $"Blockchain successfully updated to block {remoteBlockCount} from node {remoteNode}.");
 
-                    break;
-                }
-                catch (Exception ex)
+                if (blockchain.Chain.Last().Hash == blockchain.Chain.Last().CalculateHash())
                 {
-                    Console.WriteLine($"Error during blockchain synchronization: {ex.Message}");
+                    Logger.LogMessage($"Blockchain fully synchronized with node {remoteNode}.");
+                    break;
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error during blockchain synchronization: {ex.Message}");
+            Logger.LogMessage($"Error during blockchain synchronization: {ex.Message}");
         }
 
         return blockchain;
     }
 
-    public async Task<(bool, string)> SendVoteRequestAsync(string targetValidator, Block block)
-    {
-        try
-        {
-            var message = $"Vote:{block.Base64Encoded}";
-            if (block.Verify(message))
-            {
-                Console.WriteLine($"Sending vote request to: {targetValidator}");
-                var response = await SocketManager.GetInstance(targetValidator).SendMessageAsync(message);
-                Console.WriteLine($"Response from {targetValidator}: {response}");
-                return (true, response);
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error sending vote request: {ex.Message}");
-        }
+    //private static async Task<Blockchain?> UpdateBlockchainWithMissingBlocks(Blockchain blockchain, Node node)
+    //{
+    //    if (blockchain != null && blockchain.Chain != null)
+    //    {
+    //        var currentBlockCount = blockchain.Chain.Count;
 
-        return (false, "");
-    }
+    //        try
+    //        {
+    //            foreach (var remoteNode in CurrentNodeIPs)
+    //            {
+    //                if (remoteNode.Contains(NetworkUtils.IP))
+    //                    continue;
+
+    //                Logger.LogMessage($"Checking blockchain with node {remoteNode}...");
+
+    //                var blockchainSizeResponse = await SocketManager.GetInstance(remoteNode)
+    //                    .SendMessageAsync("GetBlockCount");
+
+    //                if (!int.TryParse(blockchainSizeResponse, out var remoteBlockCount))
+    //                {
+    //                   Logger.LogMessage($"Invalid blockchain size response from node {remoteNode}.");
+    //                    continue;
+    //                }
+
+    //                Logger.LogMessage(
+    //                    $"Node {remoteNode} blockchain: {remoteBlockCount}, Local blockchain: {currentBlockCount}.");
+
+    //                if (remoteBlockCount <= currentBlockCount)
+    //                {
+    //                   Logger.LogMessage($"Local blockchain is already up to date with node {remoteNode}.");
+    //                    continue;
+    //                }
+
+    //                // Check if genesis block matches
+    //                var genesisBlockResponse = await SocketManager.GetInstance(remoteNode)
+    //                    .SendMessageAsync("GetBlock/0");
+
+    //                if (string.IsNullOrEmpty(genesisBlockResponse))
+    //                {
+    //                   Logger.LogMessage($"Failed to retrieve genesis block from node {remoteNode}.");
+    //                    continue;
+    //                }
+
+    //                var remoteGenesisBlock = Block.FromBase64(genesisBlockResponse);
+
+    //                if (remoteGenesisBlock == null || blockchain.Chain[0].Hash != remoteGenesisBlock.Hash)
+    //                {
+    //                   Logger.LogMessage("Genesis block does not match, aborting...");
+    //                    continue;
+    //                }
+
+    //                Logger.LogMessage($"Node {remoteNode} blockchain is larger. Checking for missing blocks...");
+
+    //                for (var i = currentBlockCount; i < remoteBlockCount; i++)
+    //                {
+    //                    try
+    //                    {
+    //                        var blockResponse = await SocketManager.GetInstance(remoteNode)
+    //                            .SendMessageAsync($"GetBlock/{i}");
+
+    //                        if (string.IsNullOrEmpty(blockResponse))
+    //                        {
+    //                           Logger.LogMessage($"Failed to retrieve block {i} from node {remoteNode}.");
+    //                            break;
+    //                        }
+
+    //                        var block = Block.FromBase64(blockResponse);
+    //                        if (block == null || (blockchain.Chain.Count > 0 && block.PreviousHash != blockchain.Chain.Last().Hash))
+    //                        {
+    //                           Logger.LogMessage(
+    //                                $"Invalid or inconsistent block data received for block {i} from node {remoteNode}.");
+    //                            break;
+    //                        }
+
+    //                        blockchain.AddBlock(block, true, false);
+    //                       Logger.LogMessage($"Added block {i} to blockchain.");
+    //                    }
+    //                    catch (Exception ex)
+    //                    {
+    //                       Logger.LogMessage($"Error retrieving block {i} from node {remoteNode}: {ex.Message}");
+    //                        break;
+    //                    }
+    //                }
+
+    //                Logger.LogMessage($"Blockchain successfully updated up to block {remoteBlockCount} from node {remoteNode}.");
+
+    //                if (blockchain.Chain.Last().Hash == blockchain.Chain.Last().CalculateHash())
+    //                {
+    //                   Logger.LogMessage($"Blockchain fully synchronized with node {remoteNode}.");
+    //                    break;
+    //                }
+    //            }
+    //        }
+    //        catch (Exception ex)
+    //        {
+    //           Logger.LogMessage($"Error during blockchain synchronization: {ex.Message}");
+    //        }
+    //    }
+
+    //    return blockchain;
+    //}
 
     public async Task RegisterWithDiscoveryAsync(List<string> discoveryServers)
     {
@@ -251,12 +398,12 @@ public class Node
 
                     else
                     {
-                        Console.WriteLine($"Error: no nodes from server {serverAddress}");
+                        Logger.LogMessage($"Error: no nodes from server {serverAddress}");
                     }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error connecting to server {serverAddress}: {ex.Message}");
+                Logger.LogMessage($"Error connecting to server {serverAddress}: {ex.Message}");
             }
     }
 
@@ -267,11 +414,11 @@ public class Node
             var signature = GenerateHMACSignature(NodeAddress, ChainId);
             var response = await SocketManager.GetInstance(serverAddress)
                 .SendMessageAsync($"Register:{NodeAddress}:{signature}");
-            Console.WriteLine($"Response from server {serverAddress}: {response}");
+            Logger.LogMessage($"Response from server {serverAddress}: {response}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error registering with server {serverAddress}: {ex.Message}");
+            Logger.LogMessage($"Error registering with server {serverAddress}: {ex.Message}");
         }
     }
 
@@ -287,6 +434,8 @@ public class Node
     public async Task<List<string>> GetRegisteredNodesAsync(string serverAddress)
     {
         var ret = new List<string>();
+        if (serverAddress.Contains(NetworkUtils.IP))
+            return ret;
 
         try
         {
@@ -294,7 +443,7 @@ public class Node
 
             if (response == "ERROR: Timeout" || string.IsNullOrEmpty(response))
             {
-                Console.WriteLine($"Error: Timeout or empty response from server {serverAddress}");
+                Logger.LogMessage($"Error: Timeout or empty response from server {serverAddress}");
                 return ret;
             }
 
@@ -302,11 +451,11 @@ public class Node
                 if (!string.IsNullOrEmpty(nodeAddress))
                     ret.Add(nodeAddress);
 
-            Console.WriteLine($"Active nodes from server {serverAddress}: {response}");
+            Logger.LogMessage($"Active nodes from server {serverAddress}: {response}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error retrieving registered nodes from {serverAddress}: {ex.Message}");
+            Logger.LogMessage($"Error retrieving registered nodes from {serverAddress}: {ex.Message}");
         }
 
         return ret;
@@ -317,12 +466,12 @@ public class Node
         try
         {
             var response = await SocketManager.GetInstance(serverAddress).SendMessageAsync($"Heartbeat:{NodeAddress}");
-            Console.WriteLine($"Heartbeat sent to {serverAddress}");
-            Console.WriteLine($"Response from server {serverAddress}: {response}");
+            Logger.LogMessage($"Heartbeat sent to {serverAddress}");
+            Logger.LogMessage($"Response from server {serverAddress}: {response}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error sending heartbeat to {serverAddress}: {ex.Message}");
+            Logger.LogMessage($"Error sending heartbeat to {serverAddress}: {ex.Message}");
         }
     }
 
@@ -340,7 +489,7 @@ public class Node
 
                 if (parts.Length != 2)
                 {
-                    Console.WriteLine("Invalid server address format: " + server);
+                    Logger.LogMessage("Invalid server address format: " + server);
                     continue;
                 }
 
@@ -356,22 +505,22 @@ public class Node
 
                     if (ipAddresses.Any())
                     {
-                        Console.WriteLine("DNS discovery successful: " + string.Join(", ", ipAddresses));
+                        Logger.LogMessage("DNS discovery successful: " + string.Join(", ", ipAddresses));
                         return ipAddresses;
                     }
                 }
                 catch (Exception dnsEx)
                 {
-                    Console.WriteLine($"DNS resolution failed for {host}: {dnsEx.Message}");
+                    Logger.LogMessage($"DNS resolution failed for {host}: {dnsEx.Message}");
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine("Error during server discovery: " + ex.Message);
+            Logger.LogMessage("Error during server discovery: " + ex.Message);
         }
 
-        // Console.WriteLine("Falling back to static discovery servers.");
+        //Logger.LogMessage("Falling back to static discovery servers.");
         return staticServers;
     }
 }

@@ -1,6 +1,6 @@
-﻿using System.Text.Json.Serialization;
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
 
 public class ERC20Token
 {

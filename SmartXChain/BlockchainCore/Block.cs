@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using SmartXChain.Contracts;
 using SmartXChain.Utils;
 
 namespace SmartXChain.BlockchainCore;
@@ -14,6 +15,7 @@ public class Block
         Transactions = transactions;
         PreviousHash = previousHash;
         Hash = CalculateHash();
+        SmartContracts = new List<SmartContract>();
     }
 
     public DateTime Timestamp { get; }
@@ -21,6 +23,8 @@ public class Block
     public string PreviousHash { get; set; }
     public string Hash { get; private set; }
     public int Nonce { get; private set; }
+
+    [JsonInclude] public List<SmartContract> SmartContracts { get; private set; }
 
     [JsonIgnore] public string Base64Encoded => Convert.ToBase64String(GetBytes());
 
@@ -43,7 +47,7 @@ public class Block
             Hash = CalculateHash();
         }
 
-        Console.WriteLine($"Block mined: {Hash}");
+        Logger.LogMessage($"Block mined: {Hash}");
     }
 
     public string[] GetDiscoveryServers()
@@ -54,7 +58,6 @@ public class Block
             .ToArray();
     }
 
-
     public byte[] GetBytes()
     {
         var options = new JsonSerializerOptions { WriteIndented = true };
@@ -63,11 +66,24 @@ public class Block
         return compressedData;
     }
 
+    public string ToBase64()
+    {
+        return Convert.ToBase64String(GetBytes());
+    }
+
+    public static Block? FromBase64(string base64String)
+    {
+        var compressedData = Convert.FromBase64String(base64String);
+        var jsonString = Compress.DecompressString(compressedData);
+        var block = JsonSerializer.Deserialize<Block>(jsonString);
+        return block;
+    }
+
     // Save to compressed file
     public void Save(string filePath)
     {
         File.WriteAllBytes(filePath, GetBytes());
-        Console.WriteLine("Block saved (compressed) to file.");
+        Logger.LogMessage("Block saved (compressed) to file.");
     }
 
     // Load from compressed file
@@ -76,16 +92,6 @@ public class Block
         var compressedData = File.ReadAllBytes(filePath);
         var jsonString = Compress.DecompressString(compressedData);
         var block = JsonSerializer.Deserialize<Block>(jsonString);
-        //Console.WriteLine("Block loaded (decompressed) from file.");
-        return block;
-    }
-
-    public static Block? LoadFromBase64(string base64String)
-    {
-        var compressedData = Convert.FromBase64String(base64String);
-        var jsonString = Compress.DecompressString(compressedData);
-        var block = JsonSerializer.Deserialize<Block>(jsonString);
-        //Console.WriteLine("Block loaded (decompressed) from Base64String.");
         return block;
     }
 
@@ -94,14 +100,14 @@ public class Block
         const string prefix = "Vote:";
         if (!base64BlockMessage.StartsWith(prefix))
         {
-            Console.WriteLine("Invalid base64BlockMessage received.");
+            Logger.LogMessage("Invalid base64BlockMessage received.");
             return false;
         }
 
         try
         {
             var base64 = base64BlockMessage.Substring(prefix.Length);
-            var block = LoadFromBase64(base64);
+            var block = FromBase64(base64);
             if (block != null)
             {
                 var hash = block.Hash;
@@ -110,7 +116,7 @@ public class Block
         }
         catch (Exception e)
         {
-            Console.WriteLine($"Invalid base64BlockMessage. {e.Message}");
+            Logger.LogMessage($"Invalid base64BlockMessage. {e.Message}");
         }
 
         return false;

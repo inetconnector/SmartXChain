@@ -1,6 +1,7 @@
 ﻿using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SmartXChain.BlockchainCore;
+using SmartXChain.Utils;
 
 namespace SmartXChain.Contracts;
 
@@ -70,7 +71,7 @@ public class CodeSecurityAnalyzer
             var ns = ud.Name.ToString();
             if (!AllowedNamespaces.Any(ns.StartsWith))
             {
-                Console.WriteLine($"Non-whitelisted namespace detected: {ns}");
+                Logger.LogMessage($"Non-whitelisted namespace detected: {ns}");
                 return false;
             }
         }
@@ -78,7 +79,7 @@ public class CodeSecurityAnalyzer
         // 2. Check for unsafe code blocks
         if (root.DescendantNodes().OfType<UnsafeStatementSyntax>().Any())
         {
-            Console.WriteLine("Unsafe code block detected.");
+            Logger.LogMessage("Unsafe code block detected.");
             return false;
         }
 
@@ -89,7 +90,7 @@ public class CodeSecurityAnalyzer
             var typeName = oc.Type.ToString();
             if (ForbiddenClasses.Any(f => typeName.Contains(f)))
             {
-                Console.WriteLine($"Forbidden class detected: {typeName}");
+                Logger.LogMessage($"Forbidden class detected: {typeName}");
                 return false;
             }
         }
@@ -101,7 +102,7 @@ public class CodeSecurityAnalyzer
             var memberName = ma.Name.ToString();
             if (ForbiddenMethods.Any(m => memberName.Contains(m)))
             {
-                Console.WriteLine($"Forbidden method detected: {memberName}");
+                Logger.LogMessage($"Forbidden method detected: {memberName}");
                 return false;
             }
         }
@@ -110,7 +111,7 @@ public class CodeSecurityAnalyzer
         foreach (var keyword in ForbiddenKeywords)
             if (code.Contains(keyword))
             {
-                Console.WriteLine($"Forbidden keyword detected: {keyword}");
+                Logger.LogMessage($"Forbidden keyword detected: {keyword}");
                 return false;
             }
 
@@ -122,7 +123,7 @@ public class CodeSecurityAnalyzer
         foreach (var command in codeCommands)
             if (!IsCodeSafe(command))
             {
-                Console.WriteLine("Unsafe command detected.");
+                Logger.LogMessage("Unsafe command detected.");
                 return false;
             }
 

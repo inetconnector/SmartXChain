@@ -20,7 +20,7 @@ public class SmartXWallet
 
             // 1. Generate a 12-word Mnemonic phrase (BIP-39)
             mnemonic = new Mnemonic(Wordlist.English, WordCount.Twelve);
-            Console.WriteLine($"\n\nYour Mnemonic Phrase (Keep it secure!):\n{mnemonic}\n");
+            Logger.LogMessage($"\n\nYour Mnemonic Phrase (Keep it secure!):\n{mnemonic}\n");
 
             // 2. Derive the seed from the Mnemonic (BIP-39)
             var seed = mnemonic.DeriveSeed();
@@ -39,31 +39,31 @@ public class SmartXWallet
 
             // 5. Convert the private key to Ethereum-compatible address
             var account = new Account(privateKey.ToHex());
-            Console.WriteLine("\nYour SmartXChain Address:\n" + smartX + account.Address.Substring(2));
+            Logger.LogMessage("\nYour SmartXChain Address:\n" + smartX + account.Address.Substring(2));
             WalletAddresses.Add(smartX + account.Address.Substring(2));
 
             // 6. Example: Display more addresses in the same wallet
-            Console.WriteLine("\nAdditional Addresses in Wallet:");
+            Logger.LogMessage("\nAdditional Addresses in Wallet:");
             for (var i = 1; i <= 9; i++)
             {
                 var derivedKey = masterKey.Derive(new KeyPath($"m/44'/60'/0'/0/{i}"));
                 var derivedAccount = new Account(derivedKey.PrivateKey.ToHex());
                 var additionalAddress = smartX + derivedAccount.Address.Substring(2);
                 WalletAddresses.Add(additionalAddress);
-                Console.WriteLine($"Address {i}: {additionalAddress}");
+                Logger.LogMessage($"Address {i}: {additionalAddress}");
             }
 
-            Console.WriteLine();
+            Logger.LogMessage();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"An error occurred: {ex.Message}");
+            Logger.LogMessage($"An error occurred: {ex.Message}");
         }
 
         SaveToFile("walletadresses.txt", string.Join(Environment.NewLine, WalletAddresses));
 
         Config.Default.SetMinerAddress(WalletAddresses[0], mnemonic.ToString());
-        Console.WriteLine("New miner address generated and saved.");
+        Logger.LogMessage("New miner address generated and saved.");
 
         return (WalletAddresses, privateKey, mnemonic.ToString());
     }
@@ -82,11 +82,11 @@ public class SmartXWallet
             // Write content to file securely
             File.WriteAllText(path, content);
 
-            Console.WriteLine($"[INFO] Securely saved: {path}");
+            Logger.LogMessage($"[INFO] Securely saved: {path}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[ERROR] Failed to save {fileName}: {ex.Message}");
+            Logger.LogMessage($"[ERROR] Failed to save {fileName}: {ex.Message}");
         }
     }
 
@@ -100,14 +100,14 @@ public class SmartXWallet
 
             var content = File.ReadAllText(path);
 
-            Console.WriteLine($"[INFO] Securely loaded: {fileName}");
+            Logger.LogMessage($"[INFO] Securely loaded: {fileName}");
             var walletAddresses = content.Split(new[] { Environment.NewLine }, StringSplitOptions.None).ToList();
             WalletAddresses = walletAddresses;
             return walletAddresses;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[ERROR] Failed to load {fileName}: {ex.Message}");
+            Logger.LogMessage($"[ERROR] Failed to load {fileName}: {ex.Message}");
             return new List<string>();
         }
     }

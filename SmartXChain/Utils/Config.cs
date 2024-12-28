@@ -35,7 +35,7 @@ public class Config
         var configFilePath = Path.Combine(appDirectory, "config.txt");
         if (!File.Exists(configFilePath))
         {
-            Console.WriteLine("Config file not found during reload.");
+            Logger.LogMessage("Config file not found during reload.");
             return;
         }
 
@@ -51,7 +51,7 @@ public class Config
         // Reload the configuration from the file
         LoadConfig(configFilePath);
 
-        Console.WriteLine("Configuration reloaded successfully.");
+        Logger.LogMessage("Configuration reloaded successfully.");
     }
 
     public void SetMinerAddress(string minerAddress, string mnemonic)
@@ -86,7 +86,7 @@ public class Config
         }
 
         File.WriteAllLines(filePath, lines);
-        Console.WriteLine("Miner address and mnemonic saved to config.");
+        Logger.LogMessage("Miner address and mnemonic saved to config.");
     }
 
     private void LoadConfig(string filePath)
@@ -155,7 +155,7 @@ public class Config
                 }
                 else
                 {
-                    Console.WriteLine($"Invalid configuration line: {trimmedLine}");
+                    Logger.LogMessage($"Invalid configuration line: {trimmedLine}");
                 }
             }
             else if (isMinerSection)
@@ -174,7 +174,7 @@ public class Config
                 }
                 else
                 {
-                    Console.WriteLine($"Invalid miner line: {trimmedLine}");
+                    Logger.LogMessage($"Invalid miner line: {trimmedLine}");
                 }
             }
             else if (isServerSection)
@@ -192,7 +192,7 @@ public class Config
                 }
                 else
                 {
-                    Console.WriteLine($"Invalid server line: {trimmedLine}");
+                    Logger.LogMessage($"Invalid server line: {trimmedLine}");
                 }
             }
         }
@@ -231,6 +231,6 @@ public class Config
         }
 
         File.WriteAllLines(filePath, lines);
-        Console.WriteLine("Keys generated and saved to config.");
+        Logger.LogMessage("Keys generated and saved to config.");
     }
 }

@@ -36,7 +36,7 @@ public class SmartContract
         calculator.CalculateGasForContract();
         Gas = calculator.Gas;
 
-        Console.WriteLine($"Executing contract {Name} (Gas:{Gas})");
+        Logger.LogMessage($"Executing contract {Name} (Gas:{Gas})");
 
         // Deserialize state before execution
         var contractCode = Serializer.DeserializeFromBase64<string>(SerializedContractCode);

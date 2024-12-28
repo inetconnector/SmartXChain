@@ -33,7 +33,7 @@ public class SocketManager : IDisposable
         var keyToRemove = _instances.FirstOrDefault(kv => kv.Value == this).Key;
         if (keyToRemove != null) _instances.TryRemove(keyToRemove, out _);
 
-        Console.WriteLine("SocketManager disposed.");
+        Logger.LogMessage("SocketManager disposed.");
     }
 
     // Singleton Factory Methode
@@ -61,7 +61,7 @@ public class SocketManager : IDisposable
         try
         {
             using var httpClient = new HttpClient { BaseAddress = new Uri(_serverAddress) };
-            Console.WriteLine($"HTTP client initialized with server: {_serverAddress}");
+            Logger.LogMessage($"HTTP client initialized with server: {_serverAddress}");
 
             foreach (var (message, tcs) in _messageQueue.GetConsumingEnumerable(cancellationToken))
                 lock (_sendLock)
@@ -70,7 +70,7 @@ public class SocketManager : IDisposable
                     {
                         //var payload = Crypt.AssemblyFingerprint + "#" + message;
                         var content = new StringContent(message, Encoding.UTF8, "application/json");
-                        Logger.LogMessage($"Sending message to server: {message}");
+                        Logger.LogMessage($"Sending queued message to server: {message}");
                         // Send message to REST-Endppoint
                         var response = httpClient.PostAsync("/api/" + message.Split(':')[0], content).Result;
 
@@ -83,25 +83,25 @@ public class SocketManager : IDisposable
                         else
                         {
                             var error = $"ERROR: {response.StatusCode} - {response.ReasonPhrase}";
-                            Console.WriteLine(error);
+                            Logger.LogMessage(error);
                             tcs.TrySetResult(error);
                         }
                     }
                     catch (Exception ex)
                     {
                         // Fehlerbehandlung
-                        Console.WriteLine($"Error processing message: {ex.Message}");
+                        Logger.LogMessage($"Error processing message: {ex.Message}");
                         tcs.TrySetException(ex);
                     }
                 }
         }
         catch (OperationCanceledException)
         {
-            Console.WriteLine("Processing queue canceled.");
+            Logger.LogMessage("Processing queue canceled.");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Critical error in ProcessQueue: {ex.Message}");
+            Logger.LogMessage($"Critical error in ProcessQueue: {ex.Message}");
         }
     }
 }

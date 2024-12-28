@@ -169,7 +169,7 @@ public class Transaction
 
     private protected void Log(string message)
     {
-        Console.WriteLine($"[Transaction] {message}");
+        Logger.LogMessage($"[Transaction] {message}");
     }
 
     public override string ToString()
