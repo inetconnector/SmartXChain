@@ -21,7 +21,7 @@ public class Node
 
     public string ChainId { get; }
     public string NodeAddress { get; }
-    public  BlockchainServer.NodeStartupResult StartupResult { get; set; }
+    public BlockchainServer.NodeStartupResult StartupResult { get; set; }
 
     public static async Task<Node> Start(bool localRegistrationServer = false)
     {
@@ -138,17 +138,18 @@ public class Node
         }
     }
 
-    private static async Task<Blockchain?> UpdateBlockchain(Blockchain blockchain, Node node, SnowmanConsensus consensus)
-    { 
+    private static async Task<Blockchain?> UpdateBlockchain(Blockchain blockchain, Node node,
+        SnowmanConsensus consensus)
+    {
         var currentBlockCount = blockchain.Chain.Count;
 
         try
         {
-            foreach (var remoteNode in Node.CurrentNodeIPs)
+            foreach (var remoteNode in CurrentNodeIPs)
             {
                 // 1. Anfrage: Größe der entfernten Blockchain abrufen
                 var blockchainSizeResponse = await SocketManager.GetInstance(remoteNode)
-                    .SendMessageAsync($"/api/GetBlockCount");
+                    .SendMessageAsync("/api/GetBlockCount");
 
                 if (!int.TryParse(blockchainSizeResponse, out var remoteBlockCount))
                 {
@@ -156,7 +157,8 @@ public class Node
                     continue;
                 }
 
-                Console.WriteLine($"Node {remoteNode} blockchain: {remoteBlockCount}, Local blockchain: {currentBlockCount}.");
+                Console.WriteLine(
+                    $"Node {remoteNode} blockchain: {remoteBlockCount}, Local blockchain: {currentBlockCount}.");
 
                 if (remoteBlockCount <= currentBlockCount)
                 {
@@ -165,13 +167,13 @@ public class Node
                 }
 
                 Console.WriteLine($"Node {remoteNode} blockchain is larger. Starting synchronization...");
-                
+
                 try
                 {
-                    for (int i = currentBlockCount; i < remoteBlockCount; i++)
+                    for (var i = currentBlockCount; i < remoteBlockCount; i++)
                     {
                         var blockResponse = await SocketManager.GetInstance(remoteNode)
-                            .SendMessageAsync($"/api/GetBlock/");
+                            .SendMessageAsync("/api/GetBlock/");
 
                         if (string.IsNullOrEmpty(blockResponse))
                         {
@@ -185,12 +187,13 @@ public class Node
                             Console.WriteLine($"Invalid block data received for block {i} from node {remoteNode}.");
                             break;
                         }
-                        blockchain.Chain.Add(block);
+
+                        blockchain.AddBlock(block);
                         Console.WriteLine($"Added Block {i} to blockchain");
-                    } 
+                    }
 
                     Console.WriteLine($"Blockchain successfully updated from node {remoteNode}.");
-          
+
                     break;
                 }
                 catch (Exception ex)

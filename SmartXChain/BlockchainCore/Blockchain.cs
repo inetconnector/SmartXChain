@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using SmartXChain.Contracts;
+using SmartXChain.Server;
 using SmartXChain.Utils;
 using SmartXChain.Validators;
 
@@ -50,11 +51,46 @@ public class Blockchain
         return new Block(DateTime.UtcNow, new List<Transaction>(), "0");
     }
 
-    public bool AddBlock(Block block)
+    public bool AddBlock(Block block, bool lockChain = true, bool mineBlock = true)
     {
-        if (Chain.Count > 0) block.PreviousHash = Chain.Last().Hash;
-        block.Mine(_difficulty);
-        Chain.Add(block);
+        if (mineBlock)
+        {
+            if (lockChain)
+            {
+                lock (Chain)
+                {
+                    if (Chain.Count > 0)
+                        block.PreviousHash = Chain.Last().Hash;
+                    block.Mine(_difficulty);
+                    Chain.Add(block);
+                }
+            }
+            else
+            {
+                if (Chain.Count > 0)
+                    block.PreviousHash = Chain.Last().Hash;
+                block.Mine(_difficulty);
+                Chain.Add(block);
+            }
+        }
+        else
+        {
+            //Add only if Block previous hash is last block
+            if (Chain.Count > 0 && Chain.Last().Hash == block.PreviousHash)
+            {
+                lock (Chain)
+                {
+                    Chain.Add(block);
+                }
+            }
+            else
+            {
+                Console.WriteLine("Block not added to chain -- invalid previous block");
+                return false;
+            }
+        }
+
+        Console.WriteLine("Block added to chain successfully: " + block.Hash);
         return true;
     }
 
@@ -88,8 +124,11 @@ public class Blockchain
 
         if (gas > 0)
             PayGas("Transaction", payer, gas);
+        lock (PendingTransactions)
+        {
+            PendingTransactions.Add(transaction);
+        }
 
-        PendingTransactions.Add(transaction);
         return true;
     }
 
@@ -258,15 +297,19 @@ public class Blockchain
         var (consensusReached, rewardAddresses) = await _consensus.ReachConsensus(block);
         if (consensusReached)
         {
-            if (ValidateChain())
+            lock (Chain)
             {
-                Chain.Add(block);
-                Console.WriteLine("Block added to chain successfully: " + block.Hash);
+                if (ValidateChain())
+                {
+                    if (AddBlock(block, false)) ;
+                    BlockchainServer.BroadcastToPeers("NewBlock:" + JsonSerializer.Serialize(block),
+                        Node.CurrentNodeIPs);
+                }
             }
 
             var rewardTransaction = new RewardTransaction(Config.Default.MinerAddress);
-
             AddTransaction(rewardTransaction);
+
             Console.WriteLine($"Miner reward: Reward {rewardTransaction.Reward} to miner {minerAddress}");
 
             foreach (var address in rewardAddresses)

@@ -1,5 +1,5 @@
 ﻿using System.Collections.Concurrent;
-using System.Text; 
+using System.Text;
 
 namespace SmartXChain.Utils;
 
@@ -55,29 +55,29 @@ public class SocketManager : IDisposable
 
         return tcs.Task;
     }
+
     private async Task ProcessQueue(CancellationToken cancellationToken)
     {
         try
-        {  
+        {
             using var httpClient = new HttpClient { BaseAddress = new Uri(_serverAddress) };
             Console.WriteLine($"HTTP client initialized with server: {_serverAddress}");
 
             foreach (var (message, tcs) in _messageQueue.GetConsumingEnumerable(cancellationToken))
-            {
                 lock (_sendLock)
                 {
                     try
-                    { 
+                    {
                         //var payload = Crypt.AssemblyFingerprint + "#" + message;
                         var content = new StringContent(message, Encoding.UTF8, "application/json");
                         Logger.LogMessage($"Sending message to server: {message}");
                         // Send message to REST-Endppoint
-                        var response = httpClient.PostAsync("/api/"+ message.Split(':')[0], content).Result;
-                         
+                        var response = httpClient.PostAsync("/api/" + message.Split(':')[0], content).Result;
+
                         if (response.IsSuccessStatusCode)
                         {
                             var responseString = response.Content.ReadAsStringAsync().Result;
-                            Logger.LogMessage($"Received response: {responseString}"); 
+                            Logger.LogMessage($"Received response: {responseString}");
                             tcs.TrySetResult(responseString);
                         }
                         else
@@ -94,7 +94,6 @@ public class SocketManager : IDisposable
                         tcs.TrySetException(ex);
                     }
                 }
-            }
         }
         catch (OperationCanceledException)
         {
@@ -105,5 +104,4 @@ public class SocketManager : IDisposable
             Console.WriteLine($"Critical error in ProcessQueue: {ex.Message}");
         }
     }
-
 }

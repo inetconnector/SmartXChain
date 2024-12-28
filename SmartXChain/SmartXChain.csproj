@@ -8,17 +8,17 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-	  <Compile Remove="BlockchainCore\ERC20.cs" />
-	  <Compile Remove="Contracts.Designer.cs" />
-	  <Compile Remove="Resources\ERC20.cs" />
+		<Compile Remove="BlockchainCore\ERC20.cs" />
+		<Compile Remove="Contracts.Designer.cs" />
+		<Compile Remove="Resources\ERC20.cs" />
 	</ItemGroup>
 
 	<ItemGroup>
-	  <EmbeddedResource Remove="Contracts.resx" />
+		<EmbeddedResource Remove="Contracts.resx" />
 	</ItemGroup>
 
 	<ItemGroup>
-	  <None Include="Resources\ERC20.cs" />
+		<None Include="Resources\ERC20.cs" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -31,19 +31,19 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Compile Update="Properties\Resources.Designer.cs">
-	    <DesignTime>True</DesignTime>
-	    <AutoGen>True</AutoGen>
-	    <DependentUpon>Resources.resx</DependentUpon>
-	  </Compile>
+		<Compile Update="Properties\Resources.Designer.cs">
+			<DesignTime>True</DesignTime>
+			<AutoGen>True</AutoGen>
+			<DependentUpon>Resources.resx</DependentUpon>
+		</Compile>
 	</ItemGroup>
 
 	<ItemGroup>
-	  <EmbeddedResource Update="Properties\Resources.resx">
-	    <Generator>ResXFileCodeGenerator</Generator>
-	    <LastGenOutput>Resources.Designer.cs</LastGenOutput>
-	    <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-	  </EmbeddedResource>
+		<EmbeddedResource Update="Properties\Resources.resx">
+			<Generator>ResXFileCodeGenerator</Generator>
+			<LastGenOutput>Resources.Designer.cs</LastGenOutput>
+			<CopyToOutputDirectory>Never</CopyToOutputDirectory>
+		</EmbeddedResource>
 	</ItemGroup>
 
 </Project>

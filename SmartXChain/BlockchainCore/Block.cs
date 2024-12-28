@@ -76,7 +76,7 @@ public class Block
         var compressedData = File.ReadAllBytes(filePath);
         var jsonString = Compress.DecompressString(compressedData);
         var block = JsonSerializer.Deserialize<Block>(jsonString);
-        Console.WriteLine("Block loaded (decompressed) from file.");
+        //Console.WriteLine("Block loaded (decompressed) from file.");
         return block;
     }
 
@@ -85,7 +85,7 @@ public class Block
         var compressedData = Convert.FromBase64String(base64String);
         var jsonString = Compress.DecompressString(compressedData);
         var block = JsonSerializer.Deserialize<Block>(jsonString);
-        Console.WriteLine("Block loaded (decompressed) from Base64String.");
+        //Console.WriteLine("Block loaded (decompressed) from Base64String.");
         return block;
     }
 
