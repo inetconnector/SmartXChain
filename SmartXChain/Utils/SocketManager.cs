@@ -70,15 +70,14 @@ public class SocketManager : IDisposable
                     { 
                         //var payload = Crypt.AssemblyFingerprint + "#" + message;
                         var content = new StringContent(message, Encoding.UTF8, "application/json");
-                        Console.WriteLine($"Sending message to server: {message}");
-
+                        Logger.LogMessage($"Sending message to server: {message}");
                         // Send message to REST-Endppoint
                         var response = httpClient.PostAsync("/api/"+ message.Split(':')[0], content).Result;
                          
                         if (response.IsSuccessStatusCode)
                         {
                             var responseString = response.Content.ReadAsStringAsync().Result;
-                            Console.WriteLine($"Received response: {responseString}"); 
+                            Logger.LogMessage($"Received response: {responseString}"); 
                             tcs.TrySetResult(responseString);
                         }
                         else

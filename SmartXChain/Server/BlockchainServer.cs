@@ -5,10 +5,8 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using NBitcoin.Protocol;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Contracts;
 using SmartXChain.Utils;
@@ -41,38 +39,39 @@ public class BlockchainServer
 
     private void StartMainServer()
     {
-        var host = Host.CreateDefaultBuilder() 
+
+        var host = Host.CreateDefaultBuilder()
             .ConfigureWebHostDefaults(webBuilder =>
             {
                 webBuilder.UseKestrel()
-                    .UseUrls($"http://0.0.0.0:{Config.Default.Port}") 
+                    .UseUrls($"http://0.0.0.0:{Config.Default.Port}")
                     .Configure(app =>
                     {
                         // Routing for Endpoints
-                        app.UseRouting(); 
+                        app.UseRouting();
                         app.UseEndpoints(endpoints =>
                         {
                             // Define REST-Endpoints
                             endpoints.MapPost("/api/Register", async context =>
                             {
                                 var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-                                Console.WriteLine($"Register: {message}");
+                                Logger.LogMessage($"Register: {message}");
                                 var result = HandleRegistration(message);
-                                await context.Response.WriteAsync(result); 
+                                await context.Response.WriteAsync(result);
                             });
 
                             endpoints.MapPost("/api/GetNodes", async context =>
                             {
                                 var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
                                 var result = HandleGetNodes(message);
-                                await context.Response.WriteAsync(result); 
-                                Console.WriteLine($"GetNodes: {result}");
-                            }); 
+                                await context.Response.WriteAsync(result);
+                                Logger.LogMessage($"GetNodes: {result}");
+                            });
 
                             endpoints.MapPost("/api/Broadcast", async context =>
                             {
                                 var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-                                Console.WriteLine($"Broadcast: {message}");
+                                Logger.LogMessage($"Broadcast: {message}");
                                 var result = HandleBroadcast(message);
                                 await context.Response.WriteAsync(result);
                             });
@@ -80,7 +79,7 @@ public class BlockchainServer
                             endpoints.MapPost("/api/Vote", async context =>
                             {
                                 var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-                                Console.WriteLine($"Vote: {message}");
+                                Logger.LogMessage($"Vote: {message}");
                                 var result = HandleVote(message);
                                 await context.Response.WriteAsync(result);
                             });
@@ -88,7 +87,7 @@ public class BlockchainServer
                             endpoints.MapPost("/api/VerifyCode", async context =>
                             {
                                 var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-                                Console.WriteLine($"VerifyCode: {message}");
+                                Logger.LogMessage($"VerifyCode: {message}");
                                 var result = HandleVerifyCode(message);
                                 await context.Response.WriteAsync(result);
                             });
@@ -96,7 +95,7 @@ public class BlockchainServer
                             endpoints.MapPost("/api/Heartbeat", async context =>
                             {
                                 var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-                                Console.WriteLine($"Heartbeat: {message}");
+                                Logger.LogMessage($"Heartbeat: {message}");
                                 HandleHeartbeat(message);
                                 await context.Response.WriteAsync("ok");
                             });
@@ -104,14 +103,14 @@ public class BlockchainServer
                             endpoints.MapPost("/api/GetBlockCount", async context =>
                             {
                                 var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-                                Console.WriteLine($"GetBlockCount: {message}"); 
+                                Logger.LogMessage($"GetBlockCount: {message}");
                                 await context.Response.WriteAsync(_blockchain.Chain.Count.ToString());
                             });
 
                             endpoints.MapPost("/api/GetChain", async context =>
                             {
                                 var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-                                Console.WriteLine($"GetChain: {message}");  
+                                Logger.LogMessage($"GetChain: {message}");
                                 await context.Response.WriteAsync(JsonSerializer.Serialize(_blockchain.Chain));
                             });
 
@@ -138,11 +137,11 @@ public class BlockchainServer
                                 context.Response.ContentType = "application/json";
                                 await context.Response.WriteAsync(blockJson);
                             });
-                             
+
                             endpoints.MapPost("/api/PushChain", async context =>
                             {
                                 var serializedChain = await new StreamReader(context.Request.Body).ReadToEndAsync();
-                                Console.WriteLine($"PushChain: {serializedChain}");
+                                Logger.LogMessage($"PushChain: {serializedChain}");
                                 HasChain(serializedChain);
                                 await context.Response.WriteAsync("ok");
                             });
@@ -150,33 +149,25 @@ public class BlockchainServer
                             endpoints.MapPost("/api/NewBlock", async context =>
                             {
                                 var serializedBlock = await new StreamReader(context.Request.Body).ReadToEndAsync();
-                                Console.WriteLine($"NewBlock: {serializedBlock}");
+                                Logger.LogMessage($"NewBlock: {serializedBlock}");
                                 var newBlock = JsonSerializer.Deserialize<Block>(serializedBlock);
 
                                 if (newBlock != null && _blockchain.AddBlock(newBlock))
-                                {
-                                    await context.Response.WriteAsync("ok"); 
-                                }
+                                    await context.Response.WriteAsync("ok");
                                 else
-                                {
                                     await context.Response.WriteAsync("");
-                                }
                             });
 
                             endpoints.MapPost("/api/AddTransaction", async context =>
                             {
                                 var transactionJson = await new StreamReader(context.Request.Body).ReadToEndAsync();
-                                Console.WriteLine($"AddTransaction: {transactionJson}");
+                                Logger.LogMessage($"AddTransaction: {transactionJson}");
                                 var transaction = JsonSerializer.Deserialize<Transaction>(transactionJson);
 
                                 if (transaction != null && await AddTransaction(transaction))
-                                {
                                     await context.Response.WriteAsync("ok");
-                                }
                                 else
-                                {
                                     await context.Response.WriteAsync("");
-                                }
                             });
                         });
                     });
@@ -189,12 +180,12 @@ public class BlockchainServer
                 //    options.LogToStandardErrorThreshold = LogLevel.Warning;
                 //});
             })
-
             .Build();
 
         host.Run();
     }
-     
+
+
     public static async Task<(BlockchainServer?, NodeStartupResult?)> StartServerAsync()
     {
         NodeStartupResult? result = null;
@@ -290,7 +281,7 @@ public class BlockchainServer
     {
         return message.Substring(Crypt.AssemblyFingerprint.Length + 1);
     }
-      
+
     private string HandleRegistration(string message)
     {
         var parts = message.Split(new[] { ':' }, 2);
@@ -324,7 +315,7 @@ public class BlockchainServer
         RemoveInactiveNodes();
 
         // Combine registered node addresses into a single string
-        if (_registeredNodes.Keys.Count>0)
+        if (_registeredNodes.Keys.Count > 0)
         {
             var nodes = string.Join(",", _registeredNodes.Keys);
             return nodes;
@@ -332,8 +323,9 @@ public class BlockchainServer
 
         return "";
     }
+
     private string HandleBroadcast(string message)
-    { 
+    {
         _registeredNodes.TryAdd(message, DateTime.UtcNow);
         // Combine registered node addresses into a single string
         var nodes = string.Join(",", _registeredNodes.Keys);
@@ -384,7 +376,7 @@ public class BlockchainServer
     }
 
     private void HandleHeartbeat(string message)
-    { 
+    {
         const string prefix = "Heartbeat:";
         if (!message.StartsWith(prefix))
         {
@@ -455,14 +447,14 @@ public class BlockchainServer
                     using var httpClient = new HttpClient { BaseAddress = new Uri(peer) };
 
                     var content = new StringContent(JsonSerializer.Serialize(""), Encoding.UTF8,
-                        "application/json");  
-                    var response = await httpClient.PostAsync("/api/GetNodes",content);
+                        "application/json");
+                    var response = await httpClient.PostAsync("/api/GetNodes", content);
 
                     if (response.IsSuccessStatusCode)
                     {
-                        var responseBody = await response.Content.ReadAsStringAsync(); 
+                        var responseBody = await response.Content.ReadAsStringAsync();
 
-                        foreach (var node in responseBody.Split(',')) 
+                        foreach (var node in responseBody.Split(','))
                             _registeredNodes.TryAdd(node, DateTime.UtcNow);
                     }
                     else
@@ -560,7 +552,7 @@ public class BlockchainServer
             try
             {
                 using var httpClient = new HttpClient { BaseAddress = new Uri(peer) };
-                 
+
                 var response = await httpClient.GetAsync("/api/GetBlockCount");
 
                 if (response.IsSuccessStatusCode)
