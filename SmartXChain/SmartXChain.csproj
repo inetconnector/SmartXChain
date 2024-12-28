@@ -22,11 +22,12 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<PackageReference Include="Microsoft.AspNetCore.App" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.12.0" />
 		<PackageReference Include="NBitcoin" Version="7.0.46" />
 		<PackageReference Include="Nethereum.Web3" Version="4.26.0" />
-		<PackageReference Include="NetMQ" Version="4.0.1.13" />
 	</ItemGroup>
 
 	<ItemGroup>

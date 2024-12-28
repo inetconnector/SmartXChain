@@ -2,12 +2,18 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using NetMQ;
-using NetMQ.Sockets;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using NBitcoin.Protocol;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Contracts;
 using SmartXChain.Utils;
 using SmartXChain.Validators;
+using Node = SmartXChain.Validators.Node;
 
 namespace SmartXChain.Server;
 
@@ -26,13 +32,169 @@ public class BlockchainServer
 
     public BlockchainServer(Blockchain blockchain, string externIP, string internIP)
     {
-        _serverAddressExtern = $"tcp://{externIP}:{Config.Default.Port}";
-        _serverAddressIntern = $"tcp://{internIP}:{Config.Default.Port}";
+        _serverAddressExtern = $"http://{externIP}:{Config.Default.Port}";
+        _serverAddressIntern = $"http://{internIP}:{Config.Default.Port}";
 
         Console.WriteLine($"Starting server at {_serverAddressIntern}/{_serverAddressExtern}...");
         _blockchain = blockchain;
     }
 
+    private void StartMainServer()
+    {
+        var host = Host.CreateDefaultBuilder() 
+            .ConfigureWebHostDefaults(webBuilder =>
+            {
+                webBuilder.UseKestrel()
+                    .UseUrls($"http://0.0.0.0:{Config.Default.Port}") 
+                    .Configure(app =>
+                    {
+                        // Routing for Endpoints
+                        app.UseRouting(); 
+                        app.UseEndpoints(endpoints =>
+                        {
+                            // Define REST-Endpoints
+                            endpoints.MapPost("/api/Register", async context =>
+                            {
+                                var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
+                                Console.WriteLine($"Register: {message}");
+                                var result = HandleRegistration(message);
+                                await context.Response.WriteAsync(result); 
+                            });
+
+                            endpoints.MapPost("/api/GetNodes", async context =>
+                            {
+                                var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
+                                var result = HandleGetNodes(message);
+                                await context.Response.WriteAsync(result); 
+                                Console.WriteLine($"GetNodes: {result}");
+                            }); 
+
+                            endpoints.MapPost("/api/Broadcast", async context =>
+                            {
+                                var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
+                                Console.WriteLine($"Broadcast: {message}");
+                                var result = HandleBroadcast(message);
+                                await context.Response.WriteAsync(result);
+                            });
+
+                            endpoints.MapPost("/api/Vote", async context =>
+                            {
+                                var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
+                                Console.WriteLine($"Vote: {message}");
+                                var result = HandleVote(message);
+                                await context.Response.WriteAsync(result);
+                            });
+
+                            endpoints.MapPost("/api/VerifyCode", async context =>
+                            {
+                                var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
+                                Console.WriteLine($"VerifyCode: {message}");
+                                var result = HandleVerifyCode(message);
+                                await context.Response.WriteAsync(result);
+                            });
+
+                            endpoints.MapPost("/api/Heartbeat", async context =>
+                            {
+                                var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
+                                Console.WriteLine($"Heartbeat: {message}");
+                                HandleHeartbeat(message);
+                                await context.Response.WriteAsync("ok");
+                            });
+
+                            endpoints.MapPost("/api/GetBlockCount", async context =>
+                            {
+                                var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
+                                Console.WriteLine($"GetBlockCount: {message}"); 
+                                await context.Response.WriteAsync(_blockchain.Chain.Count.ToString());
+                            });
+
+                            endpoints.MapPost("/api/GetChain", async context =>
+                            {
+                                var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
+                                Console.WriteLine($"GetChain: {message}");  
+                                await context.Response.WriteAsync(JsonSerializer.Serialize(_blockchain.Chain));
+                            });
+
+                            endpoints.MapPost("/api/GetBlock/{block:int}", async context =>
+                            {
+                                var blockIndexStr = (string)context.Request.RouteValues["block"];
+                                if (!int.TryParse(blockIndexStr, out var blockIndex))
+                                {
+                                    context.Response.StatusCode = 400; // Bad Request
+                                    await context.Response.WriteAsync("Error: Invalid block index.");
+                                    return;
+                                }
+
+                                if (blockIndex < 0 || blockIndex >= _blockchain.Chain.Count)
+                                {
+                                    context.Response.StatusCode = 404; // Not Found
+                                    await context.Response.WriteAsync($"Error: Block {blockIndex} not found.");
+                                    return;
+                                }
+
+                                var block = _blockchain.Chain[blockIndex];
+                                var blockJson = JsonSerializer.Serialize(block);
+
+                                context.Response.ContentType = "application/json";
+                                await context.Response.WriteAsync(blockJson);
+                            });
+                             
+                            endpoints.MapPost("/api/PushChain", async context =>
+                            {
+                                var serializedChain = await new StreamReader(context.Request.Body).ReadToEndAsync();
+                                Console.WriteLine($"PushChain: {serializedChain}");
+                                HasChain(serializedChain);
+                                await context.Response.WriteAsync("ok");
+                            });
+
+                            endpoints.MapPost("/api/NewBlock", async context =>
+                            {
+                                var serializedBlock = await new StreamReader(context.Request.Body).ReadToEndAsync();
+                                Console.WriteLine($"NewBlock: {serializedBlock}");
+                                var newBlock = JsonSerializer.Deserialize<Block>(serializedBlock);
+
+                                if (newBlock != null && _blockchain.AddBlock(newBlock))
+                                {
+                                    await context.Response.WriteAsync("ok"); 
+                                }
+                                else
+                                {
+                                    await context.Response.WriteAsync("");
+                                }
+                            });
+
+                            endpoints.MapPost("/api/AddTransaction", async context =>
+                            {
+                                var transactionJson = await new StreamReader(context.Request.Body).ReadToEndAsync();
+                                Console.WriteLine($"AddTransaction: {transactionJson}");
+                                var transaction = JsonSerializer.Deserialize<Transaction>(transactionJson);
+
+                                if (transaction != null && await AddTransaction(transaction))
+                                {
+                                    await context.Response.WriteAsync("ok");
+                                }
+                                else
+                                {
+                                    await context.Response.WriteAsync("");
+                                }
+                            });
+                        });
+                    });
+            })
+            .ConfigureLogging(logging =>
+            {
+                logging.ClearProviders();
+                //logging.AddConsole(options =>
+                //{
+                //    options.LogToStandardErrorThreshold = LogLevel.Warning;
+                //});
+            })
+
+            .Build();
+
+        host.Run();
+    }
+     
     public static async Task<(BlockchainServer?, NodeStartupResult?)> StartServerAsync()
     {
         NodeStartupResult? result = null;
@@ -107,7 +269,7 @@ public class BlockchainServer
         try
         {
             foreach (var peer in Config.Default.Peers)
-                if (!string.IsNullOrEmpty(peer) && peer.StartsWith("tcp://"))
+                if (!string.IsNullOrEmpty(peer) && peer.StartsWith("http://"))
                 {
                     if (peer == _serverAddressExtern) continue;
                     if (peer == _serverAddressIntern) continue;
@@ -124,163 +286,27 @@ public class BlockchainServer
         }
     }
 
-    private void StartMainServer()
-    {
-        while (true)
-        {
-            using var server = new ResponseSocket();
-            try
-            {
-                server.Bind(_serverAddressIntern);
-                Console.WriteLine(
-                    $"SmartXchain {Config.Default.SmartXchain} bound to: {_serverAddressIntern}/{_serverAddressExtern}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(
-                    $"Error binding SmartXchain {Config.Default.SmartXchain} to {_serverAddressExtern} {ex.Message} {ex.InnerException.Message}");
-                return; // Exit if the server cannot start
-            }
-
-            while (true)
-            {
-                var message = "";
-                var responseSent = false;
-                try
-                {
-                    message = server.ReceiveFrameString();
-                    if (!string.IsNullOrEmpty(message))
-                    {
-                        if (!Config.Default.Debug && !message.StartsWith(Crypt.AssemblyFingerprint))
-                        {
-                            var response = "Invalid fingerprint detected";
-                            Console.WriteLine($"{response} Dropping message '{message}'");
-                            server.SendFrame(response);
-                            responseSent = true;
-                            continue;
-                        }
-
-                        // Remove fingerprint and handle message
-                        var strippedMessage = RemoveFingerprint(message);
-
-                        Console.WriteLine($"Received message: {strippedMessage}");
-
-                        ProcessMessage(strippedMessage, server);
-                        responseSent = true;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error processing message {message}\n{ex.Message}\n{ex.StackTrace}");
-                    if (!responseSent)
-                        try
-                        {
-                            server.SendFrame("ERROR: " + ex.Message);
-                        }
-                        catch (Exception sendEx)
-                        {
-                            Console.WriteLine($"Failed to send error response: {sendEx.Message}");
-                        }
-                }
-            }
-        }
-    }
-
-    private void ProcessMessage(string message, ResponseSocket server)
-    {
-        if (message.StartsWith("Register:"))
-        {
-            HandleRegistration(message, server);
-        }
-        else if (message == "GetNodes")
-        {
-            HandleGetNodes(server);
-        }
-        else if (message.StartsWith("Vote:"))
-        {
-            server.SendFrame(HandleVote(message));
-        }
-        else if (message.StartsWith("VerifyCode:"))
-        {
-            server.SendFrame(HandleVerifyCode(message));
-        }
-        else if (message.StartsWith("Heartbeat:"))
-        {
-            HandleHeartbeat(message);
-            server.SendFrame("ok");
-        }
-        else if (message.StartsWith("GetBlockCount"))
-        {
-            server.SendFrame(_blockchain.Chain.Count.ToString());
-        }
-        else if (message.StartsWith("GetChain"))
-        {
-            PushChain(server);
-        }
-        else if (message.StartsWith("PushChain:"))
-        {
-            var serializedChain = message.Substring("PushChain:".Length);
-            HasChain(serializedChain);
-        }
-        else if (message.StartsWith("NewBlock:"))
-        {
-            var serializedBlock = message.Substring("NewBlock:".Length);
-            var newBlock = JsonSerializer.Deserialize<Block>(serializedBlock);
-
-            if (newBlock != null && _blockchain.AddBlock(newBlock))
-                Console.WriteLine("New block added to the blockchain.");
-            else
-                Console.WriteLine("Failed to add new block. Invalid or already present.");
-        }
-        else if (message.StartsWith("AddTransaction:"))
-        {
-            var transactionJson = message.Substring("AddTransaction:".Length);
-            var transaction = JsonSerializer.Deserialize<Transaction>(transactionJson);
-            server.SendFrame(transaction != null && AddTransaction(transaction) ? "ok" : "ERROR: Transaction rejected");
-        }
-        else
-        {
-            Console.WriteLine("Unknown message type received:" + message);
-            server.SendFrame("ERROR: Unknown message");
-        }
-    }
-
     private string RemoveFingerprint(string message)
     {
         return message.Substring(Crypt.AssemblyFingerprint.Length + 1);
     }
-
-    private void HandleRegistration(string message, ResponseSocket server)
+      
+    private string HandleRegistration(string message)
     {
-        // Example message: "Register:tcp://127.0.0.1:signature"
-
-        // Split the message into two parts: "Register" and the remaining data
         var parts = message.Split(new[] { ':' }, 2);
-        if (parts.Length != 2 || parts[0] != "Register")
-        {
-            server.SendFrame("ERROR: Invalid registration format");
-            return;
-        }
+        if (parts.Length != 2 || parts[0] != "Register") return "Invalid registration format";
 
         var remainingParts = parts[1];
 
         // Split the remaining data into node address and signature
         var addressSignatureParts = remainingParts.Split(new[] { ':' }, 2);
-        if (addressSignatureParts.Length != 2)
-        {
-            server.SendFrame("ERROR: Invalid registration format");
-            return;
-        }
+        if (addressSignatureParts.Length != 2) return "Invalid registration format";
 
-        var nodeAddress = addressSignatureParts[0]; // Node address (e.g., "tcp://127.0.0.1")
+        var nodeAddress = addressSignatureParts[0]; // Node address (e.g., "http://127.0.0.1")
         var signature = addressSignatureParts[1]; // Signature for validation
 
         // Security check using signature validation
-        if (!ValidateSignature(nodeAddress, signature))
-        {
-            server.SendFrame("ERROR: Invalid signature");
-            return;
-        }
+        if (!ValidateSignature(nodeAddress, signature)) return "Invalid signature";
 
         // Register the node
         _registeredNodes[nodeAddress] = DateTime.UtcNow;
@@ -289,19 +315,31 @@ public class BlockchainServer
         // Broadcast the registration message to peer servers
         BroadcastToPeers($"Register:{nodeAddress}");
 
-        // Send confirmation response
-        server.SendFrame("ok");
+        return "ok";
     }
 
-    private void HandleGetNodes(ResponseSocket server)
+    private string HandleGetNodes(string message)
     {
         // Remove inactive nodes before sending the list
         RemoveInactiveNodes();
 
         // Combine registered node addresses into a single string
-        var nodes = string.Join(",", _registeredNodes.Keys);
-        server.SendFrame(nodes);
+        if (_registeredNodes.Keys.Count>0)
+        {
+            var nodes = string.Join(",", _registeredNodes.Keys);
+            return nodes;
+        }
+
+        return "";
     }
+    private string HandleBroadcast(string message)
+    { 
+        _registeredNodes.TryAdd(message, DateTime.UtcNow);
+        // Combine registered node addresses into a single string
+        var nodes = string.Join(",", _registeredNodes.Keys);
+        return nodes;
+    }
+
 
     private string HandleVote(string message)
     {
@@ -346,9 +384,7 @@ public class BlockchainServer
     }
 
     private void HandleHeartbeat(string message)
-    {
-        // example: "Heartbeat:tcp://127.0.0.1:5555"
-
+    { 
         const string prefix = "Heartbeat:";
         if (!message.StartsWith(prefix))
         {
@@ -409,45 +445,29 @@ public class BlockchainServer
         }
     }
 
-    private void BroadcastToPeers(string message)
-    {
-        // Send a message to all peer servers
-        foreach (var peer in _peerServers)
-            Task.Run(() =>
-            {
-                try
-                {
-                    using (var client = new RequestSocket())
-                    {
-                        client.Connect(peer);
-                        client.SendFrame(Crypt.AssemblyFingerprint + "#" + message);
-                        client.ReceiveFrameString(); // Ignore the response
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error sending to peer {peer}: {ex.Message}");
-                }
-            });
-    }
-
-    private void SynchronizeWithPeers()
+    private async void SynchronizeWithPeers()
     {
         while (true)
         {
-            // Request the list of nodes from all peer servers
             foreach (var peer in _peerServers)
                 try
                 {
-                    using (var client = new RequestSocket())
-                    {
-                        client.Connect(peer);
-                        client.SendFrame(Crypt.AssemblyFingerprint + "#" + "GetNodes");
-                        var response = client.ReceiveFrameString();
+                    using var httpClient = new HttpClient { BaseAddress = new Uri(peer) };
 
-                        // Synchronize nodes from the response
-                        foreach (var node in response.Split(','))
+                    var content = new StringContent(JsonSerializer.Serialize(""), Encoding.UTF8,
+                        "application/json");  
+                    var response = await httpClient.PostAsync("/api/GetNodes",content);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var responseBody = await response.Content.ReadAsStringAsync(); 
+
+                        foreach (var node in responseBody.Split(',')) 
                             _registeredNodes.TryAdd(node, DateTime.UtcNow);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Error synchronizing with peer {peer}: {response.StatusCode}");
                     }
                 }
                 catch (Exception ex)
@@ -455,8 +475,32 @@ public class BlockchainServer
                     Console.WriteLine($"Error synchronizing with peer {peer}: {ex.Message}");
                 }
 
-            Thread.Sleep(5000); // Synchronize every 5 seconds
+            await Task.Delay(5000);
         }
+    }
+
+    private async void BroadcastToPeers(string message)
+    {
+        foreach (var peer in _peerServers)
+            await Task.Run(async () =>
+            {
+                try
+                {
+                    using var httpClient = new HttpClient { BaseAddress = new Uri(peer) };
+                    var payload = new { Message = message };
+
+                    var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8,
+                        "application/json");
+                    var response = await httpClient.PostAsync("/api/Broadcast", content);
+
+                    if (!response.IsSuccessStatusCode)
+                        Console.WriteLine($"Error sending to peer {peer}: {response.StatusCode}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error sending to peer {peer}: {ex.Message}");
+                }
+            });
     }
 
     public class NodeStartupResult
@@ -491,41 +535,10 @@ public class BlockchainServer
         return false;
     }
 
-    private async Task PushChain(ResponseSocket server)
-    {
-        var tmpFile = Path.GetTempFileName();
-        _blockchain.Save(tmpFile);
-
-        const int bufferSize = 32768;
-        var buffer = new byte[bufferSize];
-        var offset = 0L;
-
-        await using (var fileStream = new FileStream(tmpFile, FileMode.Open, FileAccess.Read))
-        {
-            var totalLength = fileStream.Length;
-
-            while (offset < totalLength)
-            {
-                var bytesRead = await fileStream.ReadAsync(buffer, 0, bufferSize);
-                if (bytesRead == 0) break;
-
-                var chunk = Convert.ToBase64String(buffer, 0, bytesRead);
-
-                await Task.Run(() => server.SendFrame(Crypt.AssemblyFingerprint + "#" + chunk));
-                offset += bytesRead;
-
-                Console.WriteLine($"Sent chunk {offset}/{totalLength}");
-            }
-        }
-
-        await Task.Run(() => server.SendFrame(Crypt.AssemblyFingerprint + "#" + "END"));
-        Console.WriteLine("Finished sending blockchain file in chunks.");
-    }
-
-    public bool AddTransaction(Transaction transaction)
+    public async Task<bool> AddTransaction(Transaction transaction)
     {
         // Ensure the blockchain is current before adding a transaction
-        if (!IsChainCurrent())
+        if (!await IsChainCurrent())
         {
             Console.WriteLine("Blockchain is not current. Transaction rejected.");
             return false;
@@ -541,24 +554,29 @@ public class BlockchainServer
         return true;
     }
 
-
-    private bool IsChainCurrent()
+    private async Task<bool> IsChainCurrent()
     {
         foreach (var peer in _peerServers)
             try
             {
-                using (var client = new RequestSocket())
-                {
-                    client.Connect(peer);
-                    client.SendFrame(Crypt.AssemblyFingerprint + "#" + "GetChain");
-                    var response = client.ReceiveFrameString();
+                using var httpClient = new HttpClient { BaseAddress = new Uri(peer) };
+                 
+                var response = await httpClient.GetAsync("/api/GetBlockCount");
 
-                    var peerChain = JsonSerializer.Deserialize<Blockchain>(response);
-                    if (peerChain != null && peerChain.Chain.Count > _blockchain.Chain.Count && peerChain.IsValid())
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseBody = await response.Content.ReadAsStringAsync();
+                    var peerChain = JsonSerializer.Deserialize<int>(responseBody);
+
+                    if (peerChain > _blockchain.Chain.Count)
                     {
                         Console.WriteLine("Local chain is not the most recent.");
                         return false;
                     }
+                }
+                else
+                {
+                    Console.WriteLine($"Error checking chain with peer {peer}: {response.StatusCode}");
                 }
             }
             catch (Exception ex)

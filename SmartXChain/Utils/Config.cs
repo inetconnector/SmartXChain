@@ -134,7 +134,7 @@ public class Config
                 isPeerSection = false;
                 isMinerSection = false;
             }
-            else if (isPeerSection && Regex.IsMatch(trimmedLine, @"^tcp://[a-zA-Z0-9\-.]+:\d+$"))
+            else if (isPeerSection && Regex.IsMatch(trimmedLine, @"^http://[a-zA-Z0-9\-.]+:\d+$"))
             {
                 Peers.Add(trimmedLine);
             }

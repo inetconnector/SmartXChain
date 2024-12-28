@@ -1,6 +1,8 @@
 ﻿using System.Net;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Server;
 using SmartXChain.Utils;
@@ -29,7 +31,7 @@ public class Node
         if (localRegistrationServer)
             ip = "127.0.0.1";
 
-        var nodeAddress = $"tcp://{ip}:{Config.Default.Port}"; // Own node address
+        var nodeAddress = $"http://{ip}:{Config.Default.Port}"; // Own node address
         var sharedSecret = Config.Default.SmartXchain; // Shared secret with the servers
 
         // Create a node instance
@@ -137,8 +139,7 @@ public class Node
     }
 
     private static async Task<Blockchain?> UpdateBlockchain(Blockchain blockchain, Node node, SnowmanConsensus consensus)
-    {
-        Blockchain newChain = null;
+    { 
         var currentBlockCount = blockchain.Chain.Count;
 
         try
@@ -147,7 +148,7 @@ public class Node
             {
                 // 1. Anfrage: Größe der entfernten Blockchain abrufen
                 var blockchainSizeResponse = await SocketManager.GetInstance(remoteNode)
-                    .SendMessageAsync("GetBlockCount:" + currentBlockCount);
+                    .SendMessageAsync($"/api/GetBlockCount");
 
                 if (!int.TryParse(blockchainSizeResponse, out var remoteBlockCount))
                 {
@@ -164,74 +165,37 @@ public class Node
                 }
 
                 Console.WriteLine($"Node {remoteNode} blockchain is larger. Starting synchronization...");
-
-                // 2. Temporäre Datei erstellen
-                var tmpFile = Path.GetTempFileName();
-
+                
                 try
                 {
-                    using (var fileStream = new FileStream(tmpFile, FileMode.Create, FileAccess.Write))
+                    for (int i = currentBlockCount; i < remoteBlockCount; i++)
                     {
-                        // 3. Blockchain in Chunks abrufen
-                        while (true)
+                        var blockResponse = await SocketManager.GetInstance(remoteNode)
+                            .SendMessageAsync($"/api/GetBlock/");
+
+                        if (string.IsNullOrEmpty(blockResponse))
                         {
-                            var chunkResponse = await SocketManager.GetInstance(remoteNode)
-                                .SendMessageAsync("GetChain");
-
-                            if (chunkResponse == "END")
-                            {
-                                Console.WriteLine($"Received all chunks from node {remoteNode}.");
-                                break;
-                            }
-
-                            // Chunk-Daten verarbeiten
-                            var chunkData = chunkResponse.Split('#', 2);
-                            if (chunkData.Length != 2)
-                            {
-                                Console.WriteLine($"Invalid chunk format received from node {remoteNode}.");
-                                continue;
-                            }
-
-                            try
-                            {
-                                var base64Data = chunkData[1];
-                                var chunkBytes = Convert.FromBase64String(base64Data);
-                                await fileStream.WriteAsync(chunkBytes, 0, chunkBytes.Length);
-                            }
-                            catch (FormatException)
-                            {
-                                Console.WriteLine($"Failed to decode chunk data from node {remoteNode}. Skipping...");
-                            }
+                            Console.WriteLine($"Failed to retrieve block {i} from node {remoteNode}.");
+                            break;
                         }
-                    }
 
-                    // 4. Blockchain laden und validieren
-                    var updatedBlockchain = Blockchain.Load(tmpFile, consensus);
-                    if (updatedBlockchain == null || !updatedBlockchain.IsValid())
-                    {
-                        Console.WriteLine($"Failed to load or validate the updated blockchain from node {remoteNode}.");
-                        continue;
-                    }
-
-                    // 5. Konfliktlösung (z. B. gleiche Länge, aber andere Chains)
-                    if (updatedBlockchain.Chain.Count == blockchain.Chain.Count &&
-                        !updatedBlockchain.Chain.SequenceEqual(blockchain.Chain))
-                    {
-                        Console.WriteLine($"Conflict detected: Chains of equal length but different content from node {remoteNode}.");
-                        continue;
-                    }
+                        var block = JsonSerializer.Deserialize<Block>(blockResponse);
+                        if (block == null)
+                        {
+                            Console.WriteLine($"Invalid block data received for block {i} from node {remoteNode}.");
+                            break;
+                        }
+                        blockchain.Chain.Add(block);
+                        Console.WriteLine($"Added Block {i} to blockchain");
+                    } 
 
                     Console.WriteLine($"Blockchain successfully updated from node {remoteNode}.");
-                    newChain = updatedBlockchain;
+          
                     break;
                 }
-                finally
+                catch (Exception ex)
                 {
-                    // Temporäre Datei löschen
-                    if (File.Exists(tmpFile))
-                    {
-                        File.Delete(tmpFile);
-                    }
+                    Console.WriteLine($"Error during blockchain synchronization: {ex.Message}");
                 }
             }
         }
@@ -240,9 +204,8 @@ public class Node
             Console.WriteLine($"Error during blockchain synchronization: {ex.Message}");
         }
 
-        return newChain;
+        return blockchain;
     }
-
 
     public async Task<(bool, string)> SendVoteRequestAsync(string targetValidator, Block block)
     {
@@ -366,10 +329,10 @@ public class Node
         {
             foreach (var server in staticServers)
             {
-                if (!server.StartsWith("tcp://"))
+                if (!server.StartsWith("http://"))
                     continue;
 
-                var serverAddress = server.Replace("tcp://", "").Trim();
+                var serverAddress = server.Replace("http://", "").Trim();
                 var parts = serverAddress.Split(':');
 
                 if (parts.Length != 2)
@@ -384,7 +347,8 @@ public class Node
                 try
                 {
                     var ipAddresses = Dns.GetHostAddresses(host)
-                        .Select(ip => $"tcp://{ip}:{port}")
+                        .Where(ip => ip.AddressFamily == AddressFamily.InterNetwork) // Nur IPv4-Adressen
+                        .Select(ip => $"http://{ip}:{port}")
                         .ToList();
 
                     if (ipAddresses.Any())

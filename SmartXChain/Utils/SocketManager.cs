@@ -1,6 +1,5 @@
 ﻿using System.Collections.Concurrent;
-using NetMQ;
-using NetMQ.Sockets;
+using System.Text; 
 
 namespace SmartXChain.Utils;
 
@@ -56,44 +55,47 @@ public class SocketManager : IDisposable
 
         return tcs.Task;
     }
-
-    private void ProcessQueue(CancellationToken cancellationToken)
+    private async Task ProcessQueue(CancellationToken cancellationToken)
     {
         try
-        {
-            using var socket = new RequestSocket();
-            try
-            {
-                socket.Connect(_serverAddress);
-                Console.WriteLine($"Connected to server: {_serverAddress}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Failed to connect to server {_serverAddress}: {ex.Message}");
-                throw;
-            }
+        {  
+            using var httpClient = new HttpClient { BaseAddress = new Uri(_serverAddress) };
+            Console.WriteLine($"HTTP client initialized with server: {_serverAddress}");
 
             foreach (var (message, tcs) in _messageQueue.GetConsumingEnumerable(cancellationToken))
+            {
                 lock (_sendLock)
                 {
                     try
-                    {
-                        // Nachricht senden
-                        socket.SendFrame(Crypt.AssemblyFingerprint + "#" + message);
+                    { 
+                        //var payload = Crypt.AssemblyFingerprint + "#" + message;
+                        var content = new StringContent(message, Encoding.UTF8, "application/json");
+                        Console.WriteLine($"Sending message to server: {message}");
 
-                        // Antwort empfangen mit Timeout
-                        var response = socket.TryReceiveFrameString(TimeSpan.FromSeconds(5), out var frame)
-                            ? frame
-                            : "ERROR: Timeout";
-
-                        tcs.TrySetResult(response);
+                        // Send message to REST-Endppoint
+                        var response = httpClient.PostAsync("/api/"+ message.Split(':')[0], content).Result;
+                         
+                        if (response.IsSuccessStatusCode)
+                        {
+                            var responseString = response.Content.ReadAsStringAsync().Result;
+                            Console.WriteLine($"Received response: {responseString}"); 
+                            tcs.TrySetResult(responseString);
+                        }
+                        else
+                        {
+                            var error = $"ERROR: {response.StatusCode} - {response.ReasonPhrase}";
+                            Console.WriteLine(error);
+                            tcs.TrySetResult(error);
+                        }
                     }
                     catch (Exception ex)
                     {
+                        // Fehlerbehandlung
                         Console.WriteLine($"Error processing message: {ex.Message}");
                         tcs.TrySetException(ex);
                     }
                 }
+            }
         }
         catch (OperationCanceledException)
         {
@@ -104,4 +106,5 @@ public class SocketManager : IDisposable
             Console.WriteLine($"Critical error in ProcessQueue: {ex.Message}");
         }
     }
+
 }
