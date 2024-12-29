@@ -36,9 +36,12 @@ public class SmartXWallet
             // 4. Derive the Ethereum account path (BIP-44)
             var ethKey = masterKey.Derive(new KeyPath("m/44'/60'/0'/0/0"));
             privateKey = ethKey.PrivateKey;
+            SaveToFile("privatekey.txt", privateKey.ToString(Network.Main));
 
             // 5. Convert the private key to Ethereum-compatible address
             var account = new Account(privateKey.ToHex());
+
+
             Logger.LogMessage("\nYour SmartXChain Address:\n" + smartX + account.Address.Substring(2));
             WalletAddresses.Add(smartX + account.Address.Substring(2));
 
@@ -62,7 +65,7 @@ public class SmartXWallet
 
         SaveToFile("walletadresses.txt", string.Join(Environment.NewLine, WalletAddresses));
 
-        Config.Default.SetMinerAddress(WalletAddresses[0], mnemonic.ToString());
+        Config.Default.SetMinerAddress(WalletAddresses[0], mnemonic.ToString(), privateKey.ToString(Network.Main));
         Logger.LogMessage("New miner address generated and saved.");
 
         return (WalletAddresses, privateKey, mnemonic.ToString());

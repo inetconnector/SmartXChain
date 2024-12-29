@@ -19,13 +19,17 @@ public class GasAndRewardCalculator
     public string Data { get; set; }
     public string Info { get; set; }
     public string SerializedContractCode { get; set; }
+    public string Sender { get; set; }
 
     public void CalculateGas()
     {
         var dataLength = string.IsNullOrEmpty(Data) ? 0 : Data.Length;
         var infoLength = string.IsNullOrEmpty(Info) ? 0 : Info.Length;
+        var senderLength= string.IsNullOrEmpty(Sender) ? 0 : Sender.Length;
+        if (Sender == Blockchain.SystemAddress)
+            senderLength = 0;
 
-        Gas = BaseGasTransaction + (dataLength + infoLength) * GasPerCharacter / GasFactor;
+        Gas = BaseGasTransaction + (dataLength + infoLength+ senderLength) * GasPerCharacter / GasFactor;
 
         if (Blockchain.CurrentNetworkLoad > 0.75)
             Gas = (int)(Gas * 1.2);

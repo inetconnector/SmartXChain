@@ -519,10 +519,16 @@ public class BlockchainServer
                     Logger.LogMessage($"BroadcastToPeers async: {url}\n{content}");
                     var response = await httpClient.PostAsync(url, content);
 
-                    if (!response.IsSuccessStatusCode)
-                        Logger.LogMessage($"Error sending to peer {peer}: {response.StatusCode}");
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var responseString = response.Content.ReadAsStringAsync().Result;
+                        Logger.LogMessage($"BroadcastToPeers response: {responseString}"); 
+                    }
                     else
-                        Logger.LogMessage($"Sent to peer {peer}: {response.StatusCode}\n{content}");
+                    {
+                        var error = $"ERROR: BroadcastToPeers {response.StatusCode} - {response.ReasonPhrase}";
+                        Logger.LogMessage(error);
+                    }
                 }
                 catch (Exception ex)
                 {

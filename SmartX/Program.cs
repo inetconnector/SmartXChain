@@ -74,10 +74,24 @@ internal class Program
             {
                 var wallet1Addresses = SmartXWallet.LoadWalletAdresses();
                 var wallet2Addresses = SmartXWallet.LoadWalletAdresses();
-
+                 
                 await ERC20Example(wallet1Addresses[0], wallet1Addresses, node.Blockchain);
 
                 await GoldCoinExample(wallet1Addresses[0], wallet1Addresses, wallet2Addresses, node.Blockchain);
+
+                var transaction = new Transaction();
+                transaction.RegisterUser(wallet1Addresses[0], File.ReadAllText("privatekey.txt"));
+                var transfered = transaction.Transfer(node.Blockchain,
+                    wallet1Addresses[0],
+                    wallet1Addresses[1],
+                    0.01d, 
+                    File.ReadAllText("privatekey.txt"),
+                        "transferdemo",
+                        "49.83278, 9.88167");
+ 
+                node.Blockchain.MinePendingTransactions(wallet1Addresses[0]);
+                if(transfered)
+                    Console.WriteLine($"Transfered SCX from {wallet1Addresses[0]} to {wallet1Addresses[1]}");
             }
             else if (mode == '3')
             {
@@ -96,10 +110,10 @@ internal class Program
                 foreach (var (address, balance) in balances) Console.WriteLine($"{address}: {balance}");
             }
             else if (mode == '5')
-            {                
+            {
                 Console.WriteLine("\n Chain Info:");
-                node.Blockchain.PrintAllBlocksAndTransactions(); 
-            }            
+                node.Blockchain.PrintAllBlocksAndTransactions();
+            }
             else if (mode == '6')
             {
                 break;

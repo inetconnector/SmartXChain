@@ -91,7 +91,7 @@ public class Node
                                 node.StartupResult.Node);
                             if (newChain != null) node.StartupResult.Blockchain = newChain;
                         }  
-                        else if (node != null && node.StartupResult == null)
+                        else if (node != null && node.StartupResult == null && BlockchainServer.Startup!=null)
                             try
                             {
                                 var response = await SocketManager.GetInstance(server)

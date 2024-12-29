@@ -54,7 +54,7 @@ public class Config
         Logger.LogMessage("Configuration reloaded successfully.");
     }
 
-    public void SetMinerAddress(string minerAddress, string mnemonic)
+    public void SetMinerAddress(string minerAddress, string mnemonic, string privatekey)
     {
         MinerAddress = minerAddress;
         Mnemonic = mnemonic;
@@ -73,6 +73,7 @@ public class Config
                 {
                     lines.Insert(i, $"MinerAddress={minerAddress}");
                     lines.Insert(i + 1, $"Mnemonic={mnemonic}");
+                    lines.Insert(i + 1, $"PrivateKey={privatekey}");
                     break;
                 }
         }
@@ -83,10 +84,11 @@ public class Config
             lines.Add("[Miner]");
             lines.Add($"MinerAddress={minerAddress}");
             lines.Add($"Mnemonic={mnemonic}");
+            lines.Add($"PrivateKey={privatekey}");
         }
 
         File.WriteAllLines(filePath, lines);
-        Logger.LogMessage("Miner address and mnemonic saved to config.");
+        Logger.LogMessage("Miner address, privateKey akd mnemonic saved to config.");
     }
 
     private void LoadConfig(string filePath)
@@ -233,4 +235,23 @@ public class Config
         File.WriteAllLines(filePath, lines);
         Logger.LogMessage("Keys generated and saved to config.");
     }
+     
+    public bool VerifyServerKeys(string storedPrivateKey, string storedPublicKey)
+    {
+        try
+        { 
+            using var rsa = RSA.Create();
+            rsa.ImportRSAPrivateKey(Convert.FromBase64String(storedPrivateKey), out _);
+             
+            var derivedPublicKey = Convert.ToBase64String(rsa.ExportRSAPublicKey());
+             
+            return derivedPublicKey == storedPublicKey;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogMessage($"Error verifying server keys: {ex.Message}");
+            return false;
+        }
+    }
+
 }
