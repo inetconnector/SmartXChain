@@ -55,8 +55,7 @@ public class Blockchain
     {
         return new Block(DateTime.UtcNow, new List<Transaction>(), "0");
     }
-
-    public bool AddBlock(Block block, bool lockChain = true, bool mineBlock = true)
+    public bool AddBlock(Block block, bool lockChain = true, bool mineBlock = true, int? index = null)
     {
         if (mineBlock)
         {
@@ -78,9 +77,34 @@ public class Blockchain
                 Chain.Add(block);
             }
         }
+        else if (index.HasValue && index.Value <= Chain.Count)
+        {
+            lock (Chain)
+            {
+                if (index.Value < 0)
+                {
+                    Logger.LogMessage("Invalid index for adding block.");
+                    return false;
+                }
+
+                if (index.Value > 0 && Chain[index.Value - 1].Hash != block.PreviousHash)
+                {
+                    Logger.LogMessage("Block not added to chain -- invalid previous block for given index.");
+                    return false;
+                }
+
+                if (index.Value < Chain.Count && Chain[index.Value].PreviousHash != block.Hash)
+                {
+                    Logger.LogMessage("Block not added to chain -- would break chain consistency.");
+                    return false;
+                }
+
+                Chain.Insert(index.Value, block);
+            }
+        }
         else
         {
-            //Add only if Block previous hash is last block
+            // Add only if Block previous hash matches last block
             if (Chain.Count > 0 && Chain.Last().Hash == block.PreviousHash)
             {
                 lock (Chain)
@@ -563,18 +587,38 @@ public class Blockchain
             throw;
         }
     }
-
+    /// <summary>
+    /// Verifies the integrity of the blockchain by checking hashes and previous hashes.
+    /// </summary>
+    /// <returns>True if the blockchain is valid, otherwise false.</returns>
     public bool IsValid()
     {
-        for (var i = 1; i < Chain.Count; i++)
+        // Lock the chain to ensure thread safety during verification
+        lock (Chain)
         {
-            var currentBlock = Chain[i];
-            var previousBlock = Chain[i - 1];
+            for (int i = 1; i < Chain.Count; i++)
+            {
+                var currentBlock = Chain[i];
+                var previousBlock = Chain[i - 1];
 
-            if (currentBlock.PreviousHash != previousBlock.Hash || currentBlock.Hash != currentBlock.CalculateHash())
-                return false;
+                // Check if the current block's hash is valid
+                if (currentBlock.Hash != currentBlock.CalculateHash())
+                {
+                    Logger.LogMessage($"Block {i} has an invalid hash.");
+                    return false;
+                }
+
+                // Check if the previous hash in the current block matches the hash of the previous block
+                if (currentBlock.PreviousHash != previousBlock.Hash)
+                {
+                    Logger.LogMessage($"Block {i} has an invalid previous hash.");
+                    return false;
+                }
+            }
+
+            Logger.LogMessage("Blockchain integrity verified successfully.");
+            return true;
         }
-
-        return true;
     }
+     
 }

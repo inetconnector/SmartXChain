@@ -166,6 +166,82 @@ public class Node
 
                 Logger.LogMessage($"Checking blockchain with node {remoteNode}...");
 
+                // Step 1: Get blockchain size from remote node
+                var blockchainSizeResponse = await SocketManager.GetInstance(remoteNode)
+                    .SendMessageAsync("GetBlockCount");
+
+                if (!int.TryParse(blockchainSizeResponse, out var remoteBlockCount))
+                {
+                    Logger.LogMessage($"Invalid blockchain size response from node {remoteNode}.");
+                    continue;
+                }
+
+                if (currentBlockCount >= remoteBlockCount)
+                {
+                    Logger.LogMessage($"Local blockchain is up-to-date compared to node {remoteNode}.");
+                    continue;
+                }
+
+                // Step 2: Validate the remote blockchain
+                var isRemoteBlockchainValid = await SocketManager.GetInstance(remoteNode)
+                    .SendMessageAsync("ValidateChain") == "ok";
+
+                if (!isRemoteBlockchainValid)
+                {
+                    Logger.LogMessage($"Remote blockchain from node {remoteNode} is invalid.");
+                    continue;
+                }
+
+                // Step 3: Synchronize missing blocks
+                for (var i = 0; i < remoteBlockCount; i++)
+                {
+                    Logger.LogMessage($"Fetching block {i} from node {remoteNode}...");
+
+                    var remoteBlockResponse = await SocketManager.GetInstance(remoteNode)
+                        .SendMessageAsync($"GetBlock/{i}");
+
+                    if (string.IsNullOrEmpty(remoteBlockResponse))
+                    {
+                        Logger.LogMessage($"Failed to fetch block {i} from node {remoteNode}.");
+                        break;
+                    }
+
+                    var remoteBlock = Block.FromBase64(remoteBlockResponse); 
+
+                    blockchain.AddBlock(remoteBlock, lockChain: true, mineBlock: false, i);
+                    Logger.LogMessage($"Added block {i} to the local blockchain.");
+                }
+
+                Logger.LogMessage($"Synchronization with node {remoteNode} completed.");
+                return blockchain;
+            }
+
+            Logger.LogMessage("No synchronization was necessary or possible.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogMessage($"Error during blockchain synchronization: {ex.Message}");
+        }
+
+        return blockchain;
+    }
+
+    private static async Task<Blockchain?> UpdateBlockchainWithMissingBlocks1(Blockchain blockchain, Node node)
+    {
+        if (blockchain == null || blockchain.Chain == null)
+            return null;
+
+        var currentBlockCount = blockchain.Chain.Count;
+
+        try
+        {
+            foreach (var remoteNode in CurrentNodeIPs)
+            {
+                if (remoteNode.Contains(NetworkUtils.IP))
+                    continue;
+
+                Logger.LogMessage($"Checking blockchain with node {remoteNode}...");
+
                 var blockchainSizeResponse = await SocketManager.GetInstance(remoteNode)
                     .SendMessageAsync("GetBlockCount");
 
@@ -184,8 +260,14 @@ public class Node
                     continue;
                 }
 
-                // Check and compare all blocks from the genesis block
-                var isRemoteBlockchainPreferred = true;
+                // Validate remote blockchain from genesis block
+                var isRemoteBlockchainValid = await SocketManager.GetInstance(remoteNode)
+                    .SendMessageAsync("ValidateChain") == "ok";
+                if (!isRemoteBlockchainValid)
+                {
+                    Logger.LogMessage($"Remote blockchain is invalid.");
+                    continue;
+                }
 
                 for (var i = 0; i < Math.Min(currentBlockCount, remoteBlockCount); i++)
                 {
@@ -196,7 +278,7 @@ public class Node
                     if (string.IsNullOrEmpty(remoteBlockResponse))
                     {
                         Logger.LogMessage($"Failed to retrieve block {i} from node {remoteNode}.");
-                        isRemoteBlockchainPreferred = false;
+                        isRemoteBlockchainValid = false;
                         break;
                     }
 
@@ -205,66 +287,124 @@ public class Node
                     if (remoteBlock == null)
                     {
                         Logger.LogMessage($"Invalid block {i} received from node {remoteNode}.");
-                        isRemoteBlockchainPreferred = false;
+                        isRemoteBlockchainValid = false;
                         break;
                     }
 
-                    // Compare timestamps
-                    if (remoteBlock.Timestamp < localBlock.Timestamp) continue; // Remote block is older, prefer remote
-
-                    if (remoteBlock.Timestamp > localBlock.Timestamp)
+                    // Compare hashes and timestamps for consistency
+                    if (i > 0)
                     {
-                        isRemoteBlockchainPreferred = false; // Local block is older, stop comparison
+                        var previousRemoteBlock = Block.FromBase64(await SocketManager.GetInstance(remoteNode)
+                            .SendMessageAsync($"GetBlock/{i - 1}"));
+
+                        Logger.LogMessage($"Validating Block {i}: PreviousHash={remoteBlock.PreviousHash}, Expected={previousRemoteBlock?.Hash}");
+
+                        if (previousRemoteBlock == null || remoteBlock.PreviousHash != previousRemoteBlock.Hash)
+                        {
+                            Logger.LogMessage($"Block {i} has an inconsistent PreviousHash in remote blockchain.");
+                            isRemoteBlockchainValid = false;
+                            break;
+                        }
+
+                        if (remoteBlock.Timestamp < previousRemoteBlock.Timestamp)
+                        {
+                            Logger.LogMessage($"Block {i} has a timestamp earlier than the previous block.");
+                            isRemoteBlockchainValid = false;
+                            break;
+                        }
+                    }
+
+                    if (i < currentBlockCount && remoteBlock.Timestamp > localBlock.Timestamp)
+                    {
+                        Logger.LogMessage($"Local block {i} is older, preferring local blockchain.");
+                        isRemoteBlockchainValid = false;
                         break;
                     }
                 }
 
-                if (!isRemoteBlockchainPreferred)
+                if (!isRemoteBlockchainValid)
                 {
-                    Logger.LogMessage($"Local blockchain is preferred over the blockchain from node {remoteNode}.");
+                    Logger.LogMessage($"Remote blockchain from node {remoteNode} is invalid or inconsistent.");
                     continue;
                 }
 
-                // Synchronize missing blocks from remote node
-                Logger.LogMessage($"Node {remoteNode} blockchain is preferred. Adding missing blocks...");
+                Logger.LogMessage($"Remote blockchain from node {remoteNode} is preferred. Adding missing blocks...");
+
+                // Synchronize missing blocks
+                bool synchronizationSuccessful = true;
+                var blockDownloadTasks = new List<Task<(int Index, Block? Block)>>();
 
                 for (var i = currentBlockCount; i < remoteBlockCount; i++)
-                    try
+                {
+                    blockDownloadTasks.Add(Task.Run(async () =>
                     {
-                        var blockResponse = await SocketManager.GetInstance(remoteNode)
-                            .SendMessageAsync($"GetBlock/{i}");
-
-                        if (string.IsNullOrEmpty(blockResponse))
+                        try
                         {
-                            Logger.LogMessage($"Failed to retrieve block {i} from node {remoteNode}.");
-                            break;
-                        }
+                            var blockResponse = await SocketManager.GetInstance(remoteNode)
+                                .SendMessageAsync($"GetBlock/{i}");
 
-                        var block = Block.FromBase64(blockResponse);
-                        if (block == null || (blockchain.Chain.Count > 0 &&
-                                              block.PreviousHash != blockchain.Chain.Last().Hash))
+                            if (string.IsNullOrEmpty(blockResponse))
+                                return (i, null);
+
+                            var block = Block.FromBase64(blockResponse);
+                            Logger.LogMessage($"Downloaded Block {i}: Hash={block?.Hash}, PreviousHash={block?.PreviousHash}");
+                            return (i, block);
+                        }
+                        catch (Exception ex)
                         {
-                            Logger.LogMessage(
-                                $"Invalid or inconsistent block data received for block {i} from node {remoteNode}.");
-                            break;
+                            Logger.LogMessage($"Error retrieving block {i} from node {remoteNode}: {ex.Message}");
+                            return (i, null);
                         }
+                    }));
+                }
 
-                        blockchain.AddBlock(block, true, false);
-                        Logger.LogMessage($"Added block {i} to blockchain.");
-                    }
-                    catch (Exception ex)
+                var downloadedBlocks = await Task.WhenAll(blockDownloadTasks);
+
+                foreach (var (index, block) in downloadedBlocks)
+                {
+                    if (block == null)
                     {
-                        Logger.LogMessage($"Error retrieving block {i} from node {remoteNode}: {ex.Message}");
+                        Logger.LogMessage($"Failed to retrieve block {index} from node {remoteNode}.");
+                        synchronizationSuccessful = false;
                         break;
                     }
 
-                Logger.LogMessage(
-                    $"Blockchain successfully updated to block {remoteBlockCount} from node {remoteNode}.");
+                    // Validate the block with the previous block in the chain
+                    if (index > 0)
+                    {
+                        var previousBlock = blockchain.Chain[index - 1];
 
-                if (blockchain.Chain.Last().Hash == blockchain.Chain.Last().CalculateHash())
+                        Logger.LogMessage($"Validating Downloaded Block {index}: PreviousHash={block.PreviousHash}, Expected={previousBlock.Hash}");
+
+                        if (block.PreviousHash != previousBlock.Hash)
+                        {
+                            Logger.LogMessage($"Block {index} has an inconsistent PreviousHash.");
+                            synchronizationSuccessful = false;
+                            break;
+                        }
+
+                        if (block.Timestamp < previousBlock.Timestamp)
+                        {
+                            Logger.LogMessage($"Block {index} has a timestamp earlier than the previous block.");
+                            synchronizationSuccessful = false;
+                            break;
+                        }
+                    }
+
+                    blockchain.AddBlock(block, true, false);
+                    Logger.LogMessage($"Added block {index} to blockchain.");
+                }
+
+                if (synchronizationSuccessful)
                 {
+                    Logger.LogMessage(
+                        $"Blockchain successfully updated to block {remoteBlockCount} from node {remoteNode}.");
                     Logger.LogMessage($"Blockchain fully synchronized with node {remoteNode}.");
-                    break;
+                    return blockchain;
+                }
+                else
+                {
+                    Logger.LogMessage($"Synchronization with node {remoteNode} failed.");
                 }
             }
         }
@@ -275,108 +415,6 @@ public class Node
 
         return blockchain;
     }
-
-    //private static async Task<Blockchain?> UpdateBlockchainWithMissingBlocks(Blockchain blockchain, Node node)
-    //{
-    //    if (blockchain != null && blockchain.Chain != null)
-    //    {
-    //        var currentBlockCount = blockchain.Chain.Count;
-
-    //        try
-    //        {
-    //            foreach (var remoteNode in CurrentNodeIPs)
-    //            {
-    //                if (remoteNode.Contains(NetworkUtils.IP))
-    //                    continue;
-
-    //                Logger.LogMessage($"Checking blockchain with node {remoteNode}...");
-
-    //                var blockchainSizeResponse = await SocketManager.GetInstance(remoteNode)
-    //                    .SendMessageAsync("GetBlockCount");
-
-    //                if (!int.TryParse(blockchainSizeResponse, out var remoteBlockCount))
-    //                {
-    //                   Logger.LogMessage($"Invalid blockchain size response from node {remoteNode}.");
-    //                    continue;
-    //                }
-
-    //                Logger.LogMessage(
-    //                    $"Node {remoteNode} blockchain: {remoteBlockCount}, Local blockchain: {currentBlockCount}.");
-
-    //                if (remoteBlockCount <= currentBlockCount)
-    //                {
-    //                   Logger.LogMessage($"Local blockchain is already up to date with node {remoteNode}.");
-    //                    continue;
-    //                }
-
-    //                // Check if genesis block matches
-    //                var genesisBlockResponse = await SocketManager.GetInstance(remoteNode)
-    //                    .SendMessageAsync("GetBlock/0");
-
-    //                if (string.IsNullOrEmpty(genesisBlockResponse))
-    //                {
-    //                   Logger.LogMessage($"Failed to retrieve genesis block from node {remoteNode}.");
-    //                    continue;
-    //                }
-
-    //                var remoteGenesisBlock = Block.FromBase64(genesisBlockResponse);
-
-    //                if (remoteGenesisBlock == null || blockchain.Chain[0].Hash != remoteGenesisBlock.Hash)
-    //                {
-    //                   Logger.LogMessage("Genesis block does not match, aborting...");
-    //                    continue;
-    //                }
-
-    //                Logger.LogMessage($"Node {remoteNode} blockchain is larger. Checking for missing blocks...");
-
-    //                for (var i = currentBlockCount; i < remoteBlockCount; i++)
-    //                {
-    //                    try
-    //                    {
-    //                        var blockResponse = await SocketManager.GetInstance(remoteNode)
-    //                            .SendMessageAsync($"GetBlock/{i}");
-
-    //                        if (string.IsNullOrEmpty(blockResponse))
-    //                        {
-    //                           Logger.LogMessage($"Failed to retrieve block {i} from node {remoteNode}.");
-    //                            break;
-    //                        }
-
-    //                        var block = Block.FromBase64(blockResponse);
-    //                        if (block == null || (blockchain.Chain.Count > 0 && block.PreviousHash != blockchain.Chain.Last().Hash))
-    //                        {
-    //                           Logger.LogMessage(
-    //                                $"Invalid or inconsistent block data received for block {i} from node {remoteNode}.");
-    //                            break;
-    //                        }
-
-    //                        blockchain.AddBlock(block, true, false);
-    //                       Logger.LogMessage($"Added block {i} to blockchain.");
-    //                    }
-    //                    catch (Exception ex)
-    //                    {
-    //                       Logger.LogMessage($"Error retrieving block {i} from node {remoteNode}: {ex.Message}");
-    //                        break;
-    //                    }
-    //                }
-
-    //                Logger.LogMessage($"Blockchain successfully updated up to block {remoteBlockCount} from node {remoteNode}.");
-
-    //                if (blockchain.Chain.Last().Hash == blockchain.Chain.Last().CalculateHash())
-    //                {
-    //                   Logger.LogMessage($"Blockchain fully synchronized with node {remoteNode}.");
-    //                    break;
-    //                }
-    //            }
-    //        }
-    //        catch (Exception ex)
-    //        {
-    //           Logger.LogMessage($"Error during blockchain synchronization: {ex.Message}");
-    //        }
-    //    }
-
-    //    return blockchain;
-    //}
 
     public async Task RegisterWithDiscoveryAsync(List<string> discoveryServers)
     {

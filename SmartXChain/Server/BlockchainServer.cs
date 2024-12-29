@@ -117,6 +117,22 @@ public class BlockchainServer
                                 await context.Response.WriteAsync(Startup.Blockchain.Chain.Count.ToString());
                             });
 
+                            endpoints.MapPost("/api/ValidateChain", async context =>
+                            {
+                                var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
+                                var isvalid = Startup.Blockchain.IsValid();
+                                Logger.LogMessage($"ValidateChain: {isvalid}");
+                                if (isvalid)
+                                {
+                                    await context.Response.WriteAsync("ok");
+                                }
+                                else
+                                {
+                                    await context.Response.WriteAsync("");
+                                }
+                              
+                            });
+
                             endpoints.MapPost("/api/GetChain", async context =>
                             {
                                 var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
@@ -141,6 +157,7 @@ public class BlockchainServer
                                     return;
                                 }
 
+                                Logger.LogMessage($"Sent block {blockIndex} {Startup.Blockchain.Chain[blockIndex].Hash} parent:{Startup.Blockchain.Chain[blockIndex].PreviousHash}");
                                 var block = Startup.Blockchain.Chain[blockIndex].ToBase64();
 
                                 context.Response.ContentType = "application/json";
