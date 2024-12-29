@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using Nethereum.Signer;
 using SmartXChain.Contracts;
 using SmartXChain.Server;
 using SmartXChain.Utils;
@@ -53,8 +54,9 @@ public class Blockchain
 
     private Block CreateGenesisBlock()
     {
-        return new Block(DateTime.UtcNow, new List<Transaction>(), "0");
+        return new Block(new List<Transaction>(), "0");
     }
+
     public bool AddBlock(Block block, bool lockChain = true, bool mineBlock = true, int? index = null)
     {
         if (mineBlock)
@@ -370,7 +372,7 @@ public class Blockchain
             PendingTransactions.Clear();
         }
 
-        var block = new Block(DateTime.Now, transactionsToMine, Chain.Last().Hash);
+        var block = new Block(transactionsToMine, Chain.Last().Hash);
 
         var (consensusReached, rewardAddresses) = await ReachConsensus(block);
         if (consensusReached)
@@ -482,8 +484,49 @@ public class Blockchain
 
         return true;
     }
+    public void PrintAllBlocksAndTransactions(int fromBlock = 0, int toBlock = -1, bool showTransactions = false)
+    {
+        if (toBlock == -1 || toBlock >= Chain.Count)
+        {
+            toBlock = Chain.Count - 1;
+        }
 
+        Logger.LogMessage("Listing all blocks and their transactions:");
 
+        for (int i = fromBlock; i <= toBlock; i++)
+        {
+            var block = Chain[i];
+
+            Logger.LogMessage("------------------- BLOCK -------------------");
+            Logger.LogMessage($"Block Index: {i}");
+            Logger.LogMessage($"Timestamp: {block.Timestamp}");
+            Logger.LogMessage($"Hash: {block.Hash}");
+            Logger.LogMessage($"Previous Hash: {block.PreviousHash}");
+            Logger.LogMessage($"Nonce: {block.Nonce}");
+
+            if (showTransactions)
+            {
+                if (block.Transactions.Count>0)
+                    Logger.LogMessage("Transactions:");
+
+                foreach (var transaction in block.Transactions)
+                {
+                    Logger.LogMessage("---------------- TRANSACTION ----------------");
+                    Logger.LogMessage($"Sender: {transaction.Sender}");
+                    Logger.LogMessage($"Recipient: {transaction.Recipient}");
+                    Logger.LogMessage($"Data: {transaction.Data}");
+                    Logger.LogMessage($"Info: {transaction.Info}");
+                    Logger.LogMessage($"Timestamp: {transaction.Timestamp}");
+                    Logger.LogMessage($"Signature: {transaction.Signature}");
+                    Logger.LogMessage($"Gas: {transaction.Gas}");
+                    Logger.LogMessage($"Version: {transaction.Version}");
+                    Logger.LogMessage($"Transaction Date: {transaction.TransactionDate}");
+                }
+            }
+        }
+
+        Logger.LogMessage();
+    }
     public Dictionary<string, double> GetAllBalancesFromChain()
     {
         var balances = new Dictionary<string, double>();
@@ -587,8 +630,9 @@ public class Blockchain
             throw;
         }
     }
+
     /// <summary>
-    /// Verifies the integrity of the blockchain by checking hashes and previous hashes.
+    ///     Verifies the integrity of the blockchain by checking hashes and previous hashes.
     /// </summary>
     /// <returns>True if the blockchain is valid, otherwise false.</returns>
     public bool IsValid()
@@ -596,7 +640,7 @@ public class Blockchain
         // Lock the chain to ensure thread safety during verification
         lock (Chain)
         {
-            for (int i = 1; i < Chain.Count; i++)
+            for (var i = 1; i < Chain.Count; i++)
             {
                 var currentBlock = Chain[i];
                 var previousBlock = Chain[i - 1];
@@ -620,5 +664,6 @@ public class Blockchain
             return true;
         }
     }
-     
 }
+
+// Sharded Blockchain Support

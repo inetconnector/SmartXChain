@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
 using SmartXChain.Utils;
 
 namespace SmartXChain.BlockchainCore;
@@ -25,14 +26,13 @@ public class Transaction
         TransactionDate = DateTime.UtcNow;
     }
 
-    private static Dictionary<string, Dictionary<string, double>> Allowances { get; set; } = new();
-    private static Dictionary<string, string> AuthenticatedUsers { get; } = new();
+    [JsonInclude] private static Dictionary<string, Dictionary<string, double>> Allowances { get; set; } = new();
+    [JsonInclude] private static Dictionary<string, string> AuthenticatedUsers { get; } = new();
+    [JsonInclude] public static Dictionary<string, double> Balances { get; } = new();
+    [JsonInclude] public string Sender { get; set; } // The address of the sender
+    [JsonInclude] public string Recipient { get; set; } // The address of the recipient
 
-    public static Dictionary<string, double> Balances { get; } = new();
-
-    public string Sender { get; set; } // The address of the sender
-    public string Recipient { get; set; } // The address of the recipient
-
+    [JsonInclude]
     public string Data
     {
         get => _data;
@@ -43,6 +43,7 @@ public class Transaction
         }
     }
 
+    [JsonInclude]
     public string Info
     {
         get => _info;
@@ -53,16 +54,16 @@ public class Transaction
         }
     }
 
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow; // The time of the transaction
-    public string Signature { get; private set; } // Digital signature of the transaction
-    public int Gas { get; private set; }
+    [JsonInclude] public DateTime Timestamp { get; set; } = DateTime.UtcNow; // The time of the transaction
+    [JsonInclude] public string Signature { get; private set; } // Digital signature of the transaction
+    [JsonInclude] public int Gas { get; private set; }
 
-    public string Name { get; private set; }
-    public string Symbol { get; private set; }
-    public uint Decimals { get; private set; }
-    public ulong TotalSupply { get; private set; }
-    public string Version { get; private set; }
-    public DateTime TransactionDate { get; private set; }
+    [JsonInclude] public string Name { get; private set; }
+    [JsonInclude] public string Symbol { get; private set; }
+    [JsonInclude] public uint Decimals { get; private set; }
+    [JsonInclude] public ulong TotalSupply { get; private set; }
+    [JsonInclude] public string Version { get; private set; }
+    [JsonInclude] public DateTime TransactionDate { get; private set; }
 
     private void RecalculateGas()
     {
@@ -176,4 +177,15 @@ public class Transaction
     {
         return $"{Sender} -> {Recipient}: {Timestamp}, Gas: {Gas}";
     }
+
+    public string CalculateHash()
+    {
+        using (SHA256 sha256 = SHA256.Create())
+        {
+            string rawData = $"{Sender}{Recipient}{Data}{Info}{Timestamp}";
+            byte[] bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(rawData));
+            return BitConverter.ToString(bytes).Replace("-", "").ToLower();
+        }
+    }
+
 }

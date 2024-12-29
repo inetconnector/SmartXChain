@@ -9,33 +9,32 @@ namespace SmartXChain.BlockchainCore;
 
 public class Block
 {
-    public Block(DateTime timestamp, List<Transaction> transactions, string previousHash)
+    public Block(List<Transaction> transactions, string previousHash)
     {
-        Timestamp = timestamp;
+        if (Timestamp==DateTime.MinValue)
+            Timestamp = DateTime.UtcNow;
+
         Transactions = transactions;
         PreviousHash = previousHash;
         Hash = CalculateHash();
         SmartContracts = new List<SmartContract>();
     }
 
-    public DateTime Timestamp { get; }
-    public List<Transaction> Transactions { get; }
-    public string PreviousHash { get; set; }
-    public string Hash { get; private set; }
-    public int Nonce { get; private set; }
-
-    [JsonInclude] public List<SmartContract> SmartContracts { get; private set; }
-
+    [JsonInclude] public DateTime Timestamp { get; } = DateTime.MinValue;
+    [JsonInclude] public List<Transaction> Transactions { get; }
+    [JsonInclude] public string PreviousHash { get; set; }
+    [JsonInclude] public string Hash { get; private set; }
+    [JsonInclude] public int Nonce { get; private set; } 
+    [JsonInclude] public List<SmartContract> SmartContracts { get; private set; } 
     [JsonIgnore] public string Base64Encoded => Convert.ToBase64String(GetBytes());
 
     public string CalculateHash()
     {
-        using (var sha256 = SHA256.Create())
-        {
-            var rawData = $"{Timestamp}-{string.Join(",", Transactions)}-{PreviousHash}-{Nonce}";
-            var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(rawData));
-            return Convert.ToBase64String(bytes);
-        }
+        using var sha256 = SHA256.Create();
+        var rawData = $"{Timestamp}-{string.Join(",", Transactions)}-{PreviousHash}-{Nonce}";
+        var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(rawData));
+        Hash = Convert.ToBase64String(bytes);
+        return Hash;
     }
 
     public void Mine(int difficulty)
@@ -75,7 +74,7 @@ public class Block
     {
         var compressedData = Convert.FromBase64String(base64String);
         var jsonString = Compress.DecompressString(compressedData);
-        var block = JsonSerializer.Deserialize<Block>(jsonString);
+        var block = JsonSerializer.Deserialize<Block>(jsonString); 
         return block;
     }
 

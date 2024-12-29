@@ -27,7 +27,7 @@ internal class Program
 
         //show menu
         Console.WriteLine(
-            "\nEnter mode; \n1 Coin class tester \n2 SmartContract Demo\n3 Blockchain state\n4 Wallet Balances\n5 Exit\n");
+            "\nEnter mode; \n1 Coin class tester \n2 SmartContract Demo\n3 Blockchain state\n4 Wallet Balances\n5 Chain Info\n6 Exit\n");
 
         while (true)
         {
@@ -96,6 +96,11 @@ internal class Program
                 foreach (var (address, balance) in balances) Console.WriteLine($"{address}: {balance}");
             }
             else if (mode == '5')
+            {                
+                Console.WriteLine("\n Chain Info:");
+                node.Blockchain.PrintAllBlocksAndTransactions(); 
+            }            
+            else if (mode == '6')
             {
                 break;
             }

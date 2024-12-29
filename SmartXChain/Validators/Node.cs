@@ -86,8 +86,11 @@ public class Node
                     {
                         await node.SendHeartbeatAsync(server);
                         if (node != null && node.StartupResult != null)
-                            await UpdateBlockchainWithMissingBlocks(node.StartupResult.Blockchain,
+                        {
+                            var newChain = await UpdateBlockchainWithMissingBlocks(node.StartupResult.Blockchain,
                                 node.StartupResult.Node);
+                            if (newChain != null) node.StartupResult.Blockchain = newChain;
+                        }  
                         else if (node != null && node.StartupResult == null)
                             try
                             {
@@ -192,6 +195,8 @@ public class Node
                     continue;
                 }
 
+                blockchain.Chain.Clear();
+
                 // Step 3: Synchronize missing blocks
                 for (var i = 0; i < remoteBlockCount; i++)
                 {
@@ -208,8 +213,9 @@ public class Node
 
                     var remoteBlock = Block.FromBase64(remoteBlockResponse); 
 
-                    blockchain.AddBlock(remoteBlock, lockChain: true, mineBlock: false, i);
-                    Logger.LogMessage($"Added block {i} to the local blockchain.");
+                    Logger.LogMessage(blockchain.AddBlock(remoteBlock, lockChain: true, mineBlock: false, i)
+                        ? $"Added block {i} to the local blockchain."
+                        : $"Failed to add block {i} to the local blockchain.");
                 }
 
                 Logger.LogMessage($"Synchronization with node {remoteNode} completed.");
