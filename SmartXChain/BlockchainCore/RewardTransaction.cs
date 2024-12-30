@@ -4,7 +4,8 @@ namespace SmartXChain.BlockchainCore;
 
 public class RewardTransaction : Transaction
 {
-    internal RewardTransaction(Blockchain chain, string recipient, bool validator = false, string sender = Blockchain.SystemAddress)
+    internal RewardTransaction(Blockchain chain, string recipient, bool validator = false,
+        string sender = Blockchain.SystemAddress)
     {
         Sender = sender;
         if (Balances.Count < 50000 && Sender == Blockchain.SystemAddress)
@@ -20,7 +21,6 @@ public class RewardTransaction : Transaction
 
             if (Transfer(chain, Blockchain.SystemAddress, recipient, reward))
                 Reward = reward;
-             
         }
     }
 

@@ -74,7 +74,7 @@ internal class Program
             {
                 var wallet1Addresses = SmartXWallet.LoadWalletAdresses();
                 var wallet2Addresses = SmartXWallet.LoadWalletAdresses();
-                 
+
                 await ERC20Example(wallet1Addresses[0], wallet1Addresses, node.Blockchain);
 
                 await GoldCoinExample(wallet1Addresses[0], wallet1Addresses, wallet2Addresses, node.Blockchain);
@@ -85,13 +85,13 @@ internal class Program
                 var transfered = transaction.Transfer(node.Blockchain,
                     wallet1Addresses[0],
                     wallet1Addresses[1],
-                    0.01d, 
+                    0.01d,
                     File.ReadAllText("privatekey.txt"),
-                        "native transfer",
-                        "49.83278, 9.88167");
- 
+                    "native transfer",
+                    "49.83278, 9.88167");
+
                 node.Blockchain.MinePendingTransactions(wallet1Addresses[0]);
-                if(transfered)
+                if (transfered)
                     Console.WriteLine($"Transfered SCX from {wallet1Addresses[0]} to {wallet1Addresses[1]}");
             }
             else if (mode == '3')
@@ -133,9 +133,10 @@ internal class Program
         // Add the smart contract \Examples\ERC20.cs to the blockchain
         var contractFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Examples", "ERC20.cs");
         var contractCode = File.ReadAllText(contractFile);
-        var contract = await SmartContract.Create("SmartXchain", blockchain, ownerAddress, contractCode);
+        var (contract, created) = await SmartContract.Create("SmartXchain", blockchain, ownerAddress, contractCode);
+        if (!created) Logger.LogMessage($"Contract {contract} could not be created");
 
-        // Mint and execute the smart contract
+        // Deploy and execute the smart contract
         var seedFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "seed.txt");
         var seed = File.ReadAllText(seedFile);
         string[] inputs =
@@ -148,6 +149,10 @@ internal class Program
         ];
 
         var result = await ExecuteSmartContract(blockchain, contract, inputs);
+
+        //Get contract from chain after deploy
+        var contractSmartXchain = blockchain.GetContractByName("SmartXchain");
+
 
         //Console.WriteLine($"Smartcontract result: {result.result}");
         //Console.WriteLine($"Smartcontract state: {result.updatedSerializedState}");
@@ -184,16 +189,22 @@ internal class Program
     {
         var contractFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Examples", "GoldCoin.cs");
         var contractCode = File.ReadAllText(contractFile);
-        var contract = await SmartContract.Create("GoldCoin", blockchain, minerAddress, contractCode);
+        var (contract, created) = await SmartContract.Create("GoldCoin", blockchain, minerAddress, contractCode);
+        if (!created) Logger.LogMessage($"Contract {contract} could not be created");
+
         var seedFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "seed.txt");
         var seed = File.ReadAllText(seedFile);
-        // Create the token
+
+        // Create the token and deploy to blockchain
         string[] inputs =
         [
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
             "Console.WriteLine(\"[GoldCoin] \" + JsonSerializer.Serialize(token, new JsonSerializerOptions { WriteIndented = true }));"
         ];
         var result = await ExecuteSmartContract(blockchain, contract, inputs);
+
+        //Get contract from chain after deploy
+        var contractGoldCoin = blockchain.GetContractByName("GoldCoin");
 
         // Transfer examples
         string[] transferInputs =

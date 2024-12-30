@@ -59,7 +59,7 @@ public class CodeSecurityAnalyzer
         "ref", "partial", "override" //, "async",  "out" ,"await", 
     };
 
-    public static bool IsCodeSafe(string code)
+    public static bool IsCodeSafe(string code, ref string message)
     {
         var tree = CSharpSyntaxTree.ParseText(code);
         var root = tree.GetRoot();
@@ -71,7 +71,8 @@ public class CodeSecurityAnalyzer
             var ns = ud.Name.ToString();
             if (!AllowedNamespaces.Any(ns.StartsWith))
             {
-                Logger.LogMessage($"Non-whitelisted namespace detected: {ns}");
+                message = $"Non-whitelisted namespace detected: {ns}";
+                Logger.LogMessage(message);
                 return false;
             }
         }
@@ -79,7 +80,8 @@ public class CodeSecurityAnalyzer
         // 2. Check for unsafe code blocks
         if (root.DescendantNodes().OfType<UnsafeStatementSyntax>().Any())
         {
-            Logger.LogMessage("Unsafe code block detected.");
+            message = "Unsafe code block detected.";
+            Logger.LogMessage(message);
             return false;
         }
 
@@ -90,7 +92,8 @@ public class CodeSecurityAnalyzer
             var typeName = oc.Type.ToString();
             if (ForbiddenClasses.Any(f => typeName.Contains(f)))
             {
-                Logger.LogMessage($"Forbidden class detected: {typeName}");
+                message = $"Forbidden class detected: {typeName}";
+                Logger.LogMessage(message);
                 return false;
             }
         }
@@ -100,9 +103,10 @@ public class CodeSecurityAnalyzer
         foreach (var ma in memberAccesses)
         {
             var memberName = ma.Name.ToString();
-            if (ForbiddenMethods.Any(m => memberName.Contains(m)))
+            if (ForbiddenMethods.Contains(memberName))
             {
-                Logger.LogMessage($"Forbidden method detected: {memberName}");
+                message = $"Forbidden method detected: {memberName}";
+                Logger.LogMessage(message);
                 return false;
             }
         }
@@ -111,21 +115,28 @@ public class CodeSecurityAnalyzer
         foreach (var keyword in ForbiddenKeywords)
             if (code.Contains(keyword))
             {
-                Logger.LogMessage($"Forbidden keyword detected: {keyword}");
+                message = $"Forbidden keyword detected: {keyword}";
+                Logger.LogMessage(message);
                 return false;
             }
 
         return true;
     }
 
-    public static bool AreCommandsSafe(string[] codeCommands)
+    public static bool AreCommandsSafe(string[] codeCommands, ref List<string> messages)
     {
+        messages = new List<string>();
+
         foreach (var command in codeCommands)
-            if (!IsCodeSafe(command))
+        {
+            var message = string.Empty;
+            if (!IsCodeSafe(command, ref message))
             {
+                messages.Add(message);
                 Logger.LogMessage("Unsafe command detected.");
                 return false;
             }
+        }
 
         return true;
     }

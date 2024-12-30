@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
 using NBitcoin;
-using Nethereum.Web3.Accounts; 
+using Nethereum.Web3.Accounts;
 using SmartXChain.Utils;
 
 namespace SmartXChain.BlockchainCore;
@@ -12,7 +12,7 @@ public class Transaction
     private string _data;
     private string _info;
     private string _sender;
-     
+
     public Transaction()
     {
         const int initialSupply = 1000000000;
@@ -23,10 +23,7 @@ public class Transaction
         TotalSupply = initialSupply;
 
         // Assign initial supply to the owner's balance
-        if (!Balances.ContainsKey(owner))
-        {
-            Balances.Add(owner, initialSupply);
-        }
+        if (!Balances.ContainsKey(owner)) Balances.Add(owner, initialSupply);
 
         Version = "1.0.0";
         Timestamp = DateTime.UtcNow;
@@ -56,7 +53,7 @@ public class Transaction
     [JsonInclude] internal string Symbol { get; private set; }
     [JsonInclude] internal uint Decimals { get; private set; }
     [JsonInclude] internal static ulong TotalSupply { get; private set; }
-    [JsonInclude] internal string Version { get; private set; } 
+    [JsonInclude] internal string Version { get; private set; }
 
     [JsonInclude]
     internal string Data
@@ -86,7 +83,7 @@ public class Transaction
         {
             Data = Data,
             Info = Info,
-            Sender = Sender,
+            Sender = Sender
         };
         calculator.CalculateGas();
         Gas = calculator.Gas;
@@ -125,10 +122,7 @@ public class Transaction
         try
         {
             // Check if the user is already registered
-            if (AuthenticatedUsers.ContainsKey(address))
-            {
-                return false;
-            }
+            if (AuthenticatedUsers.ContainsKey(address)) return false;
 
             // Validate the public and private key pair
             if (VerifyPrivateKey(privateKey, address))
@@ -144,8 +138,10 @@ public class Transaction
         {
             Log($"Error registering user: {ex.Message}");
         }
+
         return false;
-    }  
+    }
+
     private static bool VerifyPrivateKey(string privateKeyWif, string storedAddress, string prefix = "smartX")
     {
         try
@@ -183,7 +179,8 @@ public class Transaction
         return true;
     }
 
-    public bool Transfer(Blockchain chain, string sender, string recipient, double amount, string privateKey, string info="", string data = "")
+    public bool Transfer(Blockchain chain, string sender, string recipient, double amount, string privateKey,
+        string info = "", string data = "")
     {
         if (!IsAuthenticated(sender, privateKey))
         {
@@ -198,7 +195,7 @@ public class Transaction
             Log($"Transfer failed: Insufficient balance in account '{sender}'.");
             return false;
         }
-         
+
         var transferTransaction = new Transaction
         {
             Sender = recipient,
@@ -206,7 +203,7 @@ public class Transaction
             Amount = amount,
             Timestamp = DateTime.UtcNow,
             Info = info,
-            Data=data
+            Data = data
         };
 
         chain.AddTransaction(transferTransaction);
@@ -220,41 +217,38 @@ public class Transaction
     }
 
     internal static void UpdateBalancesFromChain(Blockchain chain)
-    {  
-        lock (Transaction.Balances)
-        { 
-            Transaction.Balances.Clear();
-            Transaction.Balances[Blockchain.SystemAddress] = TotalSupply;
+    {
+        lock (Balances)
+        {
+            Balances.Clear();
+            Balances[Blockchain.SystemAddress] = TotalSupply;
 
 
             foreach (var block in chain.Chain)
-            { 
-                foreach (var transaction in block.Transactions)
-                {
-                    // Skip invalid transactions or system-specific transactions
-                    if (string.IsNullOrEmpty(transaction.Sender) || string.IsNullOrEmpty(transaction.Recipient) || transaction.Amount <= 0)
-                        continue;
+            foreach (var transaction in block.Transactions)
+            {
+                // Skip invalid transactions or system-specific transactions
+                if (string.IsNullOrEmpty(transaction.Sender) || string.IsNullOrEmpty(transaction.Recipient) ||
+                    transaction.Amount <= 0)
+                    continue;
 
-                    // Deduct the amount from the sender's balance
-                    if (Transaction.Balances.ContainsKey(transaction.Sender))
-                        Transaction.Balances[transaction.Sender] -= transaction.Amount;
-                    else
-                        Transaction.Balances[transaction.Sender] = -transaction.Amount;
+                // Deduct the amount from the sender's balance
+                if (Balances.ContainsKey(transaction.Sender))
+                    Balances[transaction.Sender] -= transaction.Amount;
+                else
+                    Balances[transaction.Sender] = -transaction.Amount;
 
-                    // Add the amount to the recipient's balance
-                    if (Transaction.Balances.ContainsKey(transaction.Recipient))
-                        Transaction.Balances[transaction.Recipient] += transaction.Amount;
-                    else
-                        Transaction.Balances[transaction.Recipient] = transaction.Amount;
-                }
+                // Add the amount to the recipient's balance
+                if (Balances.ContainsKey(transaction.Recipient))
+                    Balances[transaction.Recipient] += transaction.Amount;
+                else
+                    Balances[transaction.Recipient] = transaction.Amount;
             }
 
             // Ensure no balance is negative (optional, based on blockchain rules)
-            foreach (var account in Transaction.Balances.Keys.ToList())
-            {
-                if (Transaction.Balances[account] < 0)
-                    Transaction.Balances[account] = 0;
-            }
+            foreach (var account in Balances.Keys.ToList())
+                if (Balances[account] < 0)
+                    Balances[account] = 0;
         }
 
         Logger.LogMessage("Balances updated successfully from the blockchain.");

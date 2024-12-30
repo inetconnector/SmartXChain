@@ -22,11 +22,15 @@ using System.IO;
     public async Task<(string, string)> RunScriptAsync(string code, string[] inputs, string currentState,
         CancellationToken ct)
     {
-        if (!CodeSecurityAnalyzer.IsCodeSafe(code))
-            return ("The code contains forbidden constructs and was not executed.", currentState);
+        var message = "";
+        if (!CodeSecurityAnalyzer.IsCodeSafe(code, ref message))
+            return ($"The code contains forbidden constructs and was not executed. Details: {message}", currentState);
 
-        if (!CodeSecurityAnalyzer.AreCommandsSafe(inputs))
-            return ("The inputs contain forbidden constructs and the code was not executed.", currentState);
+        var messages = new List<string>();
+        if (!CodeSecurityAnalyzer.AreCommandsSafe(inputs, ref messages))
+            return (
+                $"The inputs contain forbidden constructs and the code was not executed. Details: {string.Join(", ", messages)}",
+                currentState);
 
         // Modify code to include inputs after imports
         code = InjectInputsAfterImports(code, inputs);

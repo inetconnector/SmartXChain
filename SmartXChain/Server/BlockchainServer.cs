@@ -123,14 +123,9 @@ public class BlockchainServer
                                 var isvalid = Startup.Blockchain.IsValid();
                                 Logger.LogMessage($"ValidateChain: {isvalid}");
                                 if (isvalid)
-                                {
                                     await context.Response.WriteAsync("ok");
-                                }
                                 else
-                                {
                                     await context.Response.WriteAsync("");
-                                }
-                              
                             });
 
                             endpoints.MapPost("/api/GetChain", async context =>
@@ -157,7 +152,8 @@ public class BlockchainServer
                                     return;
                                 }
 
-                                Logger.LogMessage($"Sent block {blockIndex} {Startup.Blockchain.Chain[blockIndex].Hash} parent:{Startup.Blockchain.Chain[blockIndex].PreviousHash}");
+                                Logger.LogMessage(
+                                    $"Sent block {blockIndex} {Startup.Blockchain.Chain[blockIndex].Hash} parent:{Startup.Blockchain.Chain[blockIndex].PreviousHash}");
                                 var block = Startup.Blockchain.Chain[blockIndex].ToBase64();
 
                                 context.Response.ContentType = "application/json";
@@ -398,8 +394,11 @@ public class BlockchainServer
 
         var compressedBase64Data = message.Substring(prefix.Length);
         var code = Compress.DecompressString(Convert.FromBase64String(compressedBase64Data));
-        var isCodeSafe = CodeSecurityAnalyzer.IsCodeSafe(code);
-        return isCodeSafe ? "ok" : "";
+
+        var codecheck = "";
+        var isCodeSafe = CodeSecurityAnalyzer.IsCodeSafe(code, ref codecheck);
+
+        return isCodeSafe ? "ok" : $"failed: {codecheck}";
     }
 
     private void HandleHeartbeat(string message)
@@ -522,7 +521,7 @@ public class BlockchainServer
                     if (response.IsSuccessStatusCode)
                     {
                         var responseString = response.Content.ReadAsStringAsync().Result;
-                        Logger.LogMessage($"BroadcastToPeers response: {responseString}"); 
+                        Logger.LogMessage($"BroadcastToPeers response: {responseString}");
                     }
                     else
                     {

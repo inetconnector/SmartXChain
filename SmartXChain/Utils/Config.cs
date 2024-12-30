@@ -235,16 +235,16 @@ public class Config
         File.WriteAllLines(filePath, lines);
         Logger.LogMessage("Keys generated and saved to config.");
     }
-     
+
     public bool VerifyServerKeys(string storedPrivateKey, string storedPublicKey)
     {
         try
-        { 
+        {
             using var rsa = RSA.Create();
             rsa.ImportRSAPrivateKey(Convert.FromBase64String(storedPrivateKey), out _);
-             
+
             var derivedPublicKey = Convert.ToBase64String(rsa.ExportRSAPublicKey());
-             
+
             return derivedPublicKey == storedPublicKey;
         }
         catch (Exception ex)
@@ -253,5 +253,4 @@ public class Config
             return false;
         }
     }
-
 }

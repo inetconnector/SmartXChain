@@ -90,8 +90,9 @@ public class Node
                             var newChain = await UpdateBlockchainWithMissingBlocks(node.StartupResult.Blockchain,
                                 node.StartupResult.Node);
                             if (newChain != null) node.StartupResult.Blockchain = newChain;
-                        }  
-                        else if (node != null && node.StartupResult == null && BlockchainServer.Startup!=null)
+                        }
+                        else if (node != null && node.StartupResult == null && BlockchainServer.Startup != null)
+                        {
                             try
                             {
                                 var response = await SocketManager.GetInstance(server)
@@ -108,6 +109,7 @@ public class Node
                             {
                                 Logger.LogMessage($"Error sending GetChain request to {server}: {ex.Message}");
                             }
+                        }
                     }
 
                     Thread.Sleep(20000); // Heartbeat interval
@@ -211,9 +213,9 @@ public class Node
                         break;
                     }
 
-                    var remoteBlock = Block.FromBase64(remoteBlockResponse); 
+                    var remoteBlock = Block.FromBase64(remoteBlockResponse);
 
-                    Logger.LogMessage(blockchain.AddBlock(remoteBlock, lockChain: true, mineBlock: false, i)
+                    Logger.LogMessage(blockchain.AddBlock(remoteBlock, true, false, i)
                         ? $"Added block {i} to the local blockchain."
                         : $"Failed to add block {i} to the local blockchain.");
                 }
@@ -271,7 +273,7 @@ public class Node
                     .SendMessageAsync("ValidateChain") == "ok";
                 if (!isRemoteBlockchainValid)
                 {
-                    Logger.LogMessage($"Remote blockchain is invalid.");
+                    Logger.LogMessage("Remote blockchain is invalid.");
                     continue;
                 }
 
@@ -303,7 +305,8 @@ public class Node
                         var previousRemoteBlock = Block.FromBase64(await SocketManager.GetInstance(remoteNode)
                             .SendMessageAsync($"GetBlock/{i - 1}"));
 
-                        Logger.LogMessage($"Validating Block {i}: PreviousHash={remoteBlock.PreviousHash}, Expected={previousRemoteBlock?.Hash}");
+                        Logger.LogMessage(
+                            $"Validating Block {i}: PreviousHash={remoteBlock.PreviousHash}, Expected={previousRemoteBlock?.Hash}");
 
                         if (previousRemoteBlock == null || remoteBlock.PreviousHash != previousRemoteBlock.Hash)
                         {
@@ -337,11 +340,10 @@ public class Node
                 Logger.LogMessage($"Remote blockchain from node {remoteNode} is preferred. Adding missing blocks...");
 
                 // Synchronize missing blocks
-                bool synchronizationSuccessful = true;
+                var synchronizationSuccessful = true;
                 var blockDownloadTasks = new List<Task<(int Index, Block? Block)>>();
 
                 for (var i = currentBlockCount; i < remoteBlockCount; i++)
-                {
                     blockDownloadTasks.Add(Task.Run(async () =>
                     {
                         try
@@ -353,7 +355,8 @@ public class Node
                                 return (i, null);
 
                             var block = Block.FromBase64(blockResponse);
-                            Logger.LogMessage($"Downloaded Block {i}: Hash={block?.Hash}, PreviousHash={block?.PreviousHash}");
+                            Logger.LogMessage(
+                                $"Downloaded Block {i}: Hash={block?.Hash}, PreviousHash={block?.PreviousHash}");
                             return (i, block);
                         }
                         catch (Exception ex)
@@ -362,7 +365,6 @@ public class Node
                             return (i, null);
                         }
                     }));
-                }
 
                 var downloadedBlocks = await Task.WhenAll(blockDownloadTasks);
 
@@ -380,7 +382,8 @@ public class Node
                     {
                         var previousBlock = blockchain.Chain[index - 1];
 
-                        Logger.LogMessage($"Validating Downloaded Block {index}: PreviousHash={block.PreviousHash}, Expected={previousBlock.Hash}");
+                        Logger.LogMessage(
+                            $"Validating Downloaded Block {index}: PreviousHash={block.PreviousHash}, Expected={previousBlock.Hash}");
 
                         if (block.PreviousHash != previousBlock.Hash)
                         {
@@ -408,10 +411,8 @@ public class Node
                     Logger.LogMessage($"Blockchain fully synchronized with node {remoteNode}.");
                     return blockchain;
                 }
-                else
-                {
-                    Logger.LogMessage($"Synchronization with node {remoteNode} failed.");
-                }
+
+                Logger.LogMessage($"Synchronization with node {remoteNode} failed.");
             }
         }
         catch (Exception ex)

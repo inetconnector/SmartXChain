@@ -11,8 +11,8 @@ public static class Logger
         var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
         var formattedMessage = timestamp + " - " + message;
 
-        if (formattedMessage.Length > 120)
-            Console.WriteLine(formattedMessage.Substring(0, 120) + "...");
+        if (formattedMessage.Length > 100)
+            Console.WriteLine(formattedMessage.Substring(0, 100) + "...");
         else
             Console.WriteLine(formattedMessage);
     }

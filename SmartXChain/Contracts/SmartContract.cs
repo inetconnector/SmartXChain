@@ -60,12 +60,13 @@ public class SmartContract
     }
 
 
-    public static async Task<SmartContract> Create(string contractName, Blockchain blockchain, string ownerAddress,
+    public static async Task<(SmartContract, bool)> Create(string contractName, Blockchain blockchain,
+        string ownerAddress,
         string contractCode)
     {
         var contract =
             new SmartContract(ownerAddress, Serializer.SerializeToBase64(contractCode), contractName);
-        await blockchain.AddSmartContract(contract);
-        return contract;
+        var added = await blockchain.AddSmartContract(contract);
+        return (contract, added);
     }
 }
