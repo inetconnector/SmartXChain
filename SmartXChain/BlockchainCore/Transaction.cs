@@ -29,7 +29,7 @@ public class Transaction
         }
 
         Version = "1.0.0";
-        TransactionDate = DateTime.UtcNow;
+        Timestamp = DateTime.UtcNow;
     }
 
     [JsonInclude] internal static Dictionary<string, Dictionary<string, double>> Allowances { get; } = new();
@@ -56,8 +56,7 @@ public class Transaction
     [JsonInclude] internal string Symbol { get; private set; }
     [JsonInclude] internal uint Decimals { get; private set; }
     [JsonInclude] internal static ulong TotalSupply { get; private set; }
-    [JsonInclude] internal string Version { get; private set; }
-    [JsonInclude] internal DateTime TransactionDate { get; private set; }
+    [JsonInclude] internal string Version { get; private set; } 
 
     [JsonInclude]
     internal string Data
@@ -221,12 +220,13 @@ public class Transaction
     }
 
     internal static void UpdateBalancesFromChain(Blockchain chain)
-    { 
-        return;
+    {  
         lock (Transaction.Balances)
         { 
             Transaction.Balances.Clear();
-             
+            Transaction.Balances[Blockchain.SystemAddress] = TotalSupply;
+
+
             foreach (var block in chain.Chain)
             { 
                 foreach (var transaction in block.Transactions)

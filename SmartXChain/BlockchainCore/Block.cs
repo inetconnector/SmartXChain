@@ -31,7 +31,7 @@ public class Block
     public string CalculateHash()
     {
         using var sha256 = SHA256.Create();
-        var rawData = $"{Timestamp}-{string.Join(",", Transactions)}-{PreviousHash}-{Nonce}";
+        var rawData = $"{string.Join(",", Transactions)}-{PreviousHash}-{Nonce}";
         var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(rawData));
         Hash = Convert.ToBase64String(bytes);
         return Hash;

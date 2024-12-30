@@ -6,6 +6,7 @@ using SmartXChain.Server;
 using SmartXChain.Utils;
 using SmartXChain.Validators;
 using static System.Runtime.InteropServices.JavaScript.JSType;
+using String = System.String;
 
 namespace SmartXChain.BlockchainCore;
 
@@ -137,23 +138,24 @@ public class Blockchain
 
     internal bool AddTransaction(Transaction transaction)
     {
-        transaction.SignTransaction(Crypt.Default.PrivateKey); 
-        var payer = SystemAddress;
+        transaction.SignTransaction(Crypt.Default.PrivateKey);  
         var gas = transaction.Gas;
-        if (transaction.Sender == payer)
-        {
-            if (transaction.Recipient != payer)
-                payer = transaction.Recipient;
-            else
-                gas = 0;
+        if (string .IsNullOrEmpty(transaction.Sender))
+        {Logger.LogMessage($"Transaction {transaction.Name} not added. Sender is missing");
+            return false;
         }
-        else
+        if (string.IsNullOrEmpty(transaction.Recipient))
         {
-            payer = transaction.Sender;
+            transaction.Recipient = SystemAddress;
         }
+        if (transaction.Sender == SystemAddress)
+        {
+            gas = 0;
+        } 
 
         if (gas > 0)
-            PayGas("Transaction", payer, gas);
+           PayGas("Transaction", transaction.Sender, gas);
+       
         lock (PendingTransactions)
         {
             PendingTransactions.Add(transaction);
@@ -516,7 +518,7 @@ public class Blockchain
                     Logger.LogMessage($"Signature: {transaction.Signature}");
                     Logger.LogMessage($"Gas: {transaction.Gas}");
                     Logger.LogMessage($"Version: {transaction.Version}");
-                    Logger.LogMessage($"Transaction Date: {transaction.TransactionDate}");
+                    Logger.LogMessage($"Transaction Date: {transaction.Timestamp}");
                 }
             }
         }         

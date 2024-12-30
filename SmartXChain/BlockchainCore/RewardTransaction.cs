@@ -18,7 +18,9 @@ public class RewardTransaction : Transaction
             else
                 reward = minerReward + reward;
 
-            if (Transfer(chain, Blockchain.SystemAddress, recipient, reward)) Reward = reward;
+            if (Transfer(chain, Blockchain.SystemAddress, recipient, reward))
+                Reward = reward;
+             
         }
     }
 
@@ -26,18 +28,18 @@ public class RewardTransaction : Transaction
 
     private bool Transfer(Blockchain chain, string sender, string recipient, double amount)
     {
+        UpdateBalancesFromChain(chain);
+
         if (!Balances.ContainsKey(sender) || Balances[sender] < amount)
         {
             Log($"Transfer failed: Insufficient balance in account '{sender}'.");
             return false;
         }
 
-        UpdateBalancesFromChain(chain);
-
         var transferTransaction = new Transaction
         {
-            Sender = recipient,
-            Recipient = sender,
+            Sender = sender,
+            Recipient = recipient,
             Amount = amount,
             Timestamp = DateTime.UtcNow
         };

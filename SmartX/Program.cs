@@ -79,6 +79,7 @@ internal class Program
 
                 await GoldCoinExample(wallet1Addresses[0], wallet1Addresses, wallet2Addresses, node.Blockchain);
 
+                //native transfer
                 var transaction = new Transaction();
                 transaction.RegisterUser(wallet1Addresses[0], File.ReadAllText("privatekey.txt"));
                 var transfered = transaction.Transfer(node.Blockchain,
@@ -86,7 +87,7 @@ internal class Program
                     wallet1Addresses[1],
                     0.01d, 
                     File.ReadAllText("privatekey.txt"),
-                        "transferdemo",
+                        "native transfer",
                         "49.83278, 9.88167");
  
                 node.Blockchain.MinePendingTransactions(wallet1Addresses[0]);
