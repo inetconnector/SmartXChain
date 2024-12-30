@@ -134,8 +134,7 @@ public class Node
                                             node.StartupResult = BlockchainServer.Startup;
                                             SaveBlockChain(remoteChain, node);
                                         } 
-                                    }
-
+                                    } 
 
                                     Logger.LogMessage(
                                         $"GetChain request to {server} success: Blockchain blocks: {BlockchainServer.Startup.Blockchain.Chain.Count}");

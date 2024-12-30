@@ -65,6 +65,28 @@ public class Config
     public string PrivateKey { get; private set; }
     public static Config Default => _defaultInstance.Value;
 
+    public bool Delete()
+    {
+        try
+        {
+            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var appDirectory = Path.Combine(appDataPath, "SmartXChain");
+            var configFilePath = Path.Combine(appDirectory, "config.txt");
+            if (File.Exists(configFilePath))
+            {
+                File.Delete(configFilePath);
+                Logger.LogMessage("Config file deleted"); 
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogMessage($"Error deleting file {ex.Message}");
+        }
+
+        return false;
+    }
+
     public void ReloadConfig()
     {
         var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);

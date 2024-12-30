@@ -80,7 +80,7 @@ public class NetworkUtils
                     // Trim to ensure no extra whitespace
                     publicIP = publicIP.Trim();
 
-                    Logger.LogMessage($"\nPublic IP Address retrieved: {publicIP}");
+                    Logger.LogMessage($"Public IP Address retrieved: {publicIP}");
                     IP = publicIP;
                     return publicIP;
                 }

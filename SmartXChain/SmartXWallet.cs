@@ -84,6 +84,51 @@ public class SmartXWallet
 
         return (WalletAddresses, privateKey, mnemonic.ToString());
     }
+    public static bool DeleteWallet()
+    {
+        try
+        {
+            Logger.LogMessage("Are you sure you want to delete the wallet? This action cannot be undone. (yes/no):");
+            var confirmation = Console.ReadLine();
+
+            if (confirmation == null || !confirmation.Equals("yes", StringComparison.OrdinalIgnoreCase))
+            {
+                Logger.LogMessage("Wallet deletion canceled.");
+                return false;
+            }
+
+            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var appDirectory = Path.Combine(appDataPath, "SmartXChain");
+
+            var file = Path.Combine(appDirectory, "mnemonic.txt");
+            if (File.Exists(file))
+                File.Delete(file);
+
+            file = Path.Combine(appDirectory, "seed.txt");
+            if (File.Exists(file))
+                File.Delete(file);
+
+            file = Path.Combine(appDirectory, "privatekey.txt");
+            if (File.Exists(file))
+                File.Delete(file);
+
+            file = Path.Combine(appDirectory, "walletadresses.txt");
+            if (File.Exists(file))
+                File.Delete(file);
+
+            Config.Default.Delete();
+
+            Logger.LogMessage("Wallet successfully deleted.");
+            return true;
+        }
+        catch (Exception e)
+        {
+            Logger.LogMessage($"Error deleting wallet: {e.Message}"); 
+        }
+
+        return false;
+    }
+
 
     /// <summary>
     ///     Saves sensitive data to a specified file securely.

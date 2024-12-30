@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Text;
 using SmartXChain;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Contracts;
@@ -14,12 +16,14 @@ internal class Program
         await InitializeApplicationAsync();
 
         var (blockchainServer, startup) = await BlockchainServer.StartServerAsync();
-         
+
         await RunConsoleMenuAsync(startup);
     }
 
     private static async Task InitializeApplicationAsync()
     {
+        Logger.LogMessage("Application start");
+
         // Retrieve public IP and ensure wallet and keys are set up
         await NetworkUtils.GetPublicIPAsync();
 
@@ -38,36 +42,45 @@ internal class Program
         // Display and process console menu 
 
         while (true)
-        {
-            DisplayMenu();
-
-            var mode = Console.ReadKey().KeyChar;
-            Logger.LogMessage();
-
-            switch (mode)
+            try
             {
-                case '1':
-                    await RunCoinClassTesterAsync();
-                    break;
-                case '2':
-                    await RunSmartContractDemoAsync(startup);
-                    break;
-                case '3':
-                    DisplayBlockchainState(startup);
-                    break;
-                case '4':
-                    DisplayWalletBalances(startup);
-                    break;
-                case '5':
-                    DisplayChainInfo(startup);
-                    break;
-                case '6':
-                    DisplayContracts(startup);
-                    break;
-                case '7':
-                    return;
+                DisplayMenu();
+
+                var mode = Console.ReadKey().KeyChar;
+                Logger.LogMessage();
+
+                switch (mode)
+                {
+                    case '1':
+                        await RunCoinClassTesterAsync();
+                        break;
+                    case '2':
+                        await RunSmartContractDemoAsync(startup);
+                        break;
+                    case '3':
+                        DisplayBlockchainState(startup);
+                        break;
+                    case '4':
+                        DisplayWalletBalances(startup);
+                        break;
+                    case '5':
+                        DisplayChainInfo(startup);
+                        break;
+                    case '6':
+                        DisplayContracts(startup);
+                        break;
+                    case '7':
+                        DeleteWallet(startup);
+                        return;
+                    case '8':
+                        return;
+                }
             }
-        }
+            catch (Exception ex)
+            {
+                Logger.LogMessage($"Error: {ex.Message}");
+                throw;
+            }
     }
 
     private static void DisplayMenu()
@@ -80,7 +93,8 @@ internal class Program
         Logger.LogMessage("4: Wallet Balances");
         Logger.LogMessage("5: Chain Info");
         Logger.LogMessage("6: Show Contracts");
-        Logger.LogMessage("7: Exit");
+        Logger.LogMessage("7: Delete wallet and local chain");
+        Logger.LogMessage("8: Exit");
         Logger.LogMessage();
     }
 
@@ -178,14 +192,56 @@ internal class Program
         node.Blockchain.PrintAllBlocksAndTransactions();
     }
 
+    private static void DeleteWallet(BlockchainServer.NodeStartupResult? node)
+    {
+        // deletes wallet
+        SmartXWallet.DeleteWallet();
+        var chainPath = Path.Combine(Config.Default.BlockchainPath);
+
+        //delete local chains
+        foreach (var file in Directory.GetFiles(chainPath))
+            try
+            {
+                File.Delete(file);
+                Logger.LogMessage($"Deleted {file}");
+            }
+            catch (Exception e)
+            {
+                Logger.LogMessage($"Error deleting file {file}: {e.Message}");
+            }
+
+        Logger.LogMessage("Press any key to end");
+        Console.ReadKey();
+    }
+
     private static void DisplayContracts(BlockchainServer.NodeStartupResult? node)
     {
-        // List all deployed contracts
-        Logger.LogMessage("\nContracts:");
-        foreach (var contract in node.Blockchain.GetContracts())
+        // List all deployed contracts and save to File
+
+        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var appDirectory = Path.Combine(appDataPath, "SmartXChain");
+        var contractsDirectory = Path.Combine(appDirectory, "Contracts");
+        Directory.CreateDirectory(contractsDirectory);
+
+        if (node != null && node.Blockchain != null)
         {
-            Logger.LogMessage($"Name: {contract.Name}, Owner: {contract.Owner}, Gas: {contract.Gas}");
-            Logger.LogMessage($"Code:\n{Serializer.DeserializeFromBase64<string>(contract.SerializedContractCode)}");
+            Logger.LogMessage("\nContracts:");
+            foreach (var contract in node.Blockchain.GetContracts())
+            {
+                Logger.LogMessage($"Name: {contract.Name}, Owner: {contract.Owner}, Gas: {contract.Gas}");
+                var contractSrc = Serializer.DeserializeFromBase64<string>(contract.SerializedContractCode);
+                var path = Path.Combine(contractsDirectory, contract.Name);
+
+                File.WriteAllText(path + ".cs", contractSrc, Encoding.UTF8);
+                Logger.LogMessage($"Contract: {contract.Name} saved to {path}");
+            }
+
+            if (Directory.Exists(contractsDirectory))
+                Process.Start("explorer.exe", contractsDirectory);
+        }
+        else
+        {
+            Logger.LogMessage("\nNo contracts found.");
         }
     }
 
@@ -210,7 +266,7 @@ internal class Program
         };
 
         var result = await ExecuteSmartContract(blockchain, contract, inputs);
-        
+
         //Save and Reload Test
         var tmpFile = Path.GetTempFileName();
         blockchain.Save(tmpFile);
