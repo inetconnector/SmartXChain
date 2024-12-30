@@ -4,24 +4,46 @@ using SmartXChain.Utils;
 
 namespace SmartXChain.BlockchainCore;
 
+/// <summary>
+///     Represents a sharded blockchain implementation, enabling distribution of transactions
+///     across multiple shards for scalability.
+/// </summary>
 public class ShardedBlockchain : Blockchain
 {
-    private const int ShardCount = 4;
-    private readonly List<Blockchain>[] _shards;
+    private const int ShardCount = 4; // Number of shards in the blockchain
+    private readonly List<Blockchain>[] _shards; // Array of blockchain shards
 
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="ShardedBlockchain" /> class.
+    /// </summary>
+    /// <param name="difficulty">The difficulty level for mining blocks.</param>
+    /// <param name="minerAddress">The address of the miner.</param>
     public ShardedBlockchain(int difficulty, string minerAddress)
         : base(difficulty, minerAddress)
     {
+        // Initialize shards with separate blockchains
         _shards = new List<Blockchain>[ShardCount];
-        for (var i = 0; i < ShardCount; i++) _shards[i] = new List<Blockchain> { new(difficulty, minerAddress) };
+        for (var i = 0; i < ShardCount; i++)
+            _shards[i] = new List<Blockchain> { new(difficulty, minerAddress) };
     }
 
+    /// <summary>
+    ///     Adds a transaction to the appropriate shard based on its calculated shard index.
+    /// </summary>
+    /// <param name="transaction">The transaction to be added.</param>
+    /// <returns>True if the transaction was successfully added; otherwise, false.</returns>
     public bool AddTransaction(Transaction transaction)
     {
         var shardIndex = GetShardIndex(transaction);
         return _shards[shardIndex][0].AddTransaction(transaction);
     }
 
+    /// <summary>
+    ///     Retrieves all blocks from the specified shard.
+    /// </summary>
+    /// <param name="shardIndex">The index of the shard to retrieve blocks from.</param>
+    /// <returns>A list of blocks from the specified shard.</returns>
+    /// <exception cref="ArgumentException">Thrown if the shard index is invalid.</exception>
     public List<Block> GetBlocksFromShard(int shardIndex)
     {
         if (shardIndex < 0 || shardIndex >= ShardCount)
@@ -30,17 +52,16 @@ public class ShardedBlockchain : Blockchain
         return _shards[shardIndex][0].Chain;
     }
 
-    private int GetShardIndex(Transaction transaction)
-    {
-        var hash = transaction.CalculateHash();
-        return Math.Abs(hash.GetHashCode()) % ShardCount;
-    }
-
-// Archive Support for Large Blockchain
+    /// <summary>
+    ///     Validates the integrity of the blockchain, including archived blocks stored in a specified path.
+    /// </summary>
+    /// <param name="archivePath">The path to the directory containing archived blocks.</param>
+    /// <returns>True if the blockchain and archived blocks are valid; otherwise, false.</returns>
     public bool ValidateChainWithArchive(string archivePath)
     {
         Block? previousBlock = null;
 
+        // Validate current chain
         foreach (var block in Chain)
         {
             if (previousBlock != null && block.PreviousHash != previousBlock.Hash)
@@ -59,6 +80,7 @@ public class ShardedBlockchain : Blockchain
             previousBlock = block;
         }
 
+        // Validate archived blocks if archive path exists
         if (Directory.Exists(archivePath))
         {
             var archivedFiles = Directory.GetFiles(archivePath, "*.gz").OrderBy(f => f);
@@ -87,6 +109,22 @@ public class ShardedBlockchain : Blockchain
         return true;
     }
 
+    /// <summary>
+    ///     Calculates the shard index for a transaction using its hash.
+    /// </summary>
+    /// <param name="transaction">The transaction to calculate the shard index for.</param>
+    /// <returns>The shard index for the transaction.</returns>
+    private int GetShardIndex(Transaction transaction)
+    {
+        var hash = transaction.CalculateHash();
+        return Math.Abs(hash.GetHashCode()) % ShardCount;
+    }
+
+    /// <summary>
+    ///     Loads an archived block from a compressed file.
+    /// </summary>
+    /// <param name="filePath">The path to the compressed file.</param>
+    /// <returns>The deserialized <see cref="Block" /> object.</returns>
     private Block LoadArchivedBlock(string filePath)
     {
         using (var fileStream = new FileStream(filePath, FileMode.Open))

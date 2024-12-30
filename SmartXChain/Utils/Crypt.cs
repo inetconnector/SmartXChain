@@ -1,5 +1,6 @@
 ﻿using System.Reflection;
 using System.Security.Cryptography;
+using System.Text;
 using SmartXChain.BlockchainCore;
 
 namespace SmartXChain.Utils;
@@ -29,6 +30,21 @@ public class Crypt
         using var stream = File.OpenRead(dllPath);
         var hash = sha256.ComputeHash(stream);
         return Convert.ToBase64String(hash);
+    }
+
+    /// <summary>
+    ///     Generates an HMAC signature for a message using a secret key.
+    /// </summary>
+    /// <param name="message">The message to sign.</param>
+    /// <param name="secret">The secret key to use for signing.</param>
+    /// <returns>The generated signature as a Base64 string.</returns>
+    public static string GenerateHMACSignature(string message, string secret)
+    {
+        using (var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret)))
+        {
+            var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(message));
+            return Convert.ToBase64String(hash);
+        }
     }
 
     private static string GenerateAssemblyFingerprint()

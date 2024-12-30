@@ -14,17 +14,27 @@ using Node = SmartXChain.Validators.Node;
 
 namespace SmartXChain.Server;
 
-public class BlockchainServer
+/// <summary>
+///     The BlockchainServer class handles blockchain operations such as node registration, synchronization,
+///     and serving API endpoints for blockchain interaction.
+/// </summary>
+public partial class BlockchainServer
 {
-    private const int HeartbeatTimeoutSeconds = 30; // Maximum time before a node is considered inactive 
+    private const int HeartbeatTimeoutSeconds = 30; // Maximum time before a node is considered inactive
     private readonly List<string> _peerServers = new(); // Addresses of other peer registration servers
 
-    private readonly ConcurrentDictionary<string, DateTime>
-        _registeredNodes = new(); // Registered node addresses and their last heartbeat timestamp
+    /// <summary>
+    ///     Concurrent dictionary storing registered nodes and their last heartbeat timestamp.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, DateTime> _registeredNodes = new();
 
-    private readonly string _serverAddressExtern; // Extern Address of this server 
-    private readonly string _serverAddressIntern; // Intern address of this server  
+    private readonly string _serverAddressExtern; // External address of this server
+    private readonly string _serverAddressIntern; // Internal address of this server
+    private int _blockCount;
 
+    /// <summary>
+    ///     Initializes a new instance of the BlockchainServer class with specified external and internal IP addresses.
+    /// </summary>
     public BlockchainServer(string externIP, string internIP)
     {
         _serverAddressExtern = $"http://{externIP}:{Config.Default.Port}";
@@ -33,8 +43,14 @@ public class BlockchainServer
         Logger.LogMessage($"Starting server at {_serverAddressIntern}/{_serverAddressExtern}...");
     }
 
-    public static NodeStartupResult Startup { get; private set; }
+    /// <summary>
+    ///     Represents the startup state of the blockchain node.
+    /// </summary>
+    internal static NodeStartupResult Startup { get; private set; }
 
+    /// <summary>
+    ///     Starts the main server and configures routing for API endpoints.
+    /// </summary>
     private void StartMainServer()
     {
         var host = Host.CreateDefaultBuilder()
@@ -111,10 +127,33 @@ public class BlockchainServer
 
                             endpoints.MapPost("/api/GetBlockCount", async context =>
                             {
-                                var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-                                Logger.LogMessage($"GetBlockCount: {Startup.Blockchain.Chain.Count}");
+                                if (_blockCount != Startup.Blockchain.Chain.Count)
+                                {
+                                    _blockCount = Startup.Blockchain.Chain.Count;
+                                    Logger.LogMessage($"GetBlockCount: {Startup.Blockchain.Chain.Count}");
+                                }
 
-                                await context.Response.WriteAsync(Startup.Blockchain.Chain.Count.ToString());
+                                var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
+                                if (message.Contains(':'))
+                                {
+                                    var sp = message.Split(':');
+                                    if (sp.Length == 5)
+                                    {
+                                        var remoteBlockCount = Convert.ToInt64(sp.ToArray().Last());
+                                        var remoteServer = sp[1] + ":"+sp[2] + ":" + sp[3];
+                                        if (remoteBlockCount < _blockCount)
+                                            if (NetworkUtils.IsValidServer(remoteServer))
+                                            {  
+                                                lock (Node.DiscoveredServers)
+                                                {
+                                                    if (!Node.DiscoveredServers.Contains(remoteServer))
+                                                        Node.DiscoveredServers.Add(remoteServer);
+                                                }
+                                            }
+                                    }
+                                }
+
+                                await context.Response.WriteAsync(_blockCount.ToString());
                             });
 
                             endpoints.MapPost("/api/ValidateChain", async context =>
@@ -224,6 +263,9 @@ public class BlockchainServer
         host.Run();
     }
 
+    /// <summary>
+    ///     Starts the server asynchronously.
+    /// </summary>
     public static async Task<(BlockchainServer?, NodeStartupResult?)> StartServerAsync()
     {
         NodeStartupResult? result = null;
@@ -256,41 +298,10 @@ public class BlockchainServer
         return (server, result);
     }
 
-    public static async Task<NodeStartupResult> StartNode(string walletAddress)
-    {
-        var node = await Node.Start();
-
-        // Create blockchain
-        var blockchain = new Blockchain(2, walletAddress);
-
-        // Publish server IP
-        var nodeTransaction = new Transaction
-        {
-            Sender = Blockchain.SystemAddress,
-            Recipient = Blockchain.SystemAddress,
-            Data = Convert.ToBase64String(Encoding.ASCII.GetBytes(NetworkUtils.IP)), // Store data as Base64 string
-            Timestamp = DateTime.UtcNow
-        };
-
-        blockchain.AddTransaction(nodeTransaction);
-
-        Startup = new NodeStartupResult(blockchain, node);
-        return Startup;
-    }
-
-
-    public void Start()
-    {
-        // 1. Discover and register with peer servers
-        Task.Run(() => DiscoverAndRegisterWithPeers());
-
-        // 2. Start the main server to listen for incoming messages
-        Task.Run(() => StartMainServer());
-
-        // 3. Background task to synchronize with peer servers
-        Task.Run(() => SynchronizeWithPeers());
-    }
-
+    /// <summary>
+    ///     Discovers peers from the configuration and registers them in the peer server list,
+    ///     excluding the current server addresses.
+    /// </summary>
     private void DiscoverAndRegisterWithPeers()
     {
         var validPeers = new List<string>();
@@ -315,11 +326,21 @@ public class BlockchainServer
         }
     }
 
+    /// <summary>
+    ///     Removes the fingerprint identifier from a message string.
+    /// </summary>
+    /// <param name="message">The input message containing a fingerprint.</param>
+    /// <returns>The message without the fingerprint.</returns>
     private string RemoveFingerprint(string message)
     {
         return message.Substring(Crypt.AssemblyFingerprint.Length + 1);
     }
 
+    /// <summary>
+    ///     Handles the registration of a node by validating its address and signature, and adds it to the registered nodes.
+    /// </summary>
+    /// <param name="message">The registration message containing node address and signature.</param>
+    /// <returns>"ok" if successful, or an error message if registration fails.</returns>
     private string HandleRegistration(string message)
     {
         var parts = message.Split(new[] { ':' }, 2);
@@ -344,6 +365,11 @@ public class BlockchainServer
         return "ok";
     }
 
+    /// <summary>
+    ///     Retrieves a list of active nodes, removing any that are inactive based on heartbeat timestamps.
+    /// </summary>
+    /// <param name="message">A dummy message for compatibility (not used).</param>
+    /// <returns>A comma-separated list of active node addresses.</returns>
     private string HandleGetNodes(string message)
     {
         RemoveInactiveNodes();
@@ -356,6 +382,11 @@ public class BlockchainServer
         return "";
     }
 
+    /// <summary>
+    ///     Processes a vote message, validating its block and returning a response if successful.
+    /// </summary>
+    /// <param name="message">The vote message containing block data in Base64 format.</param>
+    /// <returns>"ok" with miner address if the vote is valid, or an error message otherwise.</returns>
     private string HandleVote(string message)
     {
         const string prefix = "Vote:";
@@ -383,6 +414,11 @@ public class BlockchainServer
         return "";
     }
 
+    /// <summary>
+    ///     Verifies code by decompressing and validating it against security rules.
+    /// </summary>
+    /// <param name="message">The verification message containing compressed Base64 code.</param>
+    /// <returns>"ok" if the code is safe, or an error message if validation fails.</returns>
     private string HandleVerifyCode(string message)
     {
         const string prefix = "VerifyCode:";
@@ -401,6 +437,10 @@ public class BlockchainServer
         return isCodeSafe ? "ok" : $"failed: {codecheck}";
     }
 
+    /// <summary>
+    ///     Handles heartbeat messages from nodes to update their last active timestamp.
+    /// </summary>
+    /// <param name="message">The heartbeat message containing the node address.</param>
     private void HandleHeartbeat(string message)
     {
         const string prefix = "Heartbeat:";
@@ -428,16 +468,14 @@ public class BlockchainServer
 
         Logger.LogMessage($"Heartbeat {nodeAddress} - {now} (HandleHeartbeat)");
 
-        CleanupResources();
-    }
-
-    private void CleanupResources()
-    {
-        // Force garbage collection to free up unused resources
         GC.Collect();
         GC.WaitForPendingFinalizers();
     }
 
+
+    /// <summary>
+    ///     Removes inactive nodes that have exceeded the heartbeat timeout from the registry.
+    /// </summary>
     private void RemoveInactiveNodes()
     {
         var now = DateTime.UtcNow;
@@ -456,9 +494,14 @@ public class BlockchainServer
         }
     }
 
+    /// <summary>
+    ///     Validates a node's signature using HMACSHA256 with the server's secret key.
+    /// </summary>
+    /// <param name="nodeAddress">The node address being validated.</param>
+    /// <param name="signature">The provided signature to validate.</param>
+    /// <returns>True if the signature is valid; otherwise, false.</returns>
     private bool ValidateSignature(string nodeAddress, string signature)
     {
-        // Validate the signature using HMACSHA256 with the server secret
         using (var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(Config.Default.SmartXchain)))
         {
             var computedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(nodeAddress));
@@ -468,6 +511,9 @@ public class BlockchainServer
         }
     }
 
+    /// <summary>
+    ///     Continuously synchronizes with peer servers to update the list of active nodes.
+    /// </summary>
     private async void SynchronizeWithPeers()
     {
         while (true)
@@ -475,12 +521,14 @@ public class BlockchainServer
             foreach (var peer in _peerServers)
                 try
                 {
+                    // Initialize HTTP client for communication with the peer
                     using var httpClient = new HttpClient { BaseAddress = new Uri(peer) };
 
-                    var content = new StringContent(JsonSerializer.Serialize(""), Encoding.UTF8,
-                        "application/json");
+                    // Send an empty request to the /api/GetNodes endpoint
+                    var content = new StringContent(JsonSerializer.Serialize(""), Encoding.UTF8, "application/json");
                     var response = await httpClient.PostAsync("/api/GetNodes", content);
 
+                    // If the response is successful, update the list of registered nodes
                     if (response.IsSuccessStatusCode)
                     {
                         var responseBody = await response.Content.ReadAsStringAsync();
@@ -490,18 +538,27 @@ public class BlockchainServer
                     }
                     else
                     {
+                        // Log any error with the response from the peer
                         Logger.LogMessage($"Error synchronizing with peer {peer}: {response.StatusCode}");
                     }
                 }
                 catch (Exception ex)
                 {
+                    // Log exceptions that occur during the synchronization process
                     Logger.LogMessage($"Error synchronizing with peer {peer}: {ex.Message}");
                 }
 
+            // Wait for 20 seconds before the next synchronization cycle
             await Task.Delay(20000);
         }
     }
 
+    /// <summary>
+    ///     Broadcasts a message to a list of peer servers, targeting a specific API endpoint command.
+    /// </summary>
+    /// <param name="serversList">List of peer server URLs to send the message to.</param>
+    /// <param name="command">The API command to invoke on each peer server.</param>
+    /// <param name="message">The message content to be sent to the peers.</param>
     internal static async void BroadcastToPeers(List<string> serversList, string command, string message)
     {
         foreach (var peer in serversList)
@@ -509,15 +566,18 @@ public class BlockchainServer
             {
                 try
                 {
+                    // Initialize HTTP client for communication with the peer
                     using var httpClient = new HttpClient { BaseAddress = new Uri(peer) };
-                    //var content = new StringContent(JsonSerializer.Serialize(message), Encoding.UTF8,
-                    //    "application/json");                    
-                    var content = new StringContent(message);
 
+                    // Prepare the message content to send to the specified API endpoint
+                    var content = new StringContent(message);
                     var url = $"/api/{command}";
+
+                    // Log the broadcast request details
                     Logger.LogMessage($"BroadcastToPeers async: {url}\n{content}");
                     var response = await httpClient.PostAsync(url, content);
 
+                    // If the response is successful, log the response content
                     if (response.IsSuccessStatusCode)
                     {
                         var responseString = response.Content.ReadAsStringAsync().Result;
@@ -525,26 +585,16 @@ public class BlockchainServer
                     }
                     else
                     {
+                        // Log an error message if the response status indicates failure
                         var error = $"ERROR: BroadcastToPeers {response.StatusCode} - {response.ReasonPhrase}";
                         Logger.LogMessage(error);
                     }
                 }
                 catch (Exception ex)
                 {
+                    // Log exceptions that occur during the broadcasting process
                     Logger.LogMessage($"Error sending to peer {peer}: {ex.Message}");
                 }
             });
-    }
-
-    public class NodeStartupResult
-    {
-        public NodeStartupResult(Blockchain blockchain, Node node)
-        {
-            Blockchain = blockchain;
-            Node = node;
-        }
-
-        public Blockchain Blockchain { get; set; }
-        public Node Node { get; private set; }
     }
 }

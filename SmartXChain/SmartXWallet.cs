@@ -6,14 +6,28 @@ using KeyPath = NBitcoin.KeyPath;
 
 namespace SmartXChain;
 
+/// <summary>
+///     Represents the SmartXWallet, which provides functionality for generating, managing,
+///     and securely storing cryptocurrency wallets compatible with SmartXChain.
+/// </summary>
 public class SmartXWallet
 {
+    /// <summary>
+    ///     Stores the list of generated wallet addresses.
+    /// </summary>
     public static List<string> WalletAddresses { get; set; } = new();
 
+    /// <summary>
+    ///     Generates a new SmartXChain wallet with a 12-word mnemonic phrase and Ethereum-compatible addresses.
+    /// </summary>
+    /// <returns>
+    ///     A tuple containing the list of wallet addresses, the private key, and the mnemonic phrase.
+    /// </returns>
     public static (List<string>, Key, string) GenerateWallet()
     {
         Key privateKey = null;
         Mnemonic mnemonic = null;
+
         try
         {
             const string smartX = "smartX";
@@ -30,7 +44,7 @@ public class SmartXWallet
             SaveToFile("mnemonic.txt", secretWords);
             SaveToFile("seed.txt", seed.ToHex());
 
-            // 3. Create the master key from the seed using CreateFromSeed
+            // 3. Create the master key from the seed
             var masterKey = ExtKey.CreateFromSeed(seed);
 
             // 4. Derive the Ethereum account path (BIP-44)
@@ -38,14 +52,12 @@ public class SmartXWallet
             privateKey = ethKey.PrivateKey;
             SaveToFile("privatekey.txt", privateKey.ToString(Network.Main));
 
-            // 5. Convert the private key to Ethereum-compatible address
+            // 5. Convert the private key to an Ethereum-compatible address
             var account = new Account(privateKey.ToHex());
-
-
             Logger.LogMessage("\nYour SmartXChain Address:\n" + smartX + account.Address.Substring(2));
             WalletAddresses.Add(smartX + account.Address.Substring(2));
 
-            // 6. Example: Display more addresses in the same wallet
+            // 6. Generate additional addresses in the same wallet
             Logger.LogMessage("\nAdditional Addresses in Wallet:");
             for (var i = 1; i <= 9; i++)
             {
@@ -63,8 +75,10 @@ public class SmartXWallet
             Logger.LogMessage($"An error occurred: {ex.Message}");
         }
 
+        // Save all generated wallet addresses to a file
         SaveToFile("walletadresses.txt", string.Join(Environment.NewLine, WalletAddresses));
 
+        // Update miner configuration with the generated wallet
         Config.Default.SetMinerAddress(WalletAddresses[0], mnemonic.ToString(), privateKey.ToString(Network.Main));
         Logger.LogMessage("New miner address generated and saved.");
 
@@ -72,17 +86,17 @@ public class SmartXWallet
     }
 
     /// <summary>
-    ///     Saves sensitive data to a file securely.
+    ///     Saves sensitive data to a specified file securely.
     /// </summary>
     /// <param name="fileName">The name of the file.</param>
-    /// <param name="content">The content to save.</param>
+    /// <param name="content">The content to save in the file.</param>
     private static void SaveToFile(string fileName, string content)
     {
         try
         {
             var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, fileName);
 
-            // Write content to file securely
+            // Write the content to the file securely
             File.WriteAllText(path, content);
 
             Logger.LogMessage($"[INFO] Securely saved: {path}");
@@ -93,6 +107,11 @@ public class SmartXWallet
         }
     }
 
+    /// <summary>
+    ///     Loads wallet addresses from a specified file.
+    /// </summary>
+    /// <param name="fileName">The name of the file containing wallet addresses. Defaults to "walletadresses.txt".</param>
+    /// <returns>A list of wallet addresses loaded from the file.</returns>
     public static List<string> LoadWalletAdresses(string fileName = "walletadresses.txt")
     {
         try

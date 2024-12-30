@@ -5,8 +5,15 @@ using Microsoft.CodeAnalysis.Scripting;
 
 namespace SmartXChain.Contracts;
 
+/// <summary>
+///     The CodeRunner class enables the secure execution of user-defined C# scripts with custom inputs
+///     and state management. It integrates safety checks and supports serialization for data handling.
+/// </summary>
 public class CodeRunner
 {
+    /// <summary>
+    ///     Contains additional imports needed for serializer functionality.
+    /// </summary>
     private const string serializerClassImports =
         @"
 using System.IO.Compression;
@@ -15,10 +22,21 @@ using System.Text.Json;
 using System.IO;
 ";
 
+    /// <summary>
+    ///     Script options for executing user-defined scripts. Includes default assemblies and common namespaces.
+    /// </summary>
     public static ScriptOptions ScriptOptions = ScriptOptions.Default
         .AddReferences(AppDomain.CurrentDomain.GetAssemblies().Where(a => !a.IsDynamic))
         .AddImports("System", "System.Linq", "System.Collections.Generic", "System.Text");
 
+    /// <summary>
+    ///     Executes a C# script asynchronously with the provided inputs and state.
+    /// </summary>
+    /// <param name="code">The C# code to execute.</param>
+    /// <param name="inputs">Array of input variables to be injected into the code.</param>
+    /// <param name="currentState">The current state to be used during execution.</param>
+    /// <param name="ct">Cancellation token to handle task cancellation.</param>
+    /// <returns>A tuple containing the execution result and updated state.</returns>
     public async Task<(string, string)> RunScriptAsync(string code, string[] inputs, string currentState,
         CancellationToken ct)
     {
@@ -66,6 +84,12 @@ using System.IO;
         }
     }
 
+    /// <summary>
+    ///     Injects input declarations into the user-provided code after existing import statements.
+    /// </summary>
+    /// <param name="code">The original code to modify.</param>
+    /// <param name="inputs">Array of input declarations.</param>
+    /// <returns>Modified code with injected inputs.</returns>
     private string InjectInputsAfterImports(string code, string[] inputs)
     {
         var inputDeclarations = string.Join(Environment.NewLine, inputs);
@@ -87,6 +111,11 @@ using System.IO;
         return $"\n\n{serializerClassImports}\n\n{inputDeclarations}\n\n{code}";
     }
 
+    /// <summary>
+    ///     Adds a static serializer class to the provided code.
+    /// </summary>
+    /// <param name="code">The original code to modify.</param>
+    /// <returns>Modified code with the serializer class appended.</returns>
     private string InjectSerializerClass(string code)
     {
         const string serializerClass = @"
@@ -123,9 +152,19 @@ public static class Serializer
         return $"{code}\n\n{serializerClass}";
     }
 
+    /// <summary>
+    ///     Defines global variables accessible during script execution.
+    /// </summary>
     public class Globals
     {
-        public string CurrentState { get; set; } // Current state of contracts
-        public object Output { get; set; } // Script output
+        /// <summary>
+        ///     Current state of the contracts.
+        /// </summary>
+        public string CurrentState { get; set; }
+
+        /// <summary>
+        ///     Output of the script execution.
+        /// </summary>
+        public object Output { get; set; }
     }
 }

@@ -25,12 +25,19 @@ internal class Program
         var blockchainServer = result.Item1;
         var node = result.Item2;
 
-        //show menu
-        Console.WriteLine(
-            "\nEnter mode; \n1 Coin class tester \n2 SmartContract Demo\n3 Blockchain state\n4 Wallet Balances\n5 Chain Info\n6 Exit\n");
+        var showMenu = true;
 
         while (true)
         {
+            if (showMenu)
+            {
+                //show menu
+                Console.WriteLine(
+                    "\nEnter mode; \n1 Coin class tester \n2 SmartContract Demo\n3 Blockchain state\n4 Wallet Balances\n5 Chain Info\n6Show Sontracts\n7 Exit\n");
+
+                showMenu = false;
+            }
+
             var mode = Console.ReadKey().KeyChar;
             if (mode == '1')
             {
@@ -117,11 +124,24 @@ internal class Program
             }
             else if (mode == '6')
             {
+                Console.WriteLine("\n Contracts:");
+                var contracts = node.Blockchain.GetContracts();
+
+                foreach (var contract in contracts)
+                {
+                    Logger.LogMessage("------------------- CONTRACT -------------------");
+                    Console.WriteLine($"Name: {contract.Name}, Owner: {contract.Owner}, Gas: {contract.Gas}");
+                    Logger.LogMessage("------------------- CODE -------------------");
+                    Console.WriteLine(Serializer.DeserializeFromBase64<string>(contract.SerializedContractCode));
+                }
+            }
+            else if (mode == '7')
+            {
                 break;
             }
             else
             {
-                Console.WriteLine("\nInvalid mode.");
+                showMenu = true;
             }
         }
     }

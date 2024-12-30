@@ -3,6 +3,10 @@ using System.Text.RegularExpressions;
 
 namespace SmartXChain.Utils;
 
+/// <summary>
+///     Represents the configuration management for the SmartXChain application,
+///     including server, miner, and peer settings.
+/// </summary>
 public class Config
 {
     private static readonly Lazy<Config> _defaultInstance = new(() =>
@@ -12,23 +16,69 @@ public class Config
         return new Config(configFilePath);
     });
 
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="Config" /> class and loads the configuration from a file.
+    /// </summary>
+    /// <param name="filePath">The file path to the configuration file.</param>
     public Config(string filePath)
     {
         Peers = new List<string>();
         LoadConfig(filePath);
     }
 
+    /// <summary>
+    ///     Gets the SmartXChain network identifier.
+    /// </summary>
     public string SmartXchain { get; private set; }
+
+    /// <summary>
+    ///     Gets the miner's wallet address.
+    /// </summary>
     public string MinerAddress { get; private set; }
+
+    /// <summary>
+    ///     Gets the mnemonic phrase associated with the miner.
+    /// </summary>
     public string Mnemonic { get; private set; }
+
+    /// <summary>
+    ///     Gets the list of known peer addresses.
+    /// </summary>
     public List<string> Peers { get; }
+
+    /// <summary>
+    ///     Gets the port number for the server.
+    /// </summary>
     public int Port { get; private set; }
+
+    /// <summary>
+    ///     Gets the IP address of the server.
+    /// </summary>
     public string IP { get; private set; }
+
+    /// <summary>
+    ///     Gets a value indicating whether debugging is enabled.
+    /// </summary>
     public bool Debug { get; private set; }
+
+    /// <summary>
+    ///     Gets the public key for the server.
+    /// </summary>
     public string PublicKey { get; private set; }
+
+    /// <summary>
+    ///     Gets the private key for the server.
+    /// </summary>
     public string PrivateKey { get; private set; }
+
+    /// <summary>
+    ///     Gets the default configuration instance.
+    /// </summary>
     public static Config Default => _defaultInstance.Value;
 
+    /// <summary>
+    ///     Reloads the configuration from the configuration file.
+    /// </summary>
     public void ReloadConfig()
     {
         var appDirectory = AppDomain.CurrentDomain.BaseDirectory;
@@ -50,10 +100,15 @@ public class Config
 
         // Reload the configuration from the file
         LoadConfig(configFilePath);
-
         Logger.LogMessage("Configuration reloaded successfully.");
     }
 
+    /// <summary>
+    ///     Sets the miner's address, mnemonic, and private key in the configuration file.
+    /// </summary>
+    /// <param name="minerAddress">The miner's address.</param>
+    /// <param name="mnemonic">The mnemonic phrase.</param>
+    /// <param name="privatekey">The private key.</param>
     public void SetMinerAddress(string minerAddress, string mnemonic, string privatekey)
     {
         MinerAddress = minerAddress;
@@ -67,7 +122,6 @@ public class Config
 
         if (minerSectionIndex >= 0)
         {
-            // Update existing Miner section
             for (var i = minerSectionIndex + 1; i < lines.Count; i++)
                 if (string.IsNullOrWhiteSpace(lines[i]) || lines[i].StartsWith("["))
                 {
@@ -79,7 +133,6 @@ public class Config
         }
         else
         {
-            // Append new Miner section
             lines.Add("");
             lines.Add("[Miner]");
             lines.Add($"MinerAddress={minerAddress}");
@@ -88,9 +141,13 @@ public class Config
         }
 
         File.WriteAllLines(filePath, lines);
-        Logger.LogMessage("Miner address, privateKey akd mnemonic saved to config.");
+        Logger.LogMessage("Miner address, private key, and mnemonic saved to config.");
     }
 
+    /// <summary>
+    ///     Loads the configuration data from a file and populates the properties.
+    /// </summary>
+    /// <param name="filePath">The file path to the configuration file.</param>
     private void LoadConfig(string filePath)
     {
         if (!File.Exists(filePath)) throw new FileNotFoundException($"Config file not found: {filePath}");
@@ -155,10 +212,6 @@ public class Config
                     if (key.Equals("Debug", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var debug))
                         Debug = debug;
                 }
-                else
-                {
-                    Logger.LogMessage($"Invalid configuration line: {trimmedLine}");
-                }
             }
             else if (isMinerSection)
             {
@@ -174,10 +227,6 @@ public class Config
                         MinerAddress = value;
                     else if (key.Equals("Mnemonic", StringComparison.OrdinalIgnoreCase)) Mnemonic = value;
                 }
-                else
-                {
-                    Logger.LogMessage($"Invalid miner line: {trimmedLine}");
-                }
             }
             else if (isServerSection)
             {
@@ -192,14 +241,13 @@ public class Config
                     else if (key.Equals("PrivateKey", StringComparison.OrdinalIgnoreCase))
                         PrivateKey = value;
                 }
-                else
-                {
-                    Logger.LogMessage($"Invalid server line: {trimmedLine}");
-                }
             }
         }
     }
 
+    /// <summary>
+    ///     Generates RSA public and private keys for the server and saves them in the configuration file.
+    /// </summary>
     public void GenerateServerKeys()
     {
         using var rsa = RSA.Create(2048);
@@ -214,7 +262,6 @@ public class Config
 
         if (serverSectionIndex >= 0)
         {
-            // Update existing Server section
             for (var i = serverSectionIndex + 1; i < lines.Count; i++)
                 if (string.IsNullOrWhiteSpace(lines[i]) || lines[i].StartsWith("["))
                 {
@@ -225,7 +272,6 @@ public class Config
         }
         else
         {
-            // Append new Server section
             lines.Add("");
             lines.Add("[Server]");
             lines.Add($"PublicKey={PublicKey}");
@@ -236,6 +282,12 @@ public class Config
         Logger.LogMessage("Keys generated and saved to config.");
     }
 
+    /// <summary>
+    ///     Verifies the RSA keys stored in the configuration file.
+    /// </summary>
+    /// <param name="storedPrivateKey">The private key to verify.</param>
+    /// <param name="storedPublicKey">The public key to verify.</param>
+    /// <returns>True if the keys are valid; otherwise, false.</returns>
     public bool VerifyServerKeys(string storedPrivateKey, string storedPublicKey)
     {
         try

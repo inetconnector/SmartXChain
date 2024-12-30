@@ -566,6 +566,14 @@ public class Blockchain
             .FirstOrDefault(contract => contract.Name == contractName);
     }
 
+    /// <summary>
+    /// Retrieves a list of smart contracts from the blockchain.
+    /// </summary>
+    /// <returns>A list of smart contracts</returns>
+    public IEnumerable<SmartContract> GetContracts()
+    {
+        return Chain?.SelectMany(block => block.SmartContracts) ?? Enumerable.Empty<SmartContract>();
+    }
 
     /// <summary>
     ///     Validates the entire blockchain by checking the hashes and links between blocks.

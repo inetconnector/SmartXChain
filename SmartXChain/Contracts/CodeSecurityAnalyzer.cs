@@ -5,9 +5,16 @@ using SmartXChain.Utils;
 
 namespace SmartXChain.Contracts;
 
+/// <summary>
+///     The CodeSecurityAnalyzer class provides functionality to analyze and enforce security constraints on user-defined
+///     C# code.
+///     It validates namespaces, classes, methods, and keywords to prevent malicious activities.
+/// </summary>
 public class CodeSecurityAnalyzer
 {
-    // Allowed Namespaces
+    /// <summary>
+    ///     A list of namespaces that are allowed in user-provided code.
+    /// </summary>
     private static readonly string[] AllowedNamespaces =
     {
         Blockchain.SystemAddress,
@@ -25,11 +32,14 @@ public class CodeSecurityAnalyzer
         "System.Xml.Linq"
     };
 
-    // Forbidden Classes
+    /// <summary>
+    ///     A list of classes that are forbidden in user-provided code.
+    ///     These classes could pose security risks.
+    /// </summary>
     private static readonly string[] ForbiddenClasses =
     {
         "File", "Directory", "Process", "FileInfo", "DirectoryInfo",
-        "WebClient", "Socket", "Thread", //"Task",
+        "WebClient", "Socket", "Thread",
         "Assembly", "AppDomain", "Environment", "Marshal", "GCHandle",
         "RegistryKey", "Registry", "TcpClient", "UdpClient", "BinaryFormatter",
         "CryptoStream", "DES", "TripleDES", "RSA", "Aes", "Stream", "FileStream",
@@ -38,7 +48,10 @@ public class CodeSecurityAnalyzer
         "Kernel32", "DllImportAttribute"
     };
 
-    // Forbidden Methods
+    /// <summary>
+    ///     A list of methods that are forbidden in user-provided code.
+    ///     These methods could allow unauthorized actions or security breaches.
+    /// </summary>
     private static readonly string[] ForbiddenMethods =
     {
         "Start", "Invoke", "Load", "Delete", "Move", "Copy",
@@ -48,17 +61,26 @@ public class CodeSecurityAnalyzer
         "Flush", "Bind", "Connect", "Listen", "Send", "Receive",
         "Attach", "Detach", "Kill", "Stop", "Pause", "Resume",
         "LoadFrom", "LoadFile", "LoadModule", "DefineDynamicAssembly",
-        "LoadLibrary", "QueueUserWorkItem", "Process.Start" //, "Run"
+        "LoadLibrary", "QueueUserWorkItem", "Process.Start"
     };
 
-    // Forbidden Keywords
+    /// <summary>
+    ///     A list of keywords that are forbidden in user-provided code.
+    ///     These keywords could lead to unsafe or insecure code execution.
+    /// </summary>
     private static readonly string[] ForbiddenKeywords =
     {
         "unsafe", "dynamic", "DllImport", "extern", "lock",
         "goto", "volatile", "fixed", "stackalloc", "yield", "sealed", "base",
-        "ref", "partial", "override" //, "async",  "out" ,"await", 
+        "ref", "partial", "override"
     };
 
+    /// <summary>
+    ///     Analyzes the provided C# code to determine if it adheres to the security constraints.
+    /// </summary>
+    /// <param name="code">The code to analyze.</param>
+    /// <param name="message">A message describing any detected issues.</param>
+    /// <returns>True if the code is safe, otherwise false.</returns>
     public static bool IsCodeSafe(string code, ref string message)
     {
         var tree = CSharpSyntaxTree.ParseText(code);
@@ -123,6 +145,12 @@ public class CodeSecurityAnalyzer
         return true;
     }
 
+    /// <summary>
+    ///     Validates a set of commands to ensure they adhere to the security constraints.
+    /// </summary>
+    /// <param name="codeCommands">Array of commands to validate.</param>
+    /// <param name="messages">A list of messages describing any detected issues.</param>
+    /// <returns>True if all commands are safe, otherwise false.</returns>
     public static bool AreCommandsSafe(string[] codeCommands, ref List<string> messages)
     {
         messages = new List<string>();
