@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.Sockets;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Server;
 using SmartXChain.Utils;
@@ -32,12 +33,12 @@ public class Node
     /// <summary>
     ///     Gets the blockchain chain identifier associated with this node.
     /// </summary>
-    internal string ChainId { get; }
+    public string ChainId { get; }
 
     /// <summary>
     ///     Gets the address of the node.
     /// </summary>
-    internal string NodeAddress { get; }
+    public string NodeAddress { get; }
 
     /// <summary>
     ///     Gets or sets the startup result containing the blockchain and node details.
@@ -118,12 +119,28 @@ public class Node
                             {
                                 var response = await SocketManager.GetInstance(server)
                                     .SendMessageAsync("GetChain#" + node.NodeAddress);
+                                 
+                                var remoteChain = Blockchain.FromBase64(response);
 
-                                BlockchainServer.Startup.Blockchain = Blockchain.FromBase64(response);
-                                node.StartupResult = BlockchainServer.Startup;
+                                if (BlockchainServer.Startup.Blockchain != null)
+                                {
+                                    lock (BlockchainServer.Startup.Blockchain)
+                                    {
+                                        if (remoteChain != null &&
+                                            remoteChain.Chain.Count >= BlockchainServer.Startup.Blockchain.Chain.Count &&
+                                            remoteChain.IsValid())
+                                        {
+                                            BlockchainServer.Startup.Blockchain = remoteChain; 
+                                            node.StartupResult = BlockchainServer.Startup;
+                                            SaveBlockChain(remoteChain, node);
+                                        } 
+                                    }
 
-                                Logger.LogMessage(
-                                    $"GetChain request to {server} success: Blockchain blocks: {BlockchainServer.Startup.Blockchain.Chain.Count}");
+
+                                    Logger.LogMessage(
+                                        $"GetChain request to {server} success: Blockchain blocks: {BlockchainServer.Startup.Blockchain.Chain.Count}");
+                                }
+
                                 Logger.LogMessage($"Response from server {server}: {response}");
                             }
                             catch (Exception ex)
@@ -177,7 +194,7 @@ public class Node
     /// <param name="blockchain">The local blockchain instance to update.</param>
     /// <param name="node">The node instance managing the blockchain.</param>
     /// <returns>A Task resolving to the updated <see cref="Blockchain" /> or null if no updates were made.</returns>
-    internal static async Task<Blockchain?> UpdateBlockchainWithMissingBlocks(Blockchain blockchain, Node node)
+    internal static async Task<Blockchain?> UpdateBlockchainWithMissingBlocks(Blockchain? blockchain, Node node)
     {
         if (blockchain == null || blockchain.Chain == null)
             return null;
@@ -233,6 +250,8 @@ public class Node
                         Logger.LogMessage($"Block {i} added.");
                     }
                 }
+
+                SaveBlockChain(blockchain,node);
             }
         }
         catch (Exception ex)
@@ -241,6 +260,29 @@ public class Node
         }
 
         return blockchain;
+    }
+
+    /// <summary>
+    /// Saves the blockchain to the specified BlockchainPath.
+    /// </summary>
+    /// <param name="blockchain">The blockchain instance to be saved.</param>
+    /// <param name="node">The node associated with the blockchain, used to identify the chain ID.</param>
+    /// <returns>
+    /// Returns <c>true</c> if the blockchain was successfully saved and verified;
+    /// otherwise, <c>false</c>.
+    /// </returns>
+    public static bool SaveBlockChain(Blockchain blockchain, Node node)
+    { 
+        var chainPath = Path.Combine(Config.Default.BlockchainPath, "chain-" + node.ChainId);
+        if (blockchain.Save(chainPath) && File.Exists(chainPath))
+        {
+            blockchain = Blockchain.Load(chainPath);
+            Logger.LogMessage($"Blockchain saved to {chainPath}");
+            return true;
+        }
+
+        Logger.LogMessage($"Blockchain could not be saved to {chainPath}");
+        return false;
     }
 
     /// <summary>

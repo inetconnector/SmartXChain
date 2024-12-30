@@ -92,7 +92,7 @@ public class SmartContract
     /// <param name="ownerAddress">The address of the contract owner.</param>
     /// <param name="contractCode">The contract code as a plain string.</param>
     /// <returns>A tuple containing the SmartContract instance and a boolean indicating whether the addition was successful.</returns>
-    public static async Task<(SmartContract, bool)> Create(string contractName, Blockchain blockchain,
+    public static async Task<(SmartContract, bool)> Create(string contractName, Blockchain? blockchain,
         string ownerAddress,
         string contractCode)
     {

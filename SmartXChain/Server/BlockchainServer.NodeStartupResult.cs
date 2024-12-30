@@ -66,7 +66,7 @@ public partial class BlockchainServer
         /// </summary>
         /// <param name="blockchain">The initialized blockchain instance.</param>
         /// <param name="node">The node associated with the blockchain.</param>
-        public NodeStartupResult(Blockchain blockchain, Node node)
+        public NodeStartupResult(Blockchain? blockchain, Node node)
         {
             Blockchain = blockchain;
             Node = node;
@@ -75,7 +75,7 @@ public partial class BlockchainServer
         /// <summary>
         ///     Gets or sets the blockchain associated with the node.
         /// </summary>
-        public Blockchain Blockchain { get; set; }
+        public Blockchain? Blockchain { get; set; }
 
         /// <summary>
         ///     Gets the node instance associated with the blockchain.

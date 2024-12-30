@@ -14,7 +14,7 @@ internal class Program
         await InitializeApplicationAsync();
 
         var (blockchainServer, startup) = await BlockchainServer.StartServerAsync();
-
+         
         await RunConsoleMenuAsync(startup);
     }
 
@@ -90,7 +90,7 @@ internal class Program
         var walletAddresses = SmartXWallet.LoadWalletAdresses();
         var seed = File.ReadAllText("seed.txt");
 
-        var token = new ERC20Token("SmartXchain", "SXC", 18, 1000000000, walletAddresses[0]);
+        var token = new ERC20Token("SmartXchain", "SXC", 18, 10000000000, walletAddresses[0]);
         token.RegisterUser(walletAddresses[0], seed);
         token.Transfer(walletAddresses[0], walletAddresses[1], 100, seed);
         token.Transfer(walletAddresses[1], walletAddresses[2], 50, seed);
@@ -134,7 +134,7 @@ internal class Program
         PerformNativeTransfer(node.Blockchain, walletAddresses);
     }
 
-    private static void PerformNativeTransfer(Blockchain chain, List<string> walletAddresses)
+    private static void PerformNativeTransfer(Blockchain? chain, List<string> walletAddresses)
     {
         // Perform native token transfer
         var transaction = new Transaction();
@@ -189,7 +189,7 @@ internal class Program
         }
     }
 
-    private static async Task ERC20Example(string ownerAddress, List<string> walletAddresses, Blockchain blockchain)
+    private static async Task ERC20Example(string ownerAddress, List<string> walletAddresses, Blockchain? blockchain)
     {
         // Deploy and interact with an ERC20 token contract
         var contractFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Examples", "ERC20.cs");
@@ -202,7 +202,7 @@ internal class Program
 
         string[] inputs =
         {
-            $"var token = new ERC20Token(\"SmartXchain\", \"SXC\", 18, 1000000000, \"{ownerAddress}\");",
+            $"var token = new ERC20Token(\"SmartXchain\", \"SXC\", 18, 10000000000, \"{ownerAddress}\");",
             $"token.RegisterUser(\"{ownerAddress}\", \"{seed}\");",
             $"token.Transfer(\"{ownerAddress}\", \"{walletAddresses[1]}\", 100, \"{seed}\");",
             $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 50, \"{seed}\");",
@@ -210,14 +210,15 @@ internal class Program
         };
 
         var result = await ExecuteSmartContract(blockchain, contract, inputs);
-
+        
+        //Save and Reload Test
         var tmpFile = Path.GetTempFileName();
         blockchain.Save(tmpFile);
         blockchain = Blockchain.Load(tmpFile);
 
         inputs = new[]
         {
-            $"var token = new ERC20Token(\"SmartXchain\", \"SXC\", 18, 1000000000, \"{ownerAddress}\");",
+            $"var token = new ERC20Token(\"SmartXchain\", \"SXC\", 18, 10000000000, \"{ownerAddress}\");",
             $"token.RegisterUser(\"{ownerAddress}\", \"{seed}\");",
             $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 25, \"{seed}\");",
             $"Logger.LogMessage(\"[ERC20Token] \" + token.GetBalances[\"{walletAddresses[0]}\"]);",
@@ -230,7 +231,7 @@ internal class Program
     }
 
     private static async Task GoldCoinExample(string minerAddress, List<string> wallet1Addresses,
-        List<string> wallet2Addresses, Blockchain blockchain)
+        List<string> wallet2Addresses, Blockchain? blockchain)
     {
         // Deploy and interact with a GoldCoin token contract
         var contractFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Examples", "GoldCoin.cs");
@@ -284,7 +285,7 @@ internal class Program
     }
 
     private static async Task<(string result, string updatedSerializedState)> ExecuteSmartContract(
-        Blockchain blockchain, SmartContract contract, string[] inputs, bool debug = false)
+        Blockchain? blockchain, SmartContract contract, string[] inputs, bool debug = false)
     {
         // Execute the given smart contract and handle exceptions
         (string result, string updatedSerializedState) executionResult = (null, null);

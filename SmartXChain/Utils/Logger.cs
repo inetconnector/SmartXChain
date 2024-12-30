@@ -20,8 +20,8 @@ public static class Logger
         var formattedMessage = timestamp + " - " + message;
 
         // Print the message to the console, truncating if it exceeds 100 characters
-        if (formattedMessage.Length > 100)
-            Console.WriteLine(formattedMessage.Substring(0, 100) + "...");
+        if (formattedMessage.Length > 110)
+            Console.WriteLine(formattedMessage.Substring(0, 110) + "...");
         else
             Console.WriteLine(formattedMessage);
     }

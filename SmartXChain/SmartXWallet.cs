@@ -94,7 +94,10 @@ public class SmartXWallet
     {
         try
         {
-            var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, fileName);
+            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var appDirectory = Path.Combine(appDataPath, "SmartXChain");
+
+            var path = Path.Combine(appDirectory, fileName);
 
             // Write the content to the file securely
             File.WriteAllText(path, content);

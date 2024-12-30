@@ -206,14 +206,17 @@ public partial class BlockchainServer
                                     var serializedChain = await new StreamReader(context.Request.Body).ReadToEndAsync();
                                     Logger.LogMessage($"PushChain: {serializedChain}");
                                     var incomingChain = Blockchain.FromBase64(serializedChain);
-                                    if (Startup.Blockchain.SmartContracts.Count == 0)
+                                    if (Startup.Blockchain != null && Startup.Blockchain.SmartContracts.Count == 0)
                                     {
                                         lock (Startup.Blockchain.Chain)
                                         {
                                             if (incomingChain != null &&
                                                 incomingChain.Chain.Count > Startup.Blockchain.Chain.Count &&
                                                 incomingChain.IsValid())
-                                                Startup.Blockchain = incomingChain;
+                                            {
+                                                Startup.Blockchain = incomingChain; 
+                                                Node.SaveBlockChain(incomingChain, Startup.Node);
+                                            }
                                         }
 
                                         await context.Response.WriteAsync("ok");
@@ -266,8 +269,8 @@ public partial class BlockchainServer
     /// <summary>
     ///     Starts the server asynchronously.
     /// </summary>
-    public static async Task<(BlockchainServer?, NodeStartupResult?)> StartServerAsync()
-    {
+    public static async Task<(BlockchainServer?, NodeStartupResult?)> StartServerAsync(bool loadExisting=true)
+    { 
         NodeStartupResult? result = null;
 
         // Initialize and start the node
@@ -291,10 +294,34 @@ public partial class BlockchainServer
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error starting server: {ex.Message}");
+                Logger.LogMessage($"Error starting server: {ex.Message}");
             }
         });
         Startup = result;
+
+
+        if (loadExisting)
+        {
+            var chainPath = "";
+            try
+            {
+                chainPath = Path.Combine(Config.Default.BlockchainPath, "chain-" + result!.Node.ChainId);
+                if (File.Exists(chainPath))
+                {
+                    result!.Blockchain = Blockchain.Load(chainPath);
+                }
+                else
+                {
+                    Logger.LogMessage($"No existing chain found in {chainPath}");
+                    Logger.LogMessage($"Waiting for synchronization...");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogMessage($"Error loading existing chain from {chainPath}");
+                Logger.LogMessage($"Error: {ex.Message}");
+            }
+        }   
         return (server, result);
     }
 

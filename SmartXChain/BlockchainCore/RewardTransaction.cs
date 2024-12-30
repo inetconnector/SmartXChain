@@ -19,7 +19,7 @@ public class RewardTransaction : Transaction
     ///     If false, the reward is for a miner.
     /// </param>
     /// <param name="sender">The sender of the transaction (default is the system address).</param>
-    internal RewardTransaction(Blockchain chain, string recipient, bool validator = false,
+    internal RewardTransaction(Blockchain? chain, string recipient, bool validator = false,
         string sender = Blockchain.SystemAddress)
     {
         Sender = sender;
@@ -57,7 +57,7 @@ public class RewardTransaction : Transaction
     /// <param name="recipient">The address of the recipient.</param>
     /// <param name="amount">The amount to be transferred.</param>
     /// <returns>True if the transfer is successful; otherwise, false.</returns>
-    private bool Transfer(Blockchain chain, string sender, string recipient, double amount)
+    private bool Transfer(Blockchain? chain, string sender, string recipient, double amount)
     {
         UpdateBalancesFromChain(chain);
 

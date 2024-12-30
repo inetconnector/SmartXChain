@@ -15,7 +15,7 @@ public class Transaction
 
     public Transaction()
     {
-        const int initialSupply = 1000000000;
+        const ulong initialSupply = 10000000000;
         var owner = Blockchain.SystemAddress;
         Name = "SmartXchain";
         Symbol = "SXC";
@@ -281,7 +281,7 @@ public class Transaction
     /// <summary>
     ///     Transfers tokens with blockchain integration and optional metadata.
     /// </summary>
-    public bool Transfer(Blockchain chain, string sender, string recipient, double amount, string privateKey,
+    public bool Transfer(Blockchain? chain, string sender, string recipient, double amount, string privateKey,
         string info = "", string data = "")
     {
         if (!IsAuthenticated(sender, privateKey))
@@ -321,7 +321,7 @@ public class Transaction
     /// <summary>
     ///     Updates account balances from the blockchain's transaction history.
     /// </summary>
-    internal static void UpdateBalancesFromChain(Blockchain chain)
+    internal static void UpdateBalancesFromChain(Blockchain? chain)
     {
         lock (Balances)
         {

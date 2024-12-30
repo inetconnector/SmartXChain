@@ -651,7 +651,7 @@ public class Blockchain
 
             var sortedBlocks = Chain.OrderByDescending(block => block.Timestamp);
 
-            foreach (var block in sortedBlocks)
+            foreach (var block in Chain)
             {
                 var sortedTransactions = block.Transactions.OrderByDescending(transaction => transaction.Timestamp);
 
@@ -797,18 +797,21 @@ public class Blockchain
     ///     Saves the blockchain to a file.
     /// </summary>
     /// <param name="file">The file path to save the blockchain.</param>
-    public void Save(string file)
+    /// <returns>true if chain was saved successfully, otherwise false.</returns>
+    public bool Save(string file)
     {
         try
         {
             File.WriteAllBytes(file, GetBytes());
             Logger.LogMessage($"Blockchain saved to: {file}");
+            return true;
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"Error saving the blockchain: {ex.Message}");
-            throw;
+            Logger.LogMessage($"Error saving the blockchain: {ex.Message}"); 
         }
+
+        return false;
     }
 
     /// <summary>

@@ -11,7 +11,27 @@ public class Config
 {
     private static readonly Lazy<Config> _defaultInstance = new(() =>
     {
-        var appDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var appDirectory = Path.Combine(appDataPath, "SmartXChain");
+        var startupDirectory = AppDomain.CurrentDomain.BaseDirectory;
+
+        // Ensure the AppData directory exists
+        Directory.CreateDirectory(appDirectory);
+
+        var configFile = "config.txt";
+        var appDataConfigPath = Path.Combine(appDirectory, configFile);
+        var startupConfigPath = Path.Combine(startupDirectory, configFile);
+
+        // Check if a config exists in the startup directory and not in AppData
+        if (File.Exists(startupConfigPath) && !File.Exists(appDataConfigPath))
+        {
+            // Copy the startup config to AppData
+            File.Copy(startupConfigPath, appDataConfigPath);
+            Logger.LogMessage("Initial configuration file copied from startup directory to AppData.");
+            Logger.LogMessage(startupConfigPath);
+            Logger.LogMessage(appDataConfigPath);
+        }
+
         var configFilePath = Path.Combine(appDirectory, "config.txt");
         return new Config(configFilePath);
     });
@@ -23,65 +43,32 @@ public class Config
     public Config(string filePath)
     {
         Peers = new List<string>();
+
+        // Set default blockchain path in AppData
+        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var blockchainDirectory = Path.Combine(appDataPath, "SmartXChain", "Blockchain");
+        Directory.CreateDirectory(blockchainDirectory); // Ensure directory exists
+        BlockchainPath = blockchainDirectory;
+
         LoadConfig(filePath);
     }
 
-    /// <summary>
-    ///     Gets the SmartXChain network identifier.
-    /// </summary>
     public string SmartXchain { get; private set; }
-
-    /// <summary>
-    ///     Gets the miner's wallet address.
-    /// </summary>
     public string MinerAddress { get; private set; }
-
-    /// <summary>
-    ///     Gets the mnemonic phrase associated with the miner.
-    /// </summary>
     public string Mnemonic { get; private set; }
-
-    /// <summary>
-    ///     Gets the list of known peer addresses.
-    /// </summary>
     public List<string> Peers { get; }
-
-    /// <summary>
-    ///     Gets the port number for the server.
-    /// </summary>
     public int Port { get; private set; }
-
-    /// <summary>
-    ///     Gets the IP address of the server.
-    /// </summary>
     public string IP { get; private set; }
-
-    /// <summary>
-    ///     Gets a value indicating whether debugging is enabled.
-    /// </summary>
     public bool Debug { get; private set; }
-
-    /// <summary>
-    ///     Gets the public key for the server.
-    /// </summary>
+    public string BlockchainPath { get; private set; }
     public string PublicKey { get; private set; }
-
-    /// <summary>
-    ///     Gets the private key for the server.
-    /// </summary>
     public string PrivateKey { get; private set; }
-
-    /// <summary>
-    ///     Gets the default configuration instance.
-    /// </summary>
     public static Config Default => _defaultInstance.Value;
 
-    /// <summary>
-    ///     Reloads the configuration from the configuration file.
-    /// </summary>
     public void ReloadConfig()
     {
-        var appDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var appDirectory = Path.Combine(appDataPath, "SmartXChain");
         var configFilePath = Path.Combine(appDirectory, "config.txt");
         if (!File.Exists(configFilePath))
         {
@@ -89,7 +76,6 @@ public class Config
             return;
         }
 
-        // Clear the existing configuration
         Peers.Clear();
         SmartXchain = null;
         MinerAddress = null;
@@ -97,23 +83,20 @@ public class Config
         Port = 0;
         PublicKey = null;
         PrivateKey = null;
+        BlockchainPath = "";
 
-        // Reload the configuration from the file
         LoadConfig(configFilePath);
         Logger.LogMessage("Configuration reloaded successfully.");
     }
 
-    /// <summary>
-    ///     Sets the miner's address, mnemonic, and private key in the configuration file.
-    /// </summary>
-    /// <param name="minerAddress">The miner's address.</param>
-    /// <param name="mnemonic">The mnemonic phrase.</param>
-    /// <param name="privatekey">The private key.</param>
     public void SetMinerAddress(string minerAddress, string mnemonic, string privatekey)
     {
         MinerAddress = minerAddress;
         Mnemonic = mnemonic;
-        var filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.txt");
+
+        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var appDirectory = Path.Combine(appDataPath, "SmartXChain");
+        var filePath = Path.Combine(appDirectory, "config.txt");
 
         if (!File.Exists(filePath)) File.WriteAllText(filePath, "[Miner]\n");
 
@@ -144,10 +127,6 @@ public class Config
         Logger.LogMessage("Miner address, private key, and mnemonic saved to config.");
     }
 
-    /// <summary>
-    ///     Loads the configuration data from a file and populates the properties.
-    /// </summary>
-    /// <param name="filePath">The file path to the configuration file.</param>
     private void LoadConfig(string filePath)
     {
         if (!File.Exists(filePath)) throw new FileNotFoundException($"Config file not found: {filePath}");
@@ -163,7 +142,7 @@ public class Config
             var trimmedLine = line.Trim();
 
             if (string.IsNullOrEmpty(trimmedLine) || trimmedLine.StartsWith(";") || trimmedLine.StartsWith("#"))
-                continue; // Skip empty lines and comments
+                continue;
 
             if (trimmedLine.Equals("[Config]", StringComparison.OrdinalIgnoreCase))
             {
@@ -211,6 +190,8 @@ public class Config
                         IP = value;
                     if (key.Equals("Debug", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var debug))
                         Debug = debug;
+                    if (key.Equals("BlockchainPath", StringComparison.OrdinalIgnoreCase))
+                        BlockchainPath = value;
                 }
             }
             else if (isMinerSection)
@@ -227,6 +208,10 @@ public class Config
                         MinerAddress = value;
                     else if (key.Equals("Mnemonic", StringComparison.OrdinalIgnoreCase)) Mnemonic = value;
                 }
+                else
+                {
+                    Logger.LogMessage($"Invalid miner line: {trimmedLine}");
+                }
             }
             else if (isServerSection)
             {
@@ -241,20 +226,24 @@ public class Config
                     else if (key.Equals("PrivateKey", StringComparison.OrdinalIgnoreCase))
                         PrivateKey = value;
                 }
+                else
+                {
+                    Logger.LogMessage($"Invalid server line: {trimmedLine}");
+                }
             }
         }
     }
 
-    /// <summary>
-    ///     Generates RSA public and private keys for the server and saves them in the configuration file.
-    /// </summary>
     public void GenerateServerKeys()
     {
         using var rsa = RSA.Create(2048);
         PublicKey = Convert.ToBase64String(rsa.ExportRSAPublicKey());
         PrivateKey = Convert.ToBase64String(rsa.ExportRSAPrivateKey());
 
-        var filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.txt");
+        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var appDirectory = Path.Combine(appDataPath, "SmartXChain");
+        var filePath = Path.Combine(appDirectory, "config.txt");
+
         if (!File.Exists(filePath)) File.WriteAllText(filePath, "[Server]\n");
 
         var lines = File.ReadAllLines(filePath).ToList();
@@ -280,29 +269,5 @@ public class Config
 
         File.WriteAllLines(filePath, lines);
         Logger.LogMessage("Keys generated and saved to config.");
-    }
-
-    /// <summary>
-    ///     Verifies the RSA keys stored in the configuration file.
-    /// </summary>
-    /// <param name="storedPrivateKey">The private key to verify.</param>
-    /// <param name="storedPublicKey">The public key to verify.</param>
-    /// <returns>True if the keys are valid; otherwise, false.</returns>
-    public bool VerifyServerKeys(string storedPrivateKey, string storedPublicKey)
-    {
-        try
-        {
-            using var rsa = RSA.Create();
-            rsa.ImportRSAPrivateKey(Convert.FromBase64String(storedPrivateKey), out _);
-
-            var derivedPublicKey = Convert.ToBase64String(rsa.ExportRSAPublicKey());
-
-            return derivedPublicKey == storedPublicKey;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogMessage($"Error verifying server keys: {ex.Message}");
-            return false;
-        }
     }
 }
