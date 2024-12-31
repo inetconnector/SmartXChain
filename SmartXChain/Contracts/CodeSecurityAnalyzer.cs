@@ -2,19 +2,13 @@
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Utils;
+using System.IO;
+using System.Text.RegularExpressions;
 
 namespace SmartXChain.Contracts;
 
-/// <summary>
-///     The CodeSecurityAnalyzer class provides functionality to analyze and enforce security constraints on user-defined
-///     C# code.
-///     It validates namespaces, classes, methods, and keywords to prevent malicious activities.
-/// </summary>
 public class CodeSecurityAnalyzer
 {
-    /// <summary>
-    ///     A list of namespaces that are allowed in user-provided code.
-    /// </summary>
     private static readonly string[] AllowedNamespaces =
     {
         Blockchain.SystemAddress,
@@ -32,10 +26,6 @@ public class CodeSecurityAnalyzer
         "System.Xml.Linq"
     };
 
-    /// <summary>
-    ///     A list of classes that are forbidden in user-provided code.
-    ///     These classes could pose security risks.
-    /// </summary>
     private static readonly string[] ForbiddenClasses =
     {
         "File", "Directory", "Process", "FileInfo", "DirectoryInfo",
@@ -48,10 +38,6 @@ public class CodeSecurityAnalyzer
         "Kernel32", "DllImportAttribute"
     };
 
-    /// <summary>
-    ///     A list of methods that are forbidden in user-provided code.
-    ///     These methods could allow unauthorized actions or security breaches.
-    /// </summary>
     private static readonly string[] ForbiddenMethods =
     {
         "Start", "Invoke", "Load", "Delete", "Move", "Copy",
@@ -61,32 +47,35 @@ public class CodeSecurityAnalyzer
         "Flush", "Bind", "Connect", "Listen", "Send", "Receive",
         "Attach", "Detach", "Kill", "Stop", "Pause", "Resume",
         "LoadFrom", "LoadFile", "LoadModule", "DefineDynamicAssembly",
-        "LoadLibrary", "QueueUserWorkItem", "Process.Start"
+        "LoadLibrary", "QueueUserWorkItem", "Process.Start", "Console.ReadLine", 
+        "Console.ReadKey", "Console.Read"
     };
+    
 
-    /// <summary>
-    ///     A list of keywords that are forbidden in user-provided code.
-    ///     These keywords could lead to unsafe or insecure code execution.
-    /// </summary>
     private static readonly string[] ForbiddenKeywords =
     {
         "unsafe", "dynamic", "DllImport", "extern", "lock",
-        "goto", "volatile", "fixed", "stackalloc", "yield", "sealed", "base",
+        "goto", "volatile", "fixed", "stackalloc", "yield", "sealed", "base", "asm",
         "ref", "partial", "override"
     };
 
-    /// <summary>
-    ///     Analyzes the provided C# code to determine if it adheres to the security constraints.
-    /// </summary>
-    /// <param name="code">The code to analyze.</param>
-    /// <param name="message">A message describing any detected issues.</param>
-    /// <returns>True if the code is safe, otherwise false.</returns>
+    private static readonly string[] ForbiddenReflectionPatterns =
+    {
+        "typeof", "Activator.CreateInstance", "MethodInfo", "PropertyInfo", "FieldInfo",  "GetType"
+    };
+    private static readonly string[] ForbiddenPaths = { "C:\\", "/etc/", "%TEMP%", "%APPDATA%" };
+
+    private static readonly string[] ForbiddenActions = { "Activator.", "[DllImport]", "Marshal.", "Thread.", "Task.", "GC.", "Dispose",  "Process.", "Diagnostics.", "%TEMP%", "%APPDATA%" };
+
+    private static readonly string[] ForbiddenPatterns =
+    {
+        "\\|\\|", ".*\\$.*", "<script>", "eval\\(", "\\bexec\\b"
+    };
     public static bool IsCodeSafe(string code, ref string message)
     {
         var tree = CSharpSyntaxTree.ParseText(code);
-        var root = tree.GetRoot();
-
-        // 1. Check for non-whitelisted namespaces
+        var root = tree.GetRoot(); 
+        // Check for non-whitelisted namespaces
         var usingDirectives = root.DescendantNodes().OfType<UsingDirectiveSyntax>();
         foreach (var ud in usingDirectives)
         {
@@ -99,7 +88,51 @@ public class CodeSecurityAnalyzer
             }
         }
 
-        // 2. Check for unsafe code blocks
+        if (code.Contains("#define") || code.Contains("#if"))
+        {
+            message = "Forbidden compiler directive detected.";
+            Logger.LogMessage(message);
+            return false;
+        }
+
+        foreach (var pattern in ForbiddenReflectionPatterns)
+        {
+            if (code.Contains(pattern))
+            {
+                message = $"Forbidden reflection usage detected: {pattern}";
+                Logger.LogMessage(message);
+                return false;
+            }
+        }
+
+        if (code.Contains("../"))
+        {
+            message = "Path traversal detected.";
+            Logger.LogMessage(message);
+            return false;
+        }
+
+        foreach (var action in ForbiddenActions)
+        {
+            if (code.Contains(action))
+            {
+                message = $"Forbidden Action detected: {action}";
+                Logger.LogMessage(message);
+                return false;
+            }
+        }
+         
+        foreach (var path in ForbiddenPaths)
+        {
+            if (code.Contains(path))
+            {
+                message = $"Forbidden path detected: {path}";
+                Logger.LogMessage(message);
+                return false;
+            }
+        }
+
+        // Check for unsafe code blocks
         if (root.DescendantNodes().OfType<UnsafeStatementSyntax>().Any())
         {
             message = "Unsafe code block detected.";
@@ -107,7 +140,18 @@ public class CodeSecurityAnalyzer
             return false;
         }
 
-        // 3. Check for forbidden classes
+        // Check for forbidden patterns
+        foreach (var pattern in ForbiddenPatterns)
+        { 
+            if (code.Contains(pattern))
+            {
+                message = $"Forbidden pattern detected: '{pattern}'";
+                Logger.LogMessage(message);
+                return false;
+            }
+        }
+
+        // Check for forbidden classes
         var objectCreations = root.DescendantNodes().OfType<ObjectCreationExpressionSyntax>();
         foreach (var oc in objectCreations)
         {
@@ -120,7 +164,7 @@ public class CodeSecurityAnalyzer
             }
         }
 
-        // 4. Check for forbidden method calls
+        // Check for forbidden method calls
         var memberAccesses = root.DescendantNodes().OfType<MemberAccessExpressionSyntax>();
         foreach (var ma in memberAccesses)
         {
@@ -133,7 +177,7 @@ public class CodeSecurityAnalyzer
             }
         }
 
-        // 5. Check for dangerous keywords
+        // Check for dangerous keywords
         foreach (var keyword in ForbiddenKeywords)
             if (code.Contains(keyword))
             {
@@ -142,15 +186,44 @@ public class CodeSecurityAnalyzer
                 return false;
             }
 
+        // Check for dangerous attributes
+        var attributes = root.DescendantNodes().OfType<AttributeSyntax>();
+        foreach (var attr in attributes)
+        {
+            var attributeName = attr.Name.ToString();
+            if (ForbiddenKeywords.Contains(attributeName))
+            {
+                message = $"Forbidden attribute detected: {attributeName}";
+                Logger.LogMessage(message);
+                return false;
+            }
+        }
+
+        // Check for infinite loops
+        var loops = root.DescendantNodes().OfType<WhileStatementSyntax>();
+        foreach (var loop in loops)
+            if (loop.Condition.ToString() == "true")
+            {
+                message = "Infinite loop detected.";
+                Logger.LogMessage(message);
+                return false;
+            }
+
+        // Check for delay-causing methods
+        var delayMethods = root.DescendantNodes()
+            .OfType<InvocationExpressionSyntax>()
+            .Where(inv => inv.Expression.ToString().Contains("Thread.Sleep") ||
+                          inv.Expression.ToString().Contains("Task.Delay"));
+        if (delayMethods.Any())
+        {
+            message = "Potential delay-causing method detected.";
+            Logger.LogMessage(message);
+            return false;
+        }
+
         return true;
     }
 
-    /// <summary>
-    ///     Validates a set of commands to ensure they adhere to the security constraints.
-    /// </summary>
-    /// <param name="codeCommands">Array of commands to validate.</param>
-    /// <param name="messages">A list of messages describing any detected issues.</param>
-    /// <returns>True if all commands are safe, otherwise false.</returns>
     public static bool AreCommandsSafe(string[] codeCommands, ref List<string> messages)
     {
         messages = new List<string>();

@@ -328,23 +328,24 @@ public class Transaction
             Balances.Clear();
             Balances[Blockchain.SystemAddress] = TotalSupply;
 
-            foreach (var block in chain.Chain)
-            foreach (var transaction in block.Transactions)
-            {
-                if (string.IsNullOrEmpty(transaction.Sender) || string.IsNullOrEmpty(transaction.Recipient) ||
-                    transaction.Amount <= 0)
-                    continue;
+            if (chain != null)
+                foreach (var block in chain.Chain)
+                foreach (var transaction in block.Transactions)
+                {
+                    if (string.IsNullOrEmpty(transaction.Sender) || string.IsNullOrEmpty(transaction.Recipient) ||
+                        transaction.Amount <= 0)
+                        continue;
 
-                if (Balances.ContainsKey(transaction.Sender))
-                    Balances[transaction.Sender] -= transaction.Amount;
-                else
-                    Balances[transaction.Sender] = -transaction.Amount;
+                    if (Balances.ContainsKey(transaction.Sender))
+                        Balances[transaction.Sender] -= transaction.Amount;
+                    else
+                        Balances[transaction.Sender] = -transaction.Amount;
 
-                if (Balances.ContainsKey(transaction.Recipient))
-                    Balances[transaction.Recipient] += transaction.Amount;
-                else
-                    Balances[transaction.Recipient] = transaction.Amount;
-            }
+                    if (Balances.ContainsKey(transaction.Recipient))
+                        Balances[transaction.Recipient] += transaction.Amount;
+                    else
+                        Balances[transaction.Recipient] = transaction.Amount;
+                }
 
             foreach (var account in Balances.Keys.ToList())
                 if (Balances[account] < 0)

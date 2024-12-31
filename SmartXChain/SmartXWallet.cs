@@ -140,8 +140,7 @@ public class SmartXWallet
         try
         {
             var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var appDirectory = Path.Combine(appDataPath, "SmartXChain");
-
+            var appDirectory = Path.Combine(appDataPath, "SmartXChain"); 
             var path = Path.Combine(appDirectory, fileName);
 
             // Write the content to the file securely
@@ -163,22 +162,29 @@ public class SmartXWallet
     public static List<string> LoadWalletAdresses(string fileName = "walletadresses.txt")
     {
         try
-        {
-            var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, fileName);
+        { 
+            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var appDirectory = Path.Combine(appDataPath, "SmartXChain");
+            var path = Path.Combine(appDirectory, fileName); 
 
-            if (!File.Exists(path)) throw new FileNotFoundException($"File {fileName} not found at {path}");
+            if (!File.Exists(path))
+            {
+                Logger.LogMessage($"File {fileName} not found at {path}"); 
+            }
+            else
+            {
+                var content = File.ReadAllText(path);
 
-            var content = File.ReadAllText(path);
-
-            Logger.LogMessage($"[INFO] Securely loaded: {fileName}");
-            var walletAddresses = content.Split(new[] { Environment.NewLine }, StringSplitOptions.None).ToList();
-            WalletAddresses = walletAddresses;
-            return walletAddresses;
+                Logger.LogMessage($"[INFO] Securely loaded: {fileName}");
+                var walletAddresses = content.Split(new[] { Environment.NewLine }, StringSplitOptions.None).ToList();
+                WalletAddresses = walletAddresses;
+                return walletAddresses;
+            }   
         }
         catch (Exception ex)
         {
             Logger.LogMessage($"[ERROR] Failed to load {fileName}: {ex.Message}");
-            return new List<string>();
         }
+        return new List<string>();
     }
 }

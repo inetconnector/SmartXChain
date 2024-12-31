@@ -79,9 +79,11 @@ public class GoldCoin
         return AuthenticatedUsers.ContainsKey(address) && AuthenticatedUsers[address] == hashedKey;
     }
 
-    private void Log(string message)
+    public void Log(string message)
     {
-        Console.WriteLine($"[GoldCoin] {message}");
+        var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+        var formattedMessage = timestamp + " - [GoldCoin] " + message;
+        Console.WriteLine(formattedMessage);
     }
 
     public bool Transfer(string sender, string to, ulong amount, string privateKey)

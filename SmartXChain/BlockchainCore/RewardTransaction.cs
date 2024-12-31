@@ -23,6 +23,7 @@ public class RewardTransaction : Transaction
         string sender = Blockchain.SystemAddress)
     {
         Sender = sender;
+        Recipient = recipient;
 
         // Rewards are only distributed if the balance count is below 50,000
         // and the sender is the system address.
@@ -76,11 +77,11 @@ public class RewardTransaction : Transaction
             Amount = amount,
             Timestamp = DateTime.UtcNow
         };
-        chain.AddTransaction(transferTransaction);
+        if (chain != null) chain.AddTransaction(transferTransaction);
 
         // Update balances
         Balances[sender] -= amount;
-        if (!Balances.ContainsKey(recipient)) Balances[recipient] = 0;
+        Balances.TryAdd(recipient, 0);
         Balances[recipient] += amount;
 
         Log($"Transfer successful: {amount} tokens from {sender} to {recipient}.");

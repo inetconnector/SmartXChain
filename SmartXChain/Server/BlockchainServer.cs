@@ -376,14 +376,19 @@ public partial class BlockchainServer
         var remainingParts = parts[1];
 
         // Split the remaining data into node address and signature
-        var addressSignatureParts = remainingParts.Split(new[] { ':' }, 2);
+        var addressSignatureParts = remainingParts.Split('|');
         if (addressSignatureParts.Length != 2) return "Invalid registration format";
 
         var nodeAddress = addressSignatureParts[0]; // Node address (e.g., "http://127.0.0.1")
         var signature = addressSignatureParts[1]; // Signature for validation
 
         // Security check using signature validation
-        if (!ValidateSignature(nodeAddress, signature)) return "";
+        if (!ValidateSignature(nodeAddress, signature))
+        {
+            Logger.LogMessage($"ValidateSignature failed. Node not registered: {nodeAddress} Signature: {signature}"); 
+            return "";
+        }
+
 
         // Register the node
         _registeredNodes[nodeAddress] = DateTime.UtcNow;

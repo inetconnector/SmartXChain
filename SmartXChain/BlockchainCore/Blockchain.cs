@@ -159,17 +159,21 @@ public class Blockchain
     /// </summary>
     internal bool AddTransaction(Transaction transaction)
     {
-        transaction.SignTransaction(Crypt.Default.PrivateKey);
-        var gas = transaction.Gas;
         if (string.IsNullOrEmpty(transaction.Sender))
         {
             Logger.LogMessage($"Transaction {transaction.Name} not added. Sender is missing");
             return false;
         }
-
-        if (string.IsNullOrEmpty(transaction.Recipient)) transaction.Recipient = SystemAddress;
+        if (string.IsNullOrEmpty(transaction.Recipient))
+        {
+            Logger.LogMessage($"Transaction {transaction.Name} not added. Recipient is missing");
+            return false;
+        }
+        transaction.SignTransaction(Crypt.Default.PrivateKey);
+        var gas = transaction.Gas;
+         
         if (transaction.Sender == SystemAddress) gas = 0;
-
+         
         if (gas > 0)
             PayGas("Transaction", transaction.Sender, gas);
 
@@ -323,7 +327,7 @@ public class Blockchain
             if (result == "ok")
                 await WriteContractStateToBlockchain(contract, updatedSerializedState);
 
-            Logger.LogMessage($"Smart Contract {contractName} Result: {result}");
+            Console.WriteLine($"Smart Contract {contractName} Result: {result}");
             return (result, updatedSerializedState);
         }
         catch (Exception ex)
@@ -532,7 +536,7 @@ public class Blockchain
             var response = await SocketManager.GetInstance(serverAddress).SendMessageAsync(message);
 
             Logger.LogMessage($"Code {contract.Name} sent to {serverAddress} for verification.");
-            Logger.LogMessage($"Response from server for code {contract.Name}: {response}");
+            Logger.LogMessage($"Response from server for code {contract.Name}: {response}",false);
 
             return response == "ok";
         }
@@ -625,11 +629,16 @@ public class Blockchain
                     Logger.LogMessage("---------------- TRANSACTION ----------------");
                     Logger.LogMessage($"Sender: {transaction.Sender}");
                     Logger.LogMessage($"Recipient: {transaction.Recipient}");
-                    Logger.LogMessage($"Data: {transaction.Data}");
-                    Logger.LogMessage($"Info: {transaction.Info}");
+                    if (transaction.Amount>0)
+                        Logger.LogMessage($"Amount: {transaction.Amount}");
+                    if (!string.IsNullOrEmpty(transaction.Data))
+                        Logger.LogMessage($"Data: {transaction.Data}");
+                    if (!string.IsNullOrEmpty(transaction.Info))
+                        Logger.LogMessage($"Info: {transaction.Info}");
+                    if (transaction.Gas > 0)
+                        Logger.LogMessage($"Gas: {transaction.Gas}");
                     Logger.LogMessage($"Timestamp: {transaction.Timestamp}");
                     Logger.LogMessage($"Signature: {transaction.Signature}");
-                    Logger.LogMessage($"Gas: {transaction.Gas}");
                     Logger.LogMessage($"Version: {transaction.Version}");
                     Logger.LogMessage($"Transaction Date: {transaction.Timestamp}");
                 }

@@ -9,7 +9,7 @@ public static class Logger
     ///     Logs a message to the console with a timestamp, excluding specific messages based on predefined filters.
     /// </summary>
     /// <param name="message">The message to log. Defaults to an empty string.</param>
-    public static void LogMessage(string message = "")
+    public static void LogMessage(string message = "", bool trim=true)
     {
         // Skip logging messages containing "GetNodes" or "Heartbeat"
         if (message.Contains("GetNodes") || message.Contains("Heartbeat"))
@@ -20,7 +20,7 @@ public static class Logger
         var formattedMessage = timestamp + " - " + message;
 
         // Print the message to the console, truncating if it exceeds 100 characters
-        if (formattedMessage.Length > 110)
+        if (formattedMessage.Length > 110 && trim)
             Console.WriteLine(formattedMessage.Substring(0, 110) + "...");
         else
             Console.WriteLine(formattedMessage);

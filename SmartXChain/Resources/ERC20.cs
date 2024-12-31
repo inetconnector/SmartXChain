@@ -97,9 +97,11 @@ public class ERC20Token
         return AuthenticatedUsers.ContainsKey(address) && AuthenticatedUsers[address] == hashedKey;
     }
 
-    private void Log(string message)
+    public void Log(string message)
     {
-        Console.WriteLine($"[Contract] {message}");
+        var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+        var formattedMessage = timestamp + " - [ERC20Token] " + message;
+        Console.WriteLine(formattedMessage);
     }
 
     public bool Transfer(string from, string to, ulong amount, string privateKey)

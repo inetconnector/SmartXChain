@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Text;
 using SmartXChain;
 using SmartXChain.BlockchainCore;
@@ -51,6 +52,9 @@ internal class Program
 
                 switch (mode)
                 {
+                    case '0':
+                        Console.Clear();
+                        break;
                     case '1':
                         await RunCoinClassTesterAsync();
                         break;
@@ -86,7 +90,8 @@ internal class Program
     private static void DisplayMenu()
     {
         // Show available menu options
-        Logger.LogMessage("\nEnter mode:");
+        Logger.LogMessage();
+        Logger.LogMessage("Enter mode:");
         Logger.LogMessage("1: Coin class tester");
         Logger.LogMessage("2: SmartContract Demo");
         Logger.LogMessage("3: Blockchain state");
@@ -102,7 +107,11 @@ internal class Program
     {
         // Test ERC20 coin functionalities
         var walletAddresses = SmartXWallet.LoadWalletAdresses();
-        var seed = File.ReadAllText("seed.txt");
+
+        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var appDirectory = Path.Combine(appDataPath, "SmartXChain");
+        var seedFile = Path.Combine(appDirectory, "seed.txt"); 
+        var seed = File.ReadAllText(seedFile);
 
         var token = new ERC20Token("SmartXchain", "SXC", 18, 10000000000, walletAddresses[0]);
         token.RegisterUser(walletAddresses[0], seed);
@@ -119,17 +128,17 @@ internal class Program
     private static void DisplayTokenDetails(ERC20Token token)
     {
         // Display token details, balances, and allowances
-        Logger.LogMessage("\nDeserialized Token:");
+        Logger.LogMessage("Deserialized Token:");
         Logger.LogMessage($"Name: {token.Name}");
         Logger.LogMessage($"Symbol: {token.Symbol}");
         Logger.LogMessage($"Decimals: {token.Decimals}");
         Logger.LogMessage($"Total Supply: {token.TotalSupply}");
 
-        Logger.LogMessage("\nBalances:");
+        Logger.LogMessage("Balances:");
         foreach (var balance in token.GetBalances)
             Logger.LogMessage($"{balance.Key}: {balance.Value}");
 
-        Logger.LogMessage("\nAllowances:");
+        Logger.LogMessage("Allowances:");
         foreach (var allowance in token.GetAllowances)
         {
             Logger.LogMessage($"{allowance.Key}:");
@@ -142,8 +151,19 @@ internal class Program
     {
         // Demonstrate ERC20 and GoldCoin smart contracts
         var walletAddresses = SmartXWallet.LoadWalletAdresses();
+        if (walletAddresses.Count==0)
+        {
+            Logger.LogMessage($"ERROR: SmartXWallet adresses are empty. SmartContractDemo cancelled.");
+            return;
+        }
+        if (node == null)
+        {
+            Logger.LogMessage($"ERROR: Node is empty. SmartContractDemo cancelled.");
+            return;
+        }
         await ERC20Example(walletAddresses[0], walletAddresses, node.Blockchain);
-        await GoldCoinExample(walletAddresses[0], walletAddresses, SmartXWallet.LoadWalletAdresses(), node.Blockchain);
+        await GoldCoinExample(walletAddresses[0], walletAddresses, SmartXWallet.LoadWalletAdresses(),
+            node.Blockchain);
 
         PerformNativeTransfer(node.Blockchain, walletAddresses);
     }
@@ -152,15 +172,14 @@ internal class Program
     {
         // Perform native token transfer
         var transaction = new Transaction();
-        var privateKey = File.ReadAllText("privatekey.txt");
-
-        transaction.RegisterUser(walletAddresses[0], privateKey);
+  
+        transaction.RegisterUser(walletAddresses[0], Privatekey);
         var transferred = transaction.Transfer(
             chain,
             walletAddresses[0],
             walletAddresses[1],
             0.01d,
-            privateKey,
+            Privatekey,
             "native transfer",
             "49.83278, 9.88167");
 
@@ -180,7 +199,7 @@ internal class Program
     private static void DisplayWalletBalances(BlockchainServer.NodeStartupResult? node)
     {
         // Display balances of all wallets
-        Logger.LogMessage("\nWallet Balances:");
+        Logger.LogMessage("Wallet Balances:");
         foreach (var (address, balance) in node.Blockchain.GetAllBalancesFromChain())
             Logger.LogMessage($"{address}: {balance}");
     }
@@ -188,18 +207,22 @@ internal class Program
     private static void DisplayChainInfo(BlockchainServer.NodeStartupResult? node)
     {
         // Print all blocks and transactions
-        Logger.LogMessage("\nChain Info:");
+        Logger.LogMessage("Chain Info:");
         node.Blockchain.PrintAllBlocksAndTransactions();
     }
 
     private static void DeleteWallet(BlockchainServer.NodeStartupResult? node)
     {
         // deletes wallet
-        SmartXWallet.DeleteWallet();
-        var chainPath = Path.Combine(Config.Default.BlockchainPath);
+        SmartXWallet.DeleteWallet(); 
+
+        //delete saved contracts
+        var contractsPath = Path.Combine(Config.Default.BlockchainPath,"Contracts");
+        if (Directory.Exists(contractsPath))
+            Directory.Delete(contractsPath,true);
 
         //delete local chains
-        foreach (var file in Directory.GetFiles(chainPath))
+        foreach (var file in Directory.GetFiles(Config.Default.BlockchainPath))
             try
             {
                 File.Delete(file);
@@ -225,7 +248,7 @@ internal class Program
 
         if (node != null && node.Blockchain != null)
         {
-            Logger.LogMessage("\nContracts:");
+            Logger.LogMessage("Contracts:");
             foreach (var contract in node.Blockchain.GetContracts())
             {
                 Logger.LogMessage($"Name: {contract.Name}, Owner: {contract.Owner}, Gas: {contract.Gas}");
@@ -241,7 +264,27 @@ internal class Program
         }
         else
         {
-            Logger.LogMessage("\nNo contracts found.");
+            Logger.LogMessage("No contracts found.");
+        }
+    }
+
+    private static string _privateKey = "";
+    private static string Privatekey
+    {
+        get
+        {
+            if (!string.IsNullOrEmpty(_privateKey))
+                return _privateKey;
+            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var appDirectory = Path.Combine(appDataPath, "SmartXChain");
+            var privateKeyFile = Path.Combine(appDirectory, "privatekey.txt");
+            if (File.Exists(privateKeyFile))
+            {
+                return File.ReadAllText(privateKeyFile);
+            }
+            Logger.LogMessage($"PrivateKey not found at: {privateKeyFile}. Enter PrivateKey\n");
+            _privateKey = Console.ReadLine();
+            return _privateKey;
         }
     }
 
@@ -252,17 +295,14 @@ internal class Program
         var contractCode = File.ReadAllText(contractFile);
         var (contract, created) = await SmartContract.Create("SmartXchain", blockchain, ownerAddress, contractCode);
         if (!created) Logger.LogMessage($"Contract {contract} could not be created");
-
-        var seedFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "seed.txt");
-        var seed = File.ReadAllText(seedFile);
-
+           
         string[] inputs =
         {
             $"var token = new ERC20Token(\"SmartXchain\", \"SXC\", 18, 10000000000, \"{ownerAddress}\");",
-            $"token.RegisterUser(\"{ownerAddress}\", \"{seed}\");",
-            $"token.Transfer(\"{ownerAddress}\", \"{walletAddresses[1]}\", 100, \"{seed}\");",
-            $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 50, \"{seed}\");",
-            "Logger.LogMessage(\"[ERC20Token] \" + JsonSerializer.Serialize(token, new JsonSerializerOptions { WriteIndented = true }));"
+            $"token.RegisterUser(\"{ownerAddress}\", \"{Privatekey}\");",
+            $"token.Transfer(\"{ownerAddress}\", \"{walletAddresses[1]}\", 100, \"{Privatekey}\");",
+            $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 50, \"{Privatekey}\");",
+            "Log(JsonSerializer.Serialize(token, new JsonSerializerOptions { WriteIndented = true }));"
         };
 
         var result = await ExecuteSmartContract(blockchain, contract, inputs);
@@ -275,12 +315,12 @@ internal class Program
         inputs = new[]
         {
             $"var token = new ERC20Token(\"SmartXchain\", \"SXC\", 18, 10000000000, \"{ownerAddress}\");",
-            $"token.RegisterUser(\"{ownerAddress}\", \"{seed}\");",
-            $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 25, \"{seed}\");",
-            $"Logger.LogMessage(\"[ERC20Token] \" + token.GetBalances[\"{walletAddresses[0]}\"]);",
-            $"Logger.LogMessage(\"[ERC20Token] \" + token.GetBalances[\"{walletAddresses[1]}\"]);",
-            $"Logger.LogMessage(\"[ERC20Token] \" + token.GetBalances[\"{walletAddresses[2]}\"]);",
-            "Logger.LogMessage(\"[ERC20Token] \" + JsonSerializer.Serialize(token, new JsonSerializerOptions { WriteIndented = true }));"
+            $"token.RegisterUser(\"{ownerAddress}\", \"{Privatekey}\");",
+            $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 25, \"{Privatekey}\");",
+            $"Log(token.GetBalances[\"{walletAddresses[0]}\"]);",
+            $"Log(token.GetBalances[\"{walletAddresses[1]}\"]);",
+            $"Log(token.GetBalances[\"{walletAddresses[2]}\"]);",
+            "Log(JsonSerializer.Serialize(token, new JsonSerializerOptions { WriteIndented = true }));"
         };
 
         result = await ExecuteSmartContract(blockchain, contract, inputs);
@@ -294,10 +334,7 @@ internal class Program
         var contractCode = File.ReadAllText(contractFile);
         var (contract, created) = await SmartContract.Create("GoldCoin", blockchain, minerAddress, contractCode);
         if (!created) Logger.LogMessage($"Contract {contract} could not be created");
-
-        var seedFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "seed.txt");
-        var seed = File.ReadAllText(seedFile);
-
+  
         string[] inputs =
         {
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
@@ -309,9 +346,9 @@ internal class Program
         string[] transferInputs =
         {
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
-            $"token.RegisterUser(\"{minerAddress}\", \"{seed}\");",
-            $"token.Transfer(\"{minerAddress}\", \"{wallet1Addresses[1]}\", 50000, \"{seed}\");",
-            $"token.Transfer(\"{wallet1Addresses[1]}\", \"{wallet1Addresses[2]}\", 25000, \"{seed}\");"
+            $"token.RegisterUser(\"{minerAddress}\", \"{Privatekey}\");",
+            $"token.Transfer(\"{minerAddress}\", \"{wallet1Addresses[1]}\", 50000, \"{Privatekey}\");",
+            $"token.Transfer(\"{wallet1Addresses[1]}\", \"{wallet1Addresses[2]}\", 25000, \"{Privatekey}\");"
         };
 
         result = await ExecuteSmartContract(blockchain, contract, transferInputs);
@@ -319,8 +356,8 @@ internal class Program
         string[] approvalInputs =
         {
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
-            $"token.RegisterUser(\"{minerAddress}\", \"{seed}\");",
-            $"token.Approve(\"{wallet1Addresses[1]}\", \"{wallet2Addresses[0]}\", 20000, \"{seed}\");",
+            $"token.RegisterUser(\"{minerAddress}\", \"{Privatekey}\");",
+            $"token.Approve(\"{wallet1Addresses[1]}\", \"{wallet2Addresses[0]}\", 20000, \"{Privatekey}\");",
             $"var allowance = token.Allowance(\"{wallet1Addresses[1]}\", \"{wallet2Addresses[0]}\");",
             "Logger.LogMessage($\"[GoldCoin] Allowance: {allowance}\");"
         };
@@ -330,8 +367,8 @@ internal class Program
         string[] transferFromInputs =
         {
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
-            $"token.RegisterUser(\"{minerAddress}\", \"{seed}\");",
-            $"token.TransferFrom(\"{wallet2Addresses[0]}\", \"{wallet1Addresses[1]}\", \"{wallet1Addresses[3]}\", 15000, \"{seed}\");",
+            $"token.RegisterUser(\"{minerAddress}\", \"{Privatekey}\");",
+            $"token.TransferFrom(\"{wallet2Addresses[0]}\", \"{wallet1Addresses[1]}\", \"{wallet1Addresses[3]}\", 15000, \"{Privatekey}\");",
             "Logger.LogMessage(\"[GoldCoin] \" + JsonSerializer.Serialize(token, new JsonSerializerOptions { WriteIndented = true }));"
         };
 

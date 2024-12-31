@@ -303,7 +303,7 @@ public class Node
         {
             var signature = Crypt.GenerateHMACSignature(NodeAddress, ChainId);
             var response = await SocketManager.GetInstance(serverAddress)
-                .SendMessageAsync($"Register:{NodeAddress}:{signature}");
+                .SendMessageAsync($"Register:{NodeAddress}|{signature}");
             Logger.LogMessage($"Response from server {serverAddress}: {response}");
         }
         catch (Exception ex)
