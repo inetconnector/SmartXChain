@@ -98,22 +98,20 @@ public class SmartXWallet
                 return false;
             }
 
-            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var appDirectory = Path.Combine(appDataPath, "SmartXChain");
-
-            var file = Path.Combine(appDirectory, "mnemonic.txt");
+            var appDir = Config.AppDirectory();
+            var file = Path.Combine(appDir, "mnemonic.txt");
             if (File.Exists(file))
                 File.Delete(file);
 
-            file = Path.Combine(appDirectory, "seed.txt");
+            file = Path.Combine(appDir, "seed.txt");
             if (File.Exists(file))
                 File.Delete(file);
 
-            file = Path.Combine(appDirectory, "privatekey.txt");
+            file = Path.Combine(appDir, "privatekey.txt");
             if (File.Exists(file))
                 File.Delete(file);
 
-            file = Path.Combine(appDirectory, "walletadresses.txt");
+            file = Path.Combine(appDir, "walletadresses.txt");
             if (File.Exists(file))
                 File.Delete(file);
 
@@ -139,10 +137,8 @@ public class SmartXWallet
     private static void SaveToFile(string fileName, string content)
     {
         try
-        {
-            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var appDirectory = Path.Combine(appDataPath, "SmartXChain");
-            var path = Path.Combine(appDirectory, fileName);
+        { 
+            var path = Path.Combine(Config.AppDirectory(), fileName);
 
             // Write the content to the file securely
             File.WriteAllText(path, content);
@@ -163,10 +159,8 @@ public class SmartXWallet
     public static List<string> LoadWalletAdresses(string fileName = "walletadresses.txt")
     {
         try
-        {
-            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var appDirectory = Path.Combine(appDataPath, "SmartXChain");
-            var path = Path.Combine(appDirectory, fileName);
+        { 
+            var path = Path.Combine(Config.AppDirectory(), fileName);
 
             if (!File.Exists(path))
             {

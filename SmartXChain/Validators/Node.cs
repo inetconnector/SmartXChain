@@ -111,31 +111,34 @@ public class Node
                         {
                             try
                             {
-                                var response = await SocketManager.GetInstance(server)
-                                    .SendMessageAsync("GetChain#" + node.NodeAddress);
-
-                                var remoteChain = Blockchain.FromBase64(response);
-
-                                if (BlockchainServer.Startup.Blockchain != null)
+                                if (!server.Contains(NetworkUtils.IP))
                                 {
-                                    lock (BlockchainServer.Startup.Blockchain)
-                                    {
-                                        if (remoteChain != null &&
-                                            remoteChain.Chain.Count >=
-                                            BlockchainServer.Startup.Blockchain.Chain.Count &&
-                                            remoteChain.IsValid())
-                                        {
-                                            BlockchainServer.Startup.Blockchain = remoteChain;
-                                            node.StartupResult = BlockchainServer.Startup;
-                                            SaveBlockChain(remoteChain, node);
-                                        }
-                                    }
+                                    var response = await SocketManager.GetInstance(server)
+                                        .SendMessageAsync("GetChain#" + node.NodeAddress);
 
-                                    Logger.LogMessage(
-                                        $"GetChain request to {server} success: Blockchain blocks: {BlockchainServer.Startup.Blockchain.Chain.Count}");
-                                }
-                                if (Config.Default.Debug)
-                                    Logger.LogMessage($"Response from server {server}: {response}");
+                                    var remoteChain = Blockchain.FromBase64(response);
+
+                                    if (BlockchainServer.Startup.Blockchain != null)
+                                    {
+                                        lock (BlockchainServer.Startup.Blockchain)
+                                        {
+                                            if (remoteChain != null &&
+                                                remoteChain.Chain.Count >=
+                                                BlockchainServer.Startup.Blockchain.Chain.Count &&
+                                                remoteChain.IsValid())
+                                            {
+                                                BlockchainServer.Startup.Blockchain = remoteChain;
+                                                node.StartupResult = BlockchainServer.Startup;
+                                                SaveBlockChain(remoteChain, node);
+                                            }
+                                        }
+
+                                        Logger.LogMessage(
+                                            $"GetChain request to {server} success: Blockchain blocks: {BlockchainServer.Startup.Blockchain.Chain.Count}");
+                                    }
+                                    if (Config.Default.Debug)
+                                        Logger.LogMessage($"Response from server {server}: {response}");
+                                } 
                             }
                             catch (Exception ex)
                             {

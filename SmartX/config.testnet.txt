@@ -1,0 +1,11 @@
+[Config]
+Port=5556 
+IP=auto
+Debug=false
+
+[Miner]
+SmartXchain = {B800C2F0-13A1-4066-843A-060D18B4DD8D}
+
+[Peers]
+http://netregservice.com:5556
+#http://k5mfq628y54zjuxw.myfritz.net:5556

@@ -1,5 +1,7 @@
 ﻿using System.Security.Cryptography;
 using System.Text.RegularExpressions;
+using NBitcoin.Protocol;
+using Org.BouncyCastle.Bcpg.OpenPgp;
 
 namespace SmartXChain.Utils;
 
@@ -10,17 +12,15 @@ namespace SmartXChain.Utils;
 public class Config
 {
     private static readonly Lazy<Config> _defaultInstance = new(() =>
-    {
-        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var appDirectory = Path.Combine(appDataPath, "SmartXChain");
+    { 
         var startupDirectory = AppDomain.CurrentDomain.BaseDirectory;
 
         // Ensure the AppData directory exists
+        var appDirectory = Config.AppDirectory();
         Directory.CreateDirectory(appDirectory);
-
-        var configFile = "config.txt";
-        var appDataConfigPath = Path.Combine(appDirectory, configFile);
-        var startupConfigPath = Path.Combine(startupDirectory, configFile);
+         
+        var appDataConfigPath = Path.Combine(appDirectory, ConfigFileName());
+        var startupConfigPath = Path.Combine(startupDirectory, ConfigFileName());
 
         // Check if a config exists in the startup directory and not in AppData
         if (File.Exists(startupConfigPath) && !File.Exists(appDataConfigPath))
@@ -32,7 +32,7 @@ public class Config
             Logger.LogMessage(appDataConfigPath);
         }
 
-        var configFilePath = Path.Combine(appDirectory, "config.txt");
+        var configFilePath = Path.Combine(appDirectory, ConfigFileName());
         return new Config(configFilePath);
     });
 
@@ -44,9 +44,8 @@ public class Config
     {
         Peers = new List<string>();
 
-        // Set default blockchain path in AppData
-        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var blockchainDirectory = Path.Combine(appDataPath, "SmartXChain", "Blockchain");
+        // Set default blockchain path in AppData 
+        var blockchainDirectory = Path.Combine(AppDirectory(), "Blockchain");
         Directory.CreateDirectory(blockchainDirectory); // Ensure directory exists
         BlockchainPath = blockchainDirectory;
 
@@ -68,10 +67,8 @@ public class Config
     public bool Delete()
     {
         try
-        {
-            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var appDirectory = Path.Combine(appDataPath, "SmartXChain");
-            var configFilePath = Path.Combine(appDirectory, "config.txt");
+        { 
+            var configFilePath = Path.Combine(AppDirectory(), ConfigFileName());
             if (File.Exists(configFilePath))
             {
                 File.Delete(configFilePath);
@@ -88,10 +85,8 @@ public class Config
     }
 
     public void ReloadConfig()
-    {
-        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var appDirectory = Path.Combine(appDataPath, "SmartXChain");
-        var configFilePath = Path.Combine(appDirectory, "config.txt");
+    { 
+        var configFilePath = Path.Combine(AppDirectory(), ConfigFileName());
         if (!File.Exists(configFilePath))
         {
             Logger.LogMessage("Config file not found during reload.");
@@ -115,10 +110,8 @@ public class Config
     {
         MinerAddress = minerAddress;
         Mnemonic = mnemonic;
-
-        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var appDirectory = Path.Combine(appDataPath, "SmartXChain");
-        var filePath = Path.Combine(appDirectory, "config.txt");
+         
+        var filePath = Path.Combine(AppDirectory(), ConfigFileName());
 
         if (!File.Exists(filePath)) File.WriteAllText(filePath, "[Miner]\n");
 
@@ -261,10 +254,8 @@ public class Config
         using var rsa = RSA.Create(2048);
         PublicKey = Convert.ToBase64String(rsa.ExportRSAPublicKey());
         PrivateKey = Convert.ToBase64String(rsa.ExportRSAPrivateKey());
-
-        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var appDirectory = Path.Combine(appDataPath, "SmartXChain");
-        var filePath = Path.Combine(appDirectory, "config.txt");
+         
+        var filePath = Path.Combine(AppDirectory(), ConfigFileName());
 
         if (!File.Exists(filePath)) File.WriteAllText(filePath, "[Server]\n");
 
@@ -300,10 +291,8 @@ public class Config
     public void ToggleDebug(bool enable)
     {
         Debug = enable;
-
-        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var appDirectory = Path.Combine(appDataPath, "SmartXChain");
-        var filePath = Path.Combine(appDirectory, "config.txt");
+         
+        var filePath = Path.Combine(AppDirectory(), ConfigFileName());
 
         if (!File.Exists(filePath))
         {
@@ -339,4 +328,23 @@ public class Config
         Logger.LogMessage($"Debug mode set to {Debug} and updated in config.");
     }
 
+    private static string ConfigFileName()
+    {
+        if (ChainName== "SmartXChain")
+        {
+            return "config.txt";
+        }
+        return "config.testnet.txt";
+    }
+
+    public static string ChainName { get; set; }= "SmartXChain"; 
+    public static string AppDirectory(string chainName="")
+    {
+        if (chainName == "")
+            chainName = ChainName;
+
+        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var appDirectory = Path.Combine(appDataPath, chainName);
+        return appDirectory;
+    }
 }

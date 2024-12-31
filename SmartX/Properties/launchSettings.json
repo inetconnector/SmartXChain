@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "SmartX": {
+      "commandName": "Project",
+      "commandLineArgs": "/testnet"
+    }
+  }
+}

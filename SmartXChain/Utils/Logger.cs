@@ -13,8 +13,8 @@ public static class Logger
     { 
         // Format the message with a timestamp
         var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
-        var formattedMessage = timestamp + " - " + message;
-
+        var formattedMessage = timestamp + " - " + Config.ChainName + " - " + message;
+        
         // Print the message to the console, truncating if it exceeds 100 characters
         if (formattedMessage.Length > 110 && trim)
             Console.WriteLine(formattedMessage.Substring(0, 110) + "...");

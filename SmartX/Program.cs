@@ -18,9 +18,8 @@ internal class Program
         {
             if (!string.IsNullOrEmpty(_privateKey))
                 return _privateKey;
-            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var appDirectory = Path.Combine(appDataPath, "SmartXChain");
-            var privateKeyFile = Path.Combine(appDirectory, "privatekey.txt");
+
+            var privateKeyFile = Path.Combine(Config.AppDirectory(), "privatekey.txt");
             if (File.Exists(privateKeyFile)) return File.ReadAllText(privateKeyFile);
             Logger.LogMessage($"PrivateKey not found at: {privateKeyFile}. Enter PrivateKey\n");
             _privateKey = Console.ReadLine();
@@ -30,6 +29,12 @@ internal class Program
 
     private static async Task Main(string[] args)
     {
+        if (args.Contains("/testnet", StringComparer.OrdinalIgnoreCase))
+        {
+            Config.ChainName = "SmartXChain_Testnet";
+            Logger.LogMessage($"ChainName has been set to '{Config.ChainName}'.");
+        }
+
         // Initialize application and start the blockchain server
         await InitializeApplicationAsync();
 
@@ -108,7 +113,7 @@ internal class Program
                 Logger.LogMessage($"Error: {ex.Message}");
                 throw;
             }
-    } 
+    }
 
     private static void DisplayMenu()
     {
@@ -133,9 +138,7 @@ internal class Program
         // Test ERC20 coin functionalities
         var walletAddresses = SmartXWallet.LoadWalletAdresses();
 
-        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var appDirectory = Path.Combine(appDataPath, "SmartXChain");
-        var seedFile = Path.Combine(appDirectory, "seed.txt");
+        var seedFile = Path.Combine(Config.AppDirectory(), "seed.txt");
         var seed = File.ReadAllText(seedFile);
 
         var token = new ERC20Token("SmartXchain", "SXC", 18, 10000000000, walletAddresses[0]);
@@ -268,9 +271,7 @@ internal class Program
     {
         // List all deployed contracts and save to File
 
-        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var appDirectory = Path.Combine(appDataPath, "SmartXChain");
-        var contractsDirectory = Path.Combine(appDirectory, "Contracts");
+        var contractsDirectory = Path.Combine(Config.AppDirectory(), "Contracts");
         Directory.CreateDirectory(contractsDirectory);
 
         if (node != null && node.Blockchain != null)
@@ -294,20 +295,19 @@ internal class Program
             Logger.LogMessage("No contracts found.");
         }
     }
+
     private static async Task UploadContract(BlockchainServer.NodeStartupResult? node)
     {
         // Upload contract from file to blochchain
 
-        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var appDirectory = Path.Combine(appDataPath, "SmartXChain");
-        var contractsDirectory = Path.Combine(appDirectory, "Contracts");
+        var contractsDirectory = Path.Combine(Config.AppDirectory(), "Contracts");
         Directory.CreateDirectory(contractsDirectory);
 
         Logger.LogMessage("Enter filename");
-        var fileName=Console.ReadLine();
+        var fileName = Console.ReadLine();
 
-        FileInfo fi = new FileInfo(fileName);
-        if (fi.Exists && fi.Extension.ToLower()!=".cs")
+        var fi = new FileInfo(fileName);
+        if (fi.Exists && fi.Extension.ToLower() != ".cs")
         {
             Logger.LogMessage("ERROR: invalid file specified");
         }
@@ -325,10 +325,11 @@ internal class Program
                     return;
                 }
 
-                var ownerAddress = walletAddresses[0];  
+                var ownerAddress = walletAddresses[0];
                 var contractCode = File.ReadAllText(fileName);
-                var (contract, created) = await SmartContract.Create(contractName, node.Blockchain, ownerAddress, contractCode);
-                if (!created) 
+                var (contract, created) =
+                    await SmartContract.Create(contractName, node.Blockchain, ownerAddress, contractCode);
+                if (!created)
                     Logger.LogMessage($"Contract {contract} could not be created");
                 else
                     Logger.LogMessage($"Contract {contract} created");
@@ -337,7 +338,7 @@ internal class Program
             {
                 Logger.LogMessage("ERROR: Chain not available");
             }
-        } 
+        }
     }
 
     private static async Task ERC20Example(string ownerAddress, List<string> walletAddresses, Blockchain? blockchain)
