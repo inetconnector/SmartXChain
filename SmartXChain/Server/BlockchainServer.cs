@@ -90,8 +90,8 @@ public partial class BlockchainServer
                                 var serverAdded = false;
                                 foreach (var server in message.Split(','))
                                     if (server.StartsWith("http://") && !_registeredNodes.ContainsKey(server))
-                                    {
-                                        _registeredNodes.TryAdd(message, DateTime.UtcNow);
+                                    { 
+                                        _registeredNodes.TryAdd(server, DateTime.UtcNow);
                                         if (!Node.CurrentNodeIPs.Contains(server)) Node.CurrentNodeIPs.Add(server);
                                         serverAdded = true;
                                     }
@@ -295,7 +295,7 @@ public partial class BlockchainServer
                 server.Start();
 
                 Logger.LogMessage(
-                    $"Server node for blockchain '{Config.Default.SmartXchain}' started at {NetworkUtils.IP}");
+                    $"Server node for blockchain '{Config.Default.ChainId}' started at {NetworkUtils.IP}");
             }
             catch (Exception ex)
             {
@@ -541,7 +541,7 @@ public partial class BlockchainServer
     /// <returns>True if the signature is valid; otherwise, false.</returns>
     private bool ValidateSignature(string nodeAddress, string signature)
     {
-        using (var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(Config.Default.SmartXchain)))
+        using (var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(Config.Default.ChainId)))
         {
             var computedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(nodeAddress));
             var computedSignature = Convert.ToBase64String(computedHash);
@@ -613,14 +613,16 @@ public partial class BlockchainServer
                     var url = $"/api/{command}";
 
                     // Log the broadcast request details
-                    Logger.LogMessage($"BroadcastToPeers async: {url}\n{content}");
+                    if (Config.Default.Debug) 
+                        Logger.LogMessage($"BroadcastToPeers async: {url}\n{content}");
                     var response = await httpClient.PostAsync(url, content);
 
                     // If the response is successful, log the response content
                     if (response.IsSuccessStatusCode)
                     {
                         var responseString = response.Content.ReadAsStringAsync().Result;
-                        Logger.LogMessage($"BroadcastToPeers response: {responseString}");
+                        if (Config.Default.Debug)
+                            Logger.LogMessage($"BroadcastToPeers response: {responseString}");
                     }
                     else
                     {

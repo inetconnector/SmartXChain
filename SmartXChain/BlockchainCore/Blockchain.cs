@@ -1,6 +1,8 @@
+using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using NBitcoin;
 using SmartXChain.Contracts;
 using SmartXChain.Server;
 using SmartXChain.Utils;
@@ -462,9 +464,23 @@ public class Blockchain
                 if (ValidateChain())
                     if (AddBlock(block, false))
                     {
-                        BlockchainServer.BroadcastToPeers(Node.CurrentNodeIPs,
-                            "PushServers", string.Join(",", Node.CurrentNodeIPs).TrimEnd(','));
-                        BlockchainServer.BroadcastToPeers(Node.CurrentNodeIPs,
+                        List<string> ipList;
+
+                        lock (Node.CurrentNodeIPs)
+                        {
+                            ipList = [];
+                            foreach (var ip in Node.CurrentNodeIPs)
+                            {
+                                if (!ip.Contains(NetworkUtils.IP))
+                                {
+                                    ipList.Add(ip);
+                                }
+                            }
+                        }
+
+                        BlockchainServer.BroadcastToPeers(ipList,
+                            "PushServers", string.Join(",", ipList).TrimEnd(','));
+                        BlockchainServer.BroadcastToPeers(ipList,
                             "NewBlock", block.ToBase64());
                     }
             }

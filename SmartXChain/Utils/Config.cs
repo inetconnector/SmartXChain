@@ -51,7 +51,7 @@ public class Config
         LoadConfig(filePath);
     }
 
-    public string SmartXchain { get; private set; }
+    public string ChainId { get; private set; }
     public string MinerAddress { get; private set; }
     public string Mnemonic { get; private set; }
     public string WalletPrivateKey { get; private set; }
@@ -66,6 +66,7 @@ public class Config
 
     public enum ConfigKey
     {
+        ChainId,
         BlockchainPath,
         MinerAddress,
         Mnemonic,
@@ -114,7 +115,7 @@ public class Config
         }
 
         Peers.Clear();
-        SmartXchain = null;
+        ChainId = null;
         MinerAddress = null;
         Mnemonic = null;
         WalletPrivateKey = null;
@@ -250,6 +251,7 @@ public class Config
     {
         return key switch
         {
+            ConfigKey.ChainId => "Config",
             ConfigKey.BlockchainPath => "Config",
             ConfigKey.MinerAddress => "Miner",
             ConfigKey.Mnemonic => "Miner",
@@ -352,6 +354,8 @@ public class Config
                             IP = value;
                         if (key.Equals("Debug", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var debug))
                             Debug = debug;
+                        if (key.Equals("ChainId", StringComparison.OrdinalIgnoreCase))
+                            ChainId = value;
                         break;
                     case "[Miner]":
                         if (key.Equals("MinerAddress", StringComparison.OrdinalIgnoreCase))

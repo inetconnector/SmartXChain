@@ -57,7 +57,7 @@ public class Node
         if (localRegistrationServer) ip = "127.0.0.1";
 
         var nodeAddress = $"http://{ip}:{Config.Default.Port}";
-        var chainId = Config.Default.SmartXchain;
+        var chainId = Config.Default.ChainId;
 
         var node = new Node(nodeAddress, chainId);
         Logger.LogMessage("Starting automatic server discovery...");
@@ -301,7 +301,7 @@ public class Node
     {
         try
         {
-            var signature = Crypt.GenerateHMACSignature(NodeAddress, ChainId);
+            var signature = Crypt.GenerateHMACSignature(NodeAddress, Config.Default.ChainId);
             var response = await SocketManager.GetInstance(serverAddress)
                 .SendMessageAsync($"Register:{NodeAddress}|{signature}");
 
@@ -332,7 +332,12 @@ public class Node
 
             if (response == "ERROR: Timeout" || string.IsNullOrEmpty(response))
             {
-                Logger.LogMessage($"Error: Timeout or empty response from server {serverAddress}");
+                Logger.LogMessage($"Error: Timeout from server {serverAddress}");
+                return ret;
+            }
+            if (string.IsNullOrEmpty(response))
+            {
+                Logger.LogMessage($"No new nodes received from {serverAddress}");
                 return ret;
             }
 
