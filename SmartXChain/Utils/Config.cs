@@ -292,4 +292,51 @@ public class Config
         File.WriteAllLines(filePath, lines);
         Logger.LogMessage("Keys generated and saved to config.");
     }
+
+    /// <summary>
+    /// Toggles the Debug mode on or off and updates the configuration file.
+    /// </summary>
+    /// <param name="enable">True to enable debug mode, false to disable.</param>
+    public void ToggleDebug(bool enable)
+    {
+        Debug = enable;
+
+        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var appDirectory = Path.Combine(appDataPath, "SmartXChain");
+        var filePath = Path.Combine(appDirectory, "config.txt");
+
+        if (!File.Exists(filePath))
+        {
+            Logger.LogMessage("Config file not found for updating Debug mode.");
+            return;
+        }
+
+        var lines = File.ReadAllLines(filePath).ToList();
+        var configSectionIndex = lines.FindIndex(l => l.Trim().Equals("[Config]", StringComparison.OrdinalIgnoreCase));
+
+        if (configSectionIndex >= 0)
+        {
+            var debugLineIndex = lines.FindIndex(configSectionIndex + 1, l =>
+                l.TrimStart().StartsWith("Debug=", StringComparison.OrdinalIgnoreCase));
+
+            if (debugLineIndex >= 0)
+            {
+                lines[debugLineIndex] = $"Debug={Debug}";
+            }
+            else
+            {
+                lines.Insert(configSectionIndex + 1, $"Debug={Debug}");
+            }
+        }
+        else
+        {
+            lines.Add("");
+            lines.Add("[Config]");
+            lines.Add($"Debug={Debug}");
+        }
+
+        File.WriteAllLines(filePath, lines);
+        Logger.LogMessage($"Debug mode set to {Debug} and updated in config.");
+    }
+
 }

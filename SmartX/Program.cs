@@ -12,7 +12,7 @@ internal class Program
 {
     private static string _privateKey = "";
 
-    private static string Privatekey
+    private static string PrivateKey
     {
         get
         {
@@ -69,7 +69,7 @@ internal class Program
 
                 switch (mode)
                 {
-                    case '0':
+                    case 'c':
                         Console.Clear();
                         break;
                     case '1':
@@ -97,6 +97,9 @@ internal class Program
                         DeleteWallet(startup);
                         return;
                     case '9':
+                        Config.Default.ToggleDebug(!Config.Default.Debug);
+                        break;
+                    case '0':
                         return;
                 }
             }
@@ -105,7 +108,7 @@ internal class Program
                 Logger.LogMessage($"Error: {ex.Message}");
                 throw;
             }
-    }
+    } 
 
     private static void DisplayMenu()
     {
@@ -120,7 +123,8 @@ internal class Program
         Logger.LogMessage("6: Show Contracts");
         Logger.LogMessage("7: Upload Contract");
         Logger.LogMessage("8: Delete wallet and local chain");
-        Logger.LogMessage("9: Exit");
+        Logger.LogMessage("9: Toggle Debug mode");
+        Logger.LogMessage("0: Exit");
         Logger.LogMessage();
     }
 
@@ -196,13 +200,13 @@ internal class Program
         // Perform native token transfer
         var transaction = new Transaction();
 
-        transaction.RegisterUser(walletAddresses[0], Privatekey);
+        transaction.RegisterUser(walletAddresses[0], PrivateKey);
         var transferred = transaction.Transfer(
             chain,
             walletAddresses[0],
             walletAddresses[1],
             0.01d,
-            Privatekey,
+            PrivateKey,
             "native transfer",
             "49.83278, 9.88167");
 
@@ -347,9 +351,9 @@ internal class Program
         string[] inputs =
         {
             $"var token = new ERC20Token(\"SmartXchain\", \"SXC\", 18, 10000000000, \"{ownerAddress}\");",
-            $"token.RegisterUser(\"{ownerAddress}\", \"{Privatekey}\");",
-            $"token.Transfer(\"{ownerAddress}\", \"{walletAddresses[1]}\", 100, \"{Privatekey}\");",
-            $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 50, \"{Privatekey}\");",
+            $"token.RegisterUser(\"{ownerAddress}\", \"{PrivateKey}\");",
+            $"token.Transfer(\"{ownerAddress}\", \"{walletAddresses[1]}\", 100, \"{PrivateKey}\");",
+            $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 50, \"{PrivateKey}\");",
             "Log(JsonSerializer.Serialize(token, new JsonSerializerOptions { WriteIndented = true }));"
         };
 
@@ -363,8 +367,8 @@ internal class Program
         inputs = new[]
         {
             $"var token = new ERC20Token(\"SmartXchain\", \"SXC\", 18, 10000000000, \"{ownerAddress}\");",
-            $"token.RegisterUser(\"{ownerAddress}\", \"{Privatekey}\");",
-            $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 25, \"{Privatekey}\");",
+            $"token.RegisterUser(\"{ownerAddress}\", \"{PrivateKey}\");",
+            $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 25, \"{PrivateKey}\");",
             $"Log(token.GetBalances[\"{walletAddresses[0]}\"]);",
             $"Log(token.GetBalances[\"{walletAddresses[1]}\"]);",
             $"Log(token.GetBalances[\"{walletAddresses[2]}\"]);",
@@ -394,9 +398,9 @@ internal class Program
         string[] transferInputs =
         {
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
-            $"token.RegisterUser(\"{minerAddress}\", \"{Privatekey}\");",
-            $"token.Transfer(\"{minerAddress}\", \"{wallet1Addresses[1]}\", 50000, \"{Privatekey}\");",
-            $"token.Transfer(\"{wallet1Addresses[1]}\", \"{wallet1Addresses[2]}\", 25000, \"{Privatekey}\");"
+            $"token.RegisterUser(\"{minerAddress}\", \"{PrivateKey}\");",
+            $"token.Transfer(\"{minerAddress}\", \"{wallet1Addresses[1]}\", 50000, \"{PrivateKey}\");",
+            $"token.Transfer(\"{wallet1Addresses[1]}\", \"{wallet1Addresses[2]}\", 25000, \"{PrivateKey}\");"
         };
 
         result = await ExecuteSmartContract(blockchain, contract, transferInputs);
@@ -404,8 +408,8 @@ internal class Program
         string[] approvalInputs =
         {
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
-            $"token.RegisterUser(\"{minerAddress}\", \"{Privatekey}\");",
-            $"token.Approve(\"{wallet1Addresses[1]}\", \"{wallet2Addresses[0]}\", 20000, \"{Privatekey}\");",
+            $"token.RegisterUser(\"{minerAddress}\", \"{PrivateKey}\");",
+            $"token.Approve(\"{wallet1Addresses[1]}\", \"{wallet2Addresses[0]}\", 20000, \"{PrivateKey}\");",
             $"var allowance = token.Allowance(\"{wallet1Addresses[1]}\", \"{wallet2Addresses[0]}\");",
             "Logger.LogMessage($\"[GoldCoin] Allowance: {allowance}\");"
         };
@@ -415,8 +419,8 @@ internal class Program
         string[] transferFromInputs =
         {
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
-            $"token.RegisterUser(\"{minerAddress}\", \"{Privatekey}\");",
-            $"token.TransferFrom(\"{wallet2Addresses[0]}\", \"{wallet1Addresses[1]}\", \"{wallet1Addresses[3]}\", 15000, \"{Privatekey}\");",
+            $"token.RegisterUser(\"{minerAddress}\", \"{PrivateKey}\");",
+            $"token.TransferFrom(\"{wallet2Addresses[0]}\", \"{wallet1Addresses[1]}\", \"{wallet1Addresses[3]}\", 15000, \"{PrivateKey}\");",
             "Logger.LogMessage(\"[GoldCoin] \" + JsonSerializer.Serialize(token, new JsonSerializerOptions { WriteIndented = true }));"
         };
 
