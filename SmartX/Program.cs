@@ -91,9 +91,12 @@ internal class Program
                         DisplayContracts(startup);
                         break;
                     case '7':
+                        await UploadContract(startup);
+                        break;
+                    case '8':
                         DeleteWallet(startup);
                         return;
-                    case '8':
+                    case '9':
                         return;
                 }
             }
@@ -115,8 +118,9 @@ internal class Program
         Logger.LogMessage("4: Wallet Balances");
         Logger.LogMessage("5: Chain Info");
         Logger.LogMessage("6: Show Contracts");
-        Logger.LogMessage("7: Delete wallet and local chain");
-        Logger.LogMessage("8: Exit");
+        Logger.LogMessage("7: Upload Contract");
+        Logger.LogMessage("8: Delete wallet and local chain");
+        Logger.LogMessage("9: Exit");
         Logger.LogMessage();
     }
 
@@ -285,6 +289,51 @@ internal class Program
         {
             Logger.LogMessage("No contracts found.");
         }
+    }
+    private static async Task UploadContract(BlockchainServer.NodeStartupResult? node)
+    {
+        // Upload contract from file to blochchain
+
+        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var appDirectory = Path.Combine(appDataPath, "SmartXChain");
+        var contractsDirectory = Path.Combine(appDirectory, "Contracts");
+        Directory.CreateDirectory(contractsDirectory);
+
+        Logger.LogMessage("Enter filename");
+        var fileName=Console.ReadLine();
+
+        FileInfo fi = new FileInfo(fileName);
+        if (fi.Exists && fi.Extension.ToLower()!=".cs")
+        {
+            Logger.LogMessage("ERROR: invalid file specified");
+        }
+        else
+        {
+            if (node != null && node.Blockchain != null)
+            {
+                Logger.LogMessage("Enter contract name");
+                var contractName = Console.ReadLine();
+
+                var walletAddresses = SmartXWallet.LoadWalletAdresses();
+                if (walletAddresses.Count == 0)
+                {
+                    Logger.LogMessage("ERROR: SmartXWallet adresses are empty. SmartContractDemo cancelled.");
+                    return;
+                }
+
+                var ownerAddress = walletAddresses[0];  
+                var contractCode = File.ReadAllText(fileName);
+                var (contract, created) = await SmartContract.Create(contractName, node.Blockchain, ownerAddress, contractCode);
+                if (!created) 
+                    Logger.LogMessage($"Contract {contract} could not be created");
+                else
+                    Logger.LogMessage($"Contract {contract} created");
+            }
+            else
+            {
+                Logger.LogMessage("ERROR: Chain not available");
+            }
+        } 
     }
 
     private static async Task ERC20Example(string ownerAddress, List<string> walletAddresses, Blockchain? blockchain)
