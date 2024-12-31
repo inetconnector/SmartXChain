@@ -10,11 +10,7 @@ public static class Logger
     /// </summary>
     /// <param name="message">The message to log. Defaults to an empty string.</param>
     public static void LogMessage(string message = "", bool trim = true)
-    {
-        // Skip logging messages containing "GetNodes" or "Heartbeat"
-        if (message.Contains("GetNodes") || message.Contains("Heartbeat"))
-            return;
-
+    { 
         // Format the message with a timestamp
         var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
         var formattedMessage = timestamp + " - " + message;

@@ -289,7 +289,8 @@ public class Blockchain
             {
                 Logger.LogMessage($"Sending vote request to: {targetValidator}");
                 var response = await SocketManager.GetInstance(targetValidator).SendMessageAsync(message);
-                Logger.LogMessage($"Response from {targetValidator}: {response}");
+                if (Config.Default.Debug) 
+                    Logger.LogMessage($"Response from {targetValidator}: {response}");
                 return (true, response);
             }
         }
@@ -536,10 +537,11 @@ public class Blockchain
         {
             var message = $"VerifyCode:{contract.SerializedContractCode}";
             var response = await SocketManager.GetInstance(serverAddress).SendMessageAsync(message);
-
-            Logger.LogMessage($"Code {contract.Name} sent to {serverAddress} for verification.");
-            Logger.LogMessage($"Response from server for code {contract.Name}: {response}", false);
-
+            if (Config.Default.Debug)
+            {
+                Logger.LogMessage($"Code {contract.Name} sent to {serverAddress} for verification.");
+                Logger.LogMessage($"Response from server for code {contract.Name}: {response}", false);
+            } 
             return response == "ok";
         }
         catch (Exception ex)

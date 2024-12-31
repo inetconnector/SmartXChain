@@ -134,8 +134,8 @@ public class Node
                                     Logger.LogMessage(
                                         $"GetChain request to {server} success: Blockchain blocks: {BlockchainServer.Startup.Blockchain.Chain.Count}");
                                 }
-
-                                Logger.LogMessage($"Response from server {server}: {response}");
+                                if (Config.Default.Debug)
+                                    Logger.LogMessage($"Response from server {server}: {response}");
                             }
                             catch (Exception ex)
                             {
@@ -202,7 +202,8 @@ public class Node
                 if (remoteNode.Contains(NetworkUtils.IP))
                     continue;
 
-                Logger.LogMessage($"Checking blockchain with node {remoteNode}...");
+                if (Config.Default.Debug)
+                    Logger.LogMessage($"Checking blockchain with node {remoteNode}...");
 
                 // Retrieve blockchain size from remote node
                 var blockchainSizeResponse =
@@ -217,7 +218,8 @@ public class Node
 
                 if (currentBlockCount >= remoteBlockCount)
                 {
-                    Logger.LogMessage($"Local blockchain is up-to-date compared to node {remoteNode}.");
+                    if (Config.Default.Debug)
+                        Logger.LogMessage($"Local blockchain is up-to-date compared to node {remoteNode}.");
                     continue;
                 }
 
@@ -299,7 +301,9 @@ public class Node
             var signature = Crypt.GenerateHMACSignature(NodeAddress, ChainId);
             var response = await SocketManager.GetInstance(serverAddress)
                 .SendMessageAsync($"Register:{NodeAddress}|{signature}");
-            Logger.LogMessage($"Response from server {serverAddress}: {response}");
+
+            if (Config.Default.Debug)
+                Logger.LogMessage($"Response from server {serverAddress}: {response}");
         }
         catch (Exception ex)
         {
@@ -333,7 +337,8 @@ public class Node
                 if (!string.IsNullOrEmpty(nodeAddress))
                     ret.Add(nodeAddress);
 
-            Logger.LogMessage($"Active nodes from server {serverAddress}: {response}");
+            if (Config.Default.Debug)
+                Logger.LogMessage($"Active nodes from server {serverAddress}: {response}");
         }
         catch (Exception ex)
         {
@@ -354,8 +359,11 @@ public class Node
         try
         {
             var response = await SocketManager.GetInstance(serverAddress).SendMessageAsync($"Heartbeat:{NodeAddress}");
-            Logger.LogMessage($"Heartbeat sent to {serverAddress}");
-            Logger.LogMessage($"Response from server {serverAddress}: {response}");
+            if (Config.Default.Debug)
+            {
+                Logger.LogMessage($"Heartbeat sent to {serverAddress}");
+                Logger.LogMessage($"Response from server {serverAddress}: {response}");
+            }
         }
         catch (Exception ex)
         {

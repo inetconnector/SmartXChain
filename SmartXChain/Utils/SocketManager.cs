@@ -92,7 +92,8 @@ public class SocketManager : IDisposable
                     try
                     {
                         var content = new StringContent(message, Encoding.UTF8, "application/json");
-                        Logger.LogMessage($"Sending queued message to server: {message}");
+                        if (Config.Default.Debug)
+                            Logger.LogMessage($"Sending queued message to server: {message}");
 
                         // Send message to the server's REST endpoint
                         var response = httpClient.PostAsync("/api/" + message.Split(':')[0], content).Result;
@@ -100,8 +101,8 @@ public class SocketManager : IDisposable
                         if (response.IsSuccessStatusCode)
                         {
                             var responseString = response.Content.ReadAsStringAsync().Result;
-
-                            Logger.LogMessage($"Received response: {responseString}");
+                            if (Config.Default.Debug) 
+                                Logger.LogMessage($"Received response: {responseString}");
                             tcs.TrySetResult(responseString);
                         }
                         else

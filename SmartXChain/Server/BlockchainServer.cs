@@ -78,7 +78,8 @@ public partial class BlockchainServer
                                 var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
                                 var result = HandleGetNodes(message);
                                 await context.Response.WriteAsync(result);
-                                if (result.Length > 0)
+
+                                if (Config.Default.Debug && result.Length > 0) 
                                     Logger.LogMessage($"GetNodes: {result}");
                             });
 
@@ -120,7 +121,8 @@ public partial class BlockchainServer
                             endpoints.MapPost("/api/Heartbeat", async context =>
                             {
                                 var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-                                Logger.LogMessage($"Heartbeat: {message}");
+                                if (Config.Default.Debug)
+                                    Logger.LogMessage($"Heartbeat: {message}");
                                 HandleHeartbeat(message);
                                 await context.Response.WriteAsync("ok");
                             });
@@ -130,7 +132,8 @@ public partial class BlockchainServer
                                 if (_blockCount != Startup.Blockchain.Chain.Count)
                                 {
                                     _blockCount = Startup.Blockchain.Chain.Count;
-                                    Logger.LogMessage($"GetBlockCount: {Startup.Blockchain.Chain.Count}");
+                                    if (Config.Default.Debug)
+                                        Logger.LogMessage($"GetBlockCount: {Startup.Blockchain.Chain.Count}");
                                 }
 
                                 var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
@@ -157,8 +160,9 @@ public partial class BlockchainServer
                             endpoints.MapPost("/api/ValidateChain", async context =>
                             {
                                 var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-                                var isvalid = Startup.Blockchain.IsValid();
-                                Logger.LogMessage($"ValidateChain: {isvalid}");
+                                var isvalid = Startup.Blockchain.IsValid(); 
+                                if (Config.Default.Debug)
+                                    Logger.LogMessage($"ValidateChain: {isvalid}");
                                 if (isvalid)
                                     await context.Response.WriteAsync("ok");
                                 else
@@ -168,7 +172,8 @@ public partial class BlockchainServer
                             endpoints.MapPost("/api/GetChain", async context =>
                             {
                                 var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-                                Logger.LogMessage($"GetChain: {message}");
+                                if (Config.Default.Debug)
+                                    Logger.LogMessage($"GetChain: {message}");
                                 await context.Response.WriteAsync(Startup.Blockchain.ToBase64());
                             });
 
@@ -189,7 +194,8 @@ public partial class BlockchainServer
                                     return;
                                 }
 
-                                Logger.LogMessage(
+                                if (Config.Default.Debug)
+                                    Logger.LogMessage(
                                     $"Sent block {blockIndex} {Startup.Blockchain.Chain[blockIndex].Hash} parent:{Startup.Blockchain.Chain[blockIndex].PreviousHash}");
                                 var block = Startup.Blockchain.Chain[blockIndex].ToBase64();
 
@@ -232,7 +238,8 @@ public partial class BlockchainServer
                             endpoints.MapPost("/api/NewBlock", async context =>
                             {
                                 var serializedBlock = await new StreamReader(context.Request.Body).ReadToEndAsync();
-                                Logger.LogMessage($"NewBlock: {serializedBlock}");
+                                if (Config.Default.Debug)
+                                    Logger.LogMessage($"NewBlock: {serializedBlock}");
                                 Block newBlock = null;
                                 try
                                 {
@@ -497,7 +504,8 @@ public partial class BlockchainServer
                 Node.CurrentNodeIPs.Add(nodeAddress);
             }
 
-        Logger.LogMessage($"Heartbeat {nodeAddress} - {now} (HandleHeartbeat)");
+        if (Config.Default.Debug)
+            Logger.LogMessage($"Heartbeat {nodeAddress} - {now} (HandleHeartbeat)");
 
         GC.Collect();
         GC.WaitForPendingFinalizers();
