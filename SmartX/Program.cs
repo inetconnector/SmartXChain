@@ -56,7 +56,7 @@ internal class Program
             Config.Default.ReloadConfig();
         }
 
-        if (string.IsNullOrEmpty(Config.Default.PublicKey))
+        if (string.IsNullOrEmpty(Config.Default.ServerPublicKey))
             Config.Default.GenerateServerKeys();
     }
 
@@ -102,7 +102,8 @@ internal class Program
                         DeleteWallet(startup);
                         return;
                     case '9':
-                        Config.Default.ToggleDebug(!Config.Default.Debug);
+                        Config.Default.SetProperty(Config.ConfigKey.Debug,
+                            (!Config.Default.Debug).ToString());
                         break;
                     case '0':
                         return;
@@ -361,9 +362,9 @@ internal class Program
         var result = await ExecuteSmartContract(blockchain, contract, inputs);
 
         //Save and Reload Test
-        var tmpFile = Path.GetTempFileName();
-        blockchain.Save(tmpFile);
-        blockchain = Blockchain.Load(tmpFile);
+        //var tmpFile = Path.GetTempFileName();
+        //blockchain.Save(tmpFile);
+        //blockchain = Blockchain.Load(tmpFile);
 
         inputs = new[]
         {

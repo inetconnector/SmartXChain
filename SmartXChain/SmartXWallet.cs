@@ -78,8 +78,11 @@ public class SmartXWallet
         // Save all generated wallet addresses to a file
         SaveToFile("walletadresses.txt", string.Join(Environment.NewLine, WalletAddresses));
 
-        // Update miner configuration with the generated wallet
-        Config.Default.SetMinerAddress(WalletAddresses[0], mnemonic.ToString(), privateKey.ToString(Network.Main));
+        // Update miner configuration with the generated wallet 
+        Config.Default.SetProperty(Config.ConfigKey.MinerAddress, WalletAddresses[0]);
+        Config.Default.SetProperty(Config.ConfigKey.Mnemonic, mnemonic.ToString());
+        Config.Default.SetProperty(Config.ConfigKey.WalletPrivateKey, privateKey.ToString(Network.Main));
+         
         Logger.LogMessage("New miner address generated and saved.");
 
         return (WalletAddresses, privateKey, mnemonic.ToString());
