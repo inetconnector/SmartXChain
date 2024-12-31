@@ -84,6 +84,7 @@ public class SmartXWallet
 
         return (WalletAddresses, privateKey, mnemonic.ToString());
     }
+
     public static bool DeleteWallet()
     {
         try
@@ -123,7 +124,7 @@ public class SmartXWallet
         }
         catch (Exception e)
         {
-            Logger.LogMessage($"Error deleting wallet: {e.Message}"); 
+            Logger.LogMessage($"Error deleting wallet: {e.Message}");
         }
 
         return false;
@@ -140,7 +141,7 @@ public class SmartXWallet
         try
         {
             var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var appDirectory = Path.Combine(appDataPath, "SmartXChain"); 
+            var appDirectory = Path.Combine(appDataPath, "SmartXChain");
             var path = Path.Combine(appDirectory, fileName);
 
             // Write the content to the file securely
@@ -162,14 +163,14 @@ public class SmartXWallet
     public static List<string> LoadWalletAdresses(string fileName = "walletadresses.txt")
     {
         try
-        { 
+        {
             var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             var appDirectory = Path.Combine(appDataPath, "SmartXChain");
-            var path = Path.Combine(appDirectory, fileName); 
+            var path = Path.Combine(appDirectory, fileName);
 
             if (!File.Exists(path))
             {
-                Logger.LogMessage($"File {fileName} not found at {path}"); 
+                Logger.LogMessage($"File {fileName} not found at {path}");
             }
             else
             {
@@ -179,12 +180,13 @@ public class SmartXWallet
                 var walletAddresses = content.Split(new[] { Environment.NewLine }, StringSplitOptions.None).ToList();
                 WalletAddresses = walletAddresses;
                 return walletAddresses;
-            }   
+            }
         }
         catch (Exception ex)
         {
             Logger.LogMessage($"[ERROR] Failed to load {fileName}: {ex.Message}");
         }
+
         return new List<string>();
     }
 }

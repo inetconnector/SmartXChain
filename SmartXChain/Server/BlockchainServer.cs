@@ -140,16 +140,14 @@ public partial class BlockchainServer
                                     if (sp.Length == 5)
                                     {
                                         var remoteBlockCount = Convert.ToInt64(sp.ToArray().Last());
-                                        var remoteServer = sp[1] + ":"+sp[2] + ":" + sp[3];
+                                        var remoteServer = sp[1] + ":" + sp[2] + ":" + sp[3];
                                         if (remoteBlockCount < _blockCount)
                                             if (NetworkUtils.IsValidServer(remoteServer))
-                                            {  
                                                 lock (Node.DiscoveredServers)
                                                 {
                                                     if (!Node.DiscoveredServers.Contains(remoteServer))
                                                         Node.DiscoveredServers.Add(remoteServer);
                                                 }
-                                            }
                                     }
                                 }
 
@@ -214,7 +212,7 @@ public partial class BlockchainServer
                                                 incomingChain.Chain.Count > Startup.Blockchain.Chain.Count &&
                                                 incomingChain.IsValid())
                                             {
-                                                Startup.Blockchain = incomingChain; 
+                                                Startup.Blockchain = incomingChain;
                                                 Node.SaveBlockChain(incomingChain, Startup.Node);
                                             }
                                         }
@@ -269,8 +267,8 @@ public partial class BlockchainServer
     /// <summary>
     ///     Starts the server asynchronously.
     /// </summary>
-    public static async Task<(BlockchainServer?, NodeStartupResult?)> StartServerAsync(bool loadExisting=true)
-    { 
+    public static async Task<(BlockchainServer?, NodeStartupResult?)> StartServerAsync(bool loadExisting = true)
+    {
         NodeStartupResult? result = null;
 
         // Initialize and start the node
@@ -313,7 +311,7 @@ public partial class BlockchainServer
                 else
                 {
                     Logger.LogMessage($"No existing chain found in {chainPath}");
-                    Logger.LogMessage($"Waiting for synchronization...");
+                    Logger.LogMessage("Waiting for synchronization...");
                 }
             }
             catch (Exception ex)
@@ -321,7 +319,8 @@ public partial class BlockchainServer
                 Logger.LogMessage($"Error loading existing chain from {chainPath}");
                 Logger.LogMessage($"Error: {ex.Message}");
             }
-        }   
+        }
+
         return (server, result);
     }
 
@@ -385,7 +384,7 @@ public partial class BlockchainServer
         // Security check using signature validation
         if (!ValidateSignature(nodeAddress, signature))
         {
-            Logger.LogMessage($"ValidateSignature failed. Node not registered: {nodeAddress} Signature: {signature}"); 
+            Logger.LogMessage($"ValidateSignature failed. Node not registered: {nodeAddress} Signature: {signature}");
             return "";
         }
 

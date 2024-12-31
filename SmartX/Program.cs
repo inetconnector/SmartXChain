@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.IO;
 using System.Text;
 using SmartXChain;
 using SmartXChain.BlockchainCore;
@@ -11,6 +10,24 @@ namespace SmartX;
 
 internal class Program
 {
+    private static string _privateKey = "";
+
+    private static string Privatekey
+    {
+        get
+        {
+            if (!string.IsNullOrEmpty(_privateKey))
+                return _privateKey;
+            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var appDirectory = Path.Combine(appDataPath, "SmartXChain");
+            var privateKeyFile = Path.Combine(appDirectory, "privatekey.txt");
+            if (File.Exists(privateKeyFile)) return File.ReadAllText(privateKeyFile);
+            Logger.LogMessage($"PrivateKey not found at: {privateKeyFile}. Enter PrivateKey\n");
+            _privateKey = Console.ReadLine();
+            return _privateKey;
+        }
+    }
+
     private static async Task Main(string[] args)
     {
         // Initialize application and start the blockchain server
@@ -110,7 +127,7 @@ internal class Program
 
         var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         var appDirectory = Path.Combine(appDataPath, "SmartXChain");
-        var seedFile = Path.Combine(appDirectory, "seed.txt"); 
+        var seedFile = Path.Combine(appDirectory, "seed.txt");
         var seed = File.ReadAllText(seedFile);
 
         var token = new ERC20Token("SmartXchain", "SXC", 18, 10000000000, walletAddresses[0]);
@@ -151,16 +168,18 @@ internal class Program
     {
         // Demonstrate ERC20 and GoldCoin smart contracts
         var walletAddresses = SmartXWallet.LoadWalletAdresses();
-        if (walletAddresses.Count==0)
+        if (walletAddresses.Count == 0)
         {
-            Logger.LogMessage($"ERROR: SmartXWallet adresses are empty. SmartContractDemo cancelled.");
+            Logger.LogMessage("ERROR: SmartXWallet adresses are empty. SmartContractDemo cancelled.");
             return;
         }
+
         if (node == null)
         {
-            Logger.LogMessage($"ERROR: Node is empty. SmartContractDemo cancelled.");
+            Logger.LogMessage("ERROR: Node is empty. SmartContractDemo cancelled.");
             return;
         }
+
         await ERC20Example(walletAddresses[0], walletAddresses, node.Blockchain);
         await GoldCoinExample(walletAddresses[0], walletAddresses, SmartXWallet.LoadWalletAdresses(),
             node.Blockchain);
@@ -172,7 +191,7 @@ internal class Program
     {
         // Perform native token transfer
         var transaction = new Transaction();
-  
+
         transaction.RegisterUser(walletAddresses[0], Privatekey);
         var transferred = transaction.Transfer(
             chain,
@@ -214,12 +233,12 @@ internal class Program
     private static void DeleteWallet(BlockchainServer.NodeStartupResult? node)
     {
         // deletes wallet
-        SmartXWallet.DeleteWallet(); 
+        SmartXWallet.DeleteWallet();
 
         //delete saved contracts
-        var contractsPath = Path.Combine(Config.Default.BlockchainPath,"Contracts");
+        var contractsPath = Path.Combine(Config.Default.BlockchainPath, "Contracts");
         if (Directory.Exists(contractsPath))
-            Directory.Delete(contractsPath,true);
+            Directory.Delete(contractsPath, true);
 
         //delete local chains
         foreach (var file in Directory.GetFiles(Config.Default.BlockchainPath))
@@ -268,26 +287,6 @@ internal class Program
         }
     }
 
-    private static string _privateKey = "";
-    private static string Privatekey
-    {
-        get
-        {
-            if (!string.IsNullOrEmpty(_privateKey))
-                return _privateKey;
-            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var appDirectory = Path.Combine(appDataPath, "SmartXChain");
-            var privateKeyFile = Path.Combine(appDirectory, "privatekey.txt");
-            if (File.Exists(privateKeyFile))
-            {
-                return File.ReadAllText(privateKeyFile);
-            }
-            Logger.LogMessage($"PrivateKey not found at: {privateKeyFile}. Enter PrivateKey\n");
-            _privateKey = Console.ReadLine();
-            return _privateKey;
-        }
-    }
-
     private static async Task ERC20Example(string ownerAddress, List<string> walletAddresses, Blockchain? blockchain)
     {
         // Deploy and interact with an ERC20 token contract
@@ -295,7 +294,7 @@ internal class Program
         var contractCode = File.ReadAllText(contractFile);
         var (contract, created) = await SmartContract.Create("SmartXchain", blockchain, ownerAddress, contractCode);
         if (!created) Logger.LogMessage($"Contract {contract} could not be created");
-           
+
         string[] inputs =
         {
             $"var token = new ERC20Token(\"SmartXchain\", \"SXC\", 18, 10000000000, \"{ownerAddress}\");",
@@ -334,7 +333,7 @@ internal class Program
         var contractCode = File.ReadAllText(contractFile);
         var (contract, created) = await SmartContract.Create("GoldCoin", blockchain, minerAddress, contractCode);
         if (!created) Logger.LogMessage($"Contract {contract} could not be created");
-  
+
         string[] inputs =
         {
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",

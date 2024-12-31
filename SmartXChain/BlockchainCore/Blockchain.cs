@@ -164,16 +164,18 @@ public class Blockchain
             Logger.LogMessage($"Transaction {transaction.Name} not added. Sender is missing");
             return false;
         }
+
         if (string.IsNullOrEmpty(transaction.Recipient))
         {
             Logger.LogMessage($"Transaction {transaction.Name} not added. Recipient is missing");
             return false;
         }
+
         transaction.SignTransaction(Crypt.Default.PrivateKey);
         var gas = transaction.Gas;
-         
+
         if (transaction.Sender == SystemAddress) gas = 0;
-         
+
         if (gas > 0)
             PayGas("Transaction", transaction.Sender, gas);
 
@@ -536,7 +538,7 @@ public class Blockchain
             var response = await SocketManager.GetInstance(serverAddress).SendMessageAsync(message);
 
             Logger.LogMessage($"Code {contract.Name} sent to {serverAddress} for verification.");
-            Logger.LogMessage($"Response from server for code {contract.Name}: {response}",false);
+            Logger.LogMessage($"Response from server for code {contract.Name}: {response}", false);
 
             return response == "ok";
         }
@@ -571,7 +573,7 @@ public class Blockchain
     }
 
     /// <summary>
-    /// Retrieves a list of smart contracts from the blockchain.
+    ///     Retrieves a list of smart contracts from the blockchain.
     /// </summary>
     /// <returns>A list of smart contracts</returns>
     public IEnumerable<SmartContract> GetContracts()
@@ -629,7 +631,7 @@ public class Blockchain
                     Logger.LogMessage("---------------- TRANSACTION ----------------");
                     Logger.LogMessage($"Sender: {transaction.Sender}");
                     Logger.LogMessage($"Recipient: {transaction.Recipient}");
-                    if (transaction.Amount>0)
+                    if (transaction.Amount > 0)
                         Logger.LogMessage($"Amount: {transaction.Amount}");
                     if (!string.IsNullOrEmpty(transaction.Data))
                         Logger.LogMessage($"Data: {transaction.Data}");
@@ -817,7 +819,7 @@ public class Blockchain
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"Error saving the blockchain: {ex.Message}"); 
+            Logger.LogMessage($"Error saving the blockchain: {ex.Message}");
         }
 
         return false;

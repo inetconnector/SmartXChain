@@ -2,8 +2,6 @@
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Utils;
-using System.IO;
-using System.Text.RegularExpressions;
 
 namespace SmartXChain.Contracts;
 
@@ -47,10 +45,10 @@ public class CodeSecurityAnalyzer
         "Flush", "Bind", "Connect", "Listen", "Send", "Receive",
         "Attach", "Detach", "Kill", "Stop", "Pause", "Resume",
         "LoadFrom", "LoadFile", "LoadModule", "DefineDynamicAssembly",
-        "LoadLibrary", "QueueUserWorkItem", "Process.Start", "Console.ReadLine", 
+        "LoadLibrary", "QueueUserWorkItem", "Process.Start", "Console.ReadLine",
         "Console.ReadKey", "Console.Read"
     };
-    
+
 
     private static readonly string[] ForbiddenKeywords =
     {
@@ -61,20 +59,26 @@ public class CodeSecurityAnalyzer
 
     private static readonly string[] ForbiddenReflectionPatterns =
     {
-        "typeof", "Activator.CreateInstance", "MethodInfo", "PropertyInfo", "FieldInfo",  "GetType"
+        "typeof", "Activator.CreateInstance", "MethodInfo", "PropertyInfo", "FieldInfo", "GetType"
     };
+
     private static readonly string[] ForbiddenPaths = { "C:\\", "/etc/", "%TEMP%", "%APPDATA%" };
 
-    private static readonly string[] ForbiddenActions = { "Activator.", "[DllImport]", "Marshal.", "Thread.", "Task.", "GC.", "Dispose",  "Process.", "Diagnostics.", "%TEMP%", "%APPDATA%" };
+    private static readonly string[] ForbiddenActions =
+    {
+        "Activator.", "[DllImport]", "Marshal.", "Thread.", "Task.", "GC.", "Dispose", "Process.", "Diagnostics.",
+        "%TEMP%", "%APPDATA%"
+    };
 
     private static readonly string[] ForbiddenPatterns =
     {
         "\\|\\|", ".*\\$.*", "<script>", "eval\\(", "\\bexec\\b"
     };
+
     public static bool IsCodeSafe(string code, ref string message)
     {
         var tree = CSharpSyntaxTree.ParseText(code);
-        var root = tree.GetRoot(); 
+        var root = tree.GetRoot();
         // Check for non-whitelisted namespaces
         var usingDirectives = root.DescendantNodes().OfType<UsingDirectiveSyntax>();
         foreach (var ud in usingDirectives)
@@ -96,14 +100,12 @@ public class CodeSecurityAnalyzer
         }
 
         foreach (var pattern in ForbiddenReflectionPatterns)
-        {
             if (code.Contains(pattern))
             {
                 message = $"Forbidden reflection usage detected: {pattern}";
                 Logger.LogMessage(message);
                 return false;
             }
-        }
 
         if (code.Contains("../"))
         {
@@ -113,24 +115,20 @@ public class CodeSecurityAnalyzer
         }
 
         foreach (var action in ForbiddenActions)
-        {
             if (code.Contains(action))
             {
                 message = $"Forbidden Action detected: {action}";
                 Logger.LogMessage(message);
                 return false;
             }
-        }
-         
+
         foreach (var path in ForbiddenPaths)
-        {
             if (code.Contains(path))
             {
                 message = $"Forbidden path detected: {path}";
                 Logger.LogMessage(message);
                 return false;
             }
-        }
 
         // Check for unsafe code blocks
         if (root.DescendantNodes().OfType<UnsafeStatementSyntax>().Any())
@@ -142,14 +140,12 @@ public class CodeSecurityAnalyzer
 
         // Check for forbidden patterns
         foreach (var pattern in ForbiddenPatterns)
-        { 
             if (code.Contains(pattern))
             {
                 message = $"Forbidden pattern detected: '{pattern}'";
                 Logger.LogMessage(message);
                 return false;
             }
-        }
 
         // Check for forbidden classes
         var objectCreations = root.DescendantNodes().OfType<ObjectCreationExpressionSyntax>();

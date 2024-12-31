@@ -80,6 +80,6 @@ public partial class BlockchainServer
         /// <summary>
         ///     Gets the node instance associated with the blockchain.
         /// </summary>
-        public Node Node { get; private set; }
+        public Node Node { get; }
     }
 }

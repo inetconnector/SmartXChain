@@ -100,7 +100,7 @@ public class SocketManager : IDisposable
                         if (response.IsSuccessStatusCode)
                         {
                             var responseString = response.Content.ReadAsStringAsync().Result;
-                    
+
                             Logger.LogMessage($"Received response: {responseString}");
                             tcs.TrySetResult(responseString);
                         }

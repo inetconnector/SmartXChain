@@ -75,7 +75,7 @@ public class Config
             if (File.Exists(configFilePath))
             {
                 File.Delete(configFilePath);
-                Logger.LogMessage("Config file deleted"); 
+                Logger.LogMessage("Config file deleted");
                 return true;
             }
         }

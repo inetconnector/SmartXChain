@@ -9,7 +9,7 @@ public static class Logger
     ///     Logs a message to the console with a timestamp, excluding specific messages based on predefined filters.
     /// </summary>
     /// <param name="message">The message to log. Defaults to an empty string.</param>
-    public static void LogMessage(string message = "", bool trim=true)
+    public static void LogMessage(string message = "", bool trim = true)
     {
         // Skip logging messages containing "GetNodes" or "Heartbeat"
         if (message.Contains("GetNodes") || message.Contains("Heartbeat"))

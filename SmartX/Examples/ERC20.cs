@@ -101,7 +101,7 @@ public class ERC20Token
     {
         var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
         var formattedMessage = timestamp + " - [ERC20Token] " + message;
-        Console.WriteLine(formattedMessage); 
+        Console.WriteLine(formattedMessage);
     }
 
     public bool Transfer(string from, string to, ulong amount, string privateKey)

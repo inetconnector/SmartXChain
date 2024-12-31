@@ -1,6 +1,5 @@
 ﻿using System.Net;
 using System.Net.Sockets;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Server;
 using SmartXChain.Utils;
@@ -95,15 +94,10 @@ public class Node
                 try
                 {
                     foreach (var ip in CurrentNodeIPs)
-                    {
                         lock (DiscoveredServers)
                         {
-                            if (!DiscoveredServers.Contains(ip))
-                            {
-                                DiscoveredServers.Add(ip); 
-                            }
-                        } 
-                    } 
+                            if (!DiscoveredServers.Contains(ip)) DiscoveredServers.Add(ip);
+                        }
 
                     foreach (var server in DiscoveredServers)
                         if (node != null && node.StartupResult != null)
@@ -119,7 +113,7 @@ public class Node
                             {
                                 var response = await SocketManager.GetInstance(server)
                                     .SendMessageAsync("GetChain#" + node.NodeAddress);
-                                 
+
                                 var remoteChain = Blockchain.FromBase64(response);
 
                                 if (BlockchainServer.Startup.Blockchain != null)
@@ -127,14 +121,15 @@ public class Node
                                     lock (BlockchainServer.Startup.Blockchain)
                                     {
                                         if (remoteChain != null &&
-                                            remoteChain.Chain.Count >= BlockchainServer.Startup.Blockchain.Chain.Count &&
+                                            remoteChain.Chain.Count >=
+                                            BlockchainServer.Startup.Blockchain.Chain.Count &&
                                             remoteChain.IsValid())
                                         {
-                                            BlockchainServer.Startup.Blockchain = remoteChain; 
+                                            BlockchainServer.Startup.Blockchain = remoteChain;
                                             node.StartupResult = BlockchainServer.Startup;
                                             SaveBlockChain(remoteChain, node);
-                                        } 
-                                    } 
+                                        }
+                                    }
 
                                     Logger.LogMessage(
                                         $"GetChain request to {server} success: Blockchain blocks: {BlockchainServer.Startup.Blockchain.Chain.Count}");
@@ -250,7 +245,7 @@ public class Node
                     }
                 }
 
-                SaveBlockChain(blockchain,node);
+                SaveBlockChain(blockchain, node);
             }
         }
         catch (Exception ex)
@@ -262,16 +257,16 @@ public class Node
     }
 
     /// <summary>
-    /// Saves the blockchain to the specified BlockchainPath.
+    ///     Saves the blockchain to the specified BlockchainPath.
     /// </summary>
     /// <param name="blockchain">The blockchain instance to be saved.</param>
     /// <param name="node">The node associated with the blockchain, used to identify the chain ID.</param>
     /// <returns>
-    /// Returns <c>true</c> if the blockchain was successfully saved and verified;
-    /// otherwise, <c>false</c>.
+    ///     Returns <c>true</c> if the blockchain was successfully saved and verified;
+    ///     otherwise, <c>false</c>.
     /// </returns>
     public static bool SaveBlockChain(Blockchain blockchain, Node node)
-    { 
+    {
         var chainPath = Path.Combine(Config.Default.BlockchainPath, "chain-" + node.ChainId);
         if (blockchain.Save(chainPath) && File.Exists(chainPath))
         {
