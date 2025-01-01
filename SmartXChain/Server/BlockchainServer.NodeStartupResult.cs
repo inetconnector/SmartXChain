@@ -38,7 +38,7 @@ public partial class BlockchainServer
         var node = await Node.Start();
 
         // Create a new blockchain with the provided wallet address
-        var blockchain = new Blockchain(2, walletAddress);
+        var blockchain = new Blockchain(walletAddress);
 
         // Publish the server's IP address in a transaction on the blockchain
         var nodeTransaction = new Transaction
@@ -49,7 +49,7 @@ public partial class BlockchainServer
             Timestamp = DateTime.UtcNow
         };
 
-        blockchain.AddTransaction(nodeTransaction);
+        await blockchain.AddTransaction(nodeTransaction);
 
         // Set up the result containing the blockchain and node
         Startup = new NodeStartupResult(blockchain, node);

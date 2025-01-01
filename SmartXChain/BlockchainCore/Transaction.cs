@@ -169,7 +169,7 @@ public class Transaction
             Data = Data,
             Info = Info,
             Sender = Sender
-        };
+        }; 
         calculator.CalculateGas();
         Gas = calculator.Gas;
     }
@@ -210,7 +210,7 @@ public class Transaction
     /// <summary>
     ///     Registers a user in the blockchain system using their address and private key.
     /// </summary>
-    public bool RegisterUser(string address, string privateKey)
+    public bool RegisterUser(string address, string? privateKey)
     {
         try
         {
@@ -226,7 +226,7 @@ public class Transaction
         }
         catch (Exception ex)
         {
-            Log($"Error registering user: {ex.Message}");
+            Log($"ERROR: user registration failed: {ex.Message}");
         }
 
         return false;
@@ -235,7 +235,7 @@ public class Transaction
     /// <summary>
     ///     Verifies the private key of a user against the stored address.
     /// </summary>
-    private static bool VerifyPrivateKey(string privateKeyWif, string storedAddress, string prefix = "smartX")
+    private static bool VerifyPrivateKey(string? privateKeyWif, string storedAddress, string prefix = "smartX")
     {
         try
         {
@@ -281,7 +281,8 @@ public class Transaction
     /// <summary>
     ///     Transfers tokens with blockchain integration and optional metadata.
     /// </summary>
-    public bool Transfer(Blockchain? chain, string sender, string recipient, double amount, string privateKey,
+    public async Task<bool> Transfer(Blockchain? chain, string sender, string recipient, double amount,
+        string? privateKey,
         string info = "", string data = "")
     {
         if (!IsAuthenticated(sender, privateKey))
@@ -308,10 +309,13 @@ public class Transaction
             Data = data
         };
 
-        chain.AddTransaction(transferTransaction);
+        if (chain != null)
+        {
+            var success = await chain.AddTransaction(transferTransaction);
+        }
 
         Balances[sender] -= amount;
-        if (!Balances.ContainsKey(recipient)) Balances[recipient] = 0;
+        Balances.TryAdd(recipient, 0);
         Balances[recipient] += amount;
 
         Log($"Transfer successful: {amount} tokens from {sender} to {recipient}.");
@@ -358,7 +362,7 @@ public class Transaction
     /// <summary>
     ///     Checks if a user is authenticated using their private key.
     /// </summary>
-    private bool IsAuthenticated(string address, string privateKey)
+    private bool IsAuthenticated(string address, string? privateKey)
     {
         return AuthenticatedUsers.TryGetValue(address, out var storedKey) && storedKey == HashKey(privateKey);
     }
@@ -366,7 +370,7 @@ public class Transaction
     /// <summary>
     ///     Hashes the provided key using SHA-256.
     /// </summary>
-    private string HashKey(string key)
+    private string HashKey(string? key)
     {
         using var sha256 = SHA256.Create();
         var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(key));
@@ -386,7 +390,7 @@ public class Transaction
     /// </summary>
     public override string ToString()
     {
-        return $"{Sender} -> {Recipient}: {Timestamp}, Gas: {Gas}";
+        return $"{Name} {Sender} -> {Recipient}: {Timestamp} {Amount}, Gas: {Gas}";
     }
 
     /// <summary>
@@ -394,11 +398,9 @@ public class Transaction
     /// </summary>
     public string CalculateHash()
     {
-        using (var sha256 = SHA256.Create())
-        {
-            var rawData = $"{Sender}{Recipient}{Data}{Info}{Timestamp}";
-            var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(rawData));
-            return BitConverter.ToString(bytes).Replace("-", "").ToLower();
-        }
+        using var sha256 = SHA256.Create();
+        var rawData = $"{Sender}{Recipient}{Data}{Info}{Amount}{Name}{Version}";
+        var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(rawData));
+        return BitConverter.ToString(bytes).Replace("-", "").ToLower();
     }
 }

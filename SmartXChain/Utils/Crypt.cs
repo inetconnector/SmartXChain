@@ -47,14 +47,19 @@ public class Crypt
         }
     }
 
-    private static string GenerateAssemblyFingerprint()
+    /// <summary>
+    ///     Generates a unique fingerprint for the assembly containing the Blockchain type.
+    ///     The fingerprint is calculated as a SHA256 hash of the assembly's manifest resource stream.
+    /// </summary>
+    /// <returns>A base64-encoded string representing the assembly's fingerprint.</returns>
+    public static string GenerateAssemblyFingerprint()
     {
         var assembly = Assembly.GetAssembly(typeof(Blockchain));
         using var sha256 = SHA256.Create();
         using var stream = new MemoryStream();
-        assembly.GetManifestResourceStream(assembly.ManifestModule.Name)?.CopyTo(stream);
+        if (assembly != null) assembly.GetManifestResourceStream(assembly.ManifestModule.Name)?.CopyTo(stream);
         stream.Position = 0;
         var hash = sha256.ComputeHash(stream);
         return Convert.ToBase64String(hash);
-    }
+    } 
 }

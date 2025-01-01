@@ -1,12 +1,12 @@
-using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using NBitcoin;
+using Microsoft.AspNetCore.Hosting;
 using SmartXChain.Contracts;
 using SmartXChain.Server;
 using SmartXChain.Utils;
 using SmartXChain.Validators;
+using static NBitcoin.RPC.SignRawTransactionRequest;
 
 namespace SmartXChain.BlockchainCore;
 
@@ -14,21 +14,17 @@ public class Blockchain
 {
     public const string SystemAddress = "smartX0000000000000000000000000000000000000000";
 
-    [JsonInclude] private readonly Dictionary<string, string> _contractStates;
-
     [JsonInclude] private readonly int _difficulty;
-    private readonly object _pendingTransactionsLock = new();
 
 
     /// <summary>
     ///     Initializes the blockchain with a specified difficulty and miner address.
     ///     Creates a genesis block as the starting point of the blockchain.
     /// </summary>
-    public Blockchain(int difficulty, string minerAdress)
+    public Blockchain(string minerAdress, int difficulty = 0)
     {
         Chain = new List<Block>();
         PendingTransactions = new List<Transaction>();
-        _contractStates = new Dictionary<string, string>();
         _difficulty = difficulty;
 
         MinerAdress = minerAdress;
@@ -44,13 +40,46 @@ public class Blockchain
 
     [JsonInclude] internal static double CurrentNetworkLoad { get; private set; } = .5d;
 
-    public IReadOnlyDictionary<string, SmartContract> SmartContracts
+    public IReadOnlyDictionary<string, SmartContract?> SmartContracts
     {
         get
         {
-            return Chain
-                .SelectMany(block => block.SmartContracts)
-                .ToDictionary(contract => contract.Name, contract => contract);
+            var smartContracts = FirstBlock.SmartContracts;
+            if (smartContracts.Count == 0)
+            {
+                FirstBlock.SmartContracts = GetAllContracts();
+                smartContracts = FirstBlock.SmartContracts;
+            }
+
+            return smartContracts;
+        }
+    }
+
+    /// <summary>
+    ///     Retrieves the latest block in the blockchain.
+    /// </summary>
+    public Block LatestBlock
+    {
+        get
+        {
+            lock (Chain)
+            {
+                return Chain.Last();
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Retrieves the first block in the blockchain.
+    /// </summary>
+    public Block FirstBlock
+    {
+        get
+        {
+            lock (Chain)
+            {
+                return Chain.First();
+            }
         }
     }
 
@@ -159,7 +188,7 @@ public class Blockchain
     ///     Adds a transaction to the list of pending transactions.
     ///     Ensures that the transaction is signed and valid.
     /// </summary>
-    internal bool AddTransaction(Transaction transaction)
+    internal async Task<bool> AddTransaction(Transaction transaction, bool mine = false)
     {
         if (string.IsNullOrEmpty(transaction.Sender))
         {
@@ -186,6 +215,7 @@ public class Blockchain
             PendingTransactions.Add(transaction);
         }
 
+        if (mine) await MinePendingTransactions(transaction.Sender);
         return true;
     }
 
@@ -193,9 +223,9 @@ public class Blockchain
     ///     Adds a smart contract to the blockchain after reaching consensus.
     ///     Ensures the contract name is valid and unique.
     /// </summary>
-    public async Task<bool> AddSmartContract(SmartContract contract)
+    public async Task<bool> AddSmartContract(Blockchain? chain, SmartContract? contract)
     {
-        if (!Regex.IsMatch(contract.Name, @"^[a-zA-Z0-9]+$"))
+        if (contract != null && !Regex.IsMatch(contract.Name, @"^[a-zA-Z0-9]+$"))
         {
             Logger.LogMessage(
                 $"Invalid Smart Contract name '{contract.Name}'. Names can only contain alphanumeric characters (a-z, A-Z, 0-9) without spaces.");
@@ -203,7 +233,7 @@ public class Blockchain
         }
 
         // Check if the contract with the same name already exists
-        if (Chain.Any(b => b.SmartContracts.Any(sc => sc.Name == contract.Name)))
+        if (contract != null && SmartContracts.ContainsKey(contract.Name))
         {
             Logger.LogMessage($"A Smart Contract with the name '{contract.Name}' already exists in the blockchain.");
             return false;
@@ -211,18 +241,40 @@ public class Blockchain
 
         if (await ReachCodeConsensus(contract))
         {
-            var latestBlock = GetLatestBlock();
-            latestBlock.SmartContracts.Add(contract);
+            //"$$" + contract.Name in info of transaction defines a smartcontract in data
+            if (contract != null)
+            {
+                var contractTransaction = new Transaction
+                {
+                    Sender = contract.Owner,
+                    Recipient = SystemAddress,
+                    Data = contract.SerializedContractCode,
+                    Info = "$$" + contract.Name,
+                    Timestamp = DateTime.UtcNow
+                };
 
-            // Initialize serialized state for the contract
-            if (!_contractStates.ContainsKey(contract.Name))
-                _contractStates[contract.Name] = Serializer.SerializeToBase64(contract.Name);
+                if (chain != null)
+                    if (!await chain.AddTransaction(contractTransaction))
+                    {
+                        Logger.LogMessage($"ERROR: Smart Contract '{contract.Name}' not added to the blockchain.");
+                        return false;
+                    }
+            }
 
-            Logger.LogMessage($"Smart Contract '{contract.Name}' added to the blockchain.");
-            return true;
+            if (contract != null)
+            {
+                FirstBlock.SmartContracts.TryAdd(contract.Name, contract);
+
+                Logger.LogMessage($"Smart Contract '{contract.Name}' added to the blockchain.");
+                return true;
+            }
+        }
+        else
+        {
+            if (contract != null)
+                Logger.LogMessage($"No consensus reached for the Smart Contract '{contract.Name}'");
         }
 
-        Logger.LogMessage($"No consensus reached for the Smart Contract '{contract.Name}'");
         return false;
     }
 
@@ -240,8 +292,9 @@ public class Blockchain
 
         var selectionSize = Math.Max(1, Node.CurrentNodeIPs.Count / 2); // min 50% of the nodes
         var selectedValidators = Node.CurrentNodeIPs
-            .OrderBy(_ => Guid.NewGuid()) // random order
-            .Take(selectionSize) // take first N Nodes
+            .Where(ip => !NetworkUtils.IP.Contains(ip)) // IPs filtern, die in NetworkUtils.IP enthalten sind
+            .OrderBy(_ => Guid.NewGuid()) // Zufällige Reihenfolge
+            .Take(selectionSize) // N erste Knoten auswählen
             .ToList();
 
         Logger.LogMessage($"Selected {selectionSize} validators from {Node.CurrentNodeIPs.Count} available nodes.");
@@ -251,8 +304,12 @@ public class Blockchain
         var voteTasks = new List<Task<(bool, string)>>();
 
         foreach (var validator in selectedValidators)
+        {
+            if (validator.Contains(NetworkUtils.IP))
+                continue;
             voteTasks.Add(SendVoteRequestAsync(validator, block));
-
+        }
+         
         var results = await Task.WhenAll(voteTasks);
 
         var positiveVotes = results.Count(result => result.Item1 && result.Item2.StartsWith("ok#"));
@@ -285,22 +342,28 @@ public class Blockchain
     private async Task<(bool, string)> SendVoteRequestAsync(string targetValidator, Block block)
     {
         try
-        {
-            var message = $"Vote:{block.Base64Encoded}";
-            if (block.Verify(message))
+        { 
+            var verifiedBlock = Block.FromBase64(block.Base64Encoded);
+            if (verifiedBlock != null)
             {
-                Logger.LogMessage($"Sending vote request to: {targetValidator}");
-                var response = await SocketManager.GetInstance(targetValidator).SendMessageAsync(message);
-                if (Config.Default.Debug) 
-                    Logger.LogMessage($"Response from {targetValidator}: {response}");
-                return (true, response);
-            }
+                var hash = block.Hash;
+                var calculatedHash = block.CalculateHash();
+                if (calculatedHash == hash)
+                {
+                    var message = $"Vote:{block.Base64Encoded}";
+                    Logger.LogMessage($"Sending vote request to: {targetValidator}");
+                    var response = await SocketManager.GetInstance(targetValidator).SendMessageAsync(message);
+                    if (Config.Default.Debug)
+                        Logger.LogMessage($"Response from {targetValidator}: {response}");
+                    return (response.Contains("ok"), response);
+                } 
+            } 
         }
         catch (Exception ex)
         {
             Logger.LogMessage($"Error sending vote request: {ex.Message}");
         }
-
+        Logger.LogMessage($"ERROR: block.Verify failed from {targetValidator}");
         return (false, "");
     }
 
@@ -314,8 +377,18 @@ public class Blockchain
     public async Task<(string result, string updatedSerializedState)> ExecuteSmartContract(string contractName,
         string[] inputs)
     {
-        var contract = Chain.SelectMany(b => b.SmartContracts).FirstOrDefault(c => c.Name == contractName);
-        if (contract == null) throw new Exception($"Smart Contract '{contractName}' not found in the blockchain.");
+        SmartContract? contract = null;
+        if (SmartContracts.ContainsKey(contractName)) contract = SmartContracts[contractName];
+
+        if (contract == null)
+        {
+            //try to find contract in Transactions 
+            contract = GetContractFromTransactions(contractName);
+            if (contract == null)
+                throw new Exception($"Smart Contract '{contractName}' not found in the blockchain.");
+            if (!Chain[0].SmartContracts.ContainsKey(contractName))
+                Chain[0].SmartContracts.Add(contractName, contract);
+        }
 
         // Load serialized state from the blockchain
         var currentSerializedState = await GetContractState(contract);
@@ -387,10 +460,11 @@ public class Blockchain
     /// </summary>
     /// <param name="contract">The smart contract whose state is being updated.</param>
     /// <param name="serializedState">The serialized state to be written to the blockchain.</param>
-    private async Task WriteContractStateToBlockchain(SmartContract contract, string serializedState)
+    private async Task WriteContractStateToBlockchain(SmartContract? contract, string serializedState)
     {
         var compressedState = Compress.CompressString(serializedState);
 
+        //"$" + contract.Name in info of transaction defines a contractstate
         var stateTransaction = new Transaction
         {
             Sender = contract.Owner,
@@ -400,9 +474,10 @@ public class Blockchain
             Info = "$" + contract.Name
         };
 
-        AddTransaction(stateTransaction);
-        await MinePendingTransactions(MinerAdress);
+        await AddTransaction(stateTransaction);
         Logger.LogMessage($"State for contract '{contract.Name}' added to pending transactions.");
+
+        await MinePendingTransactions(MinerAdress);
     }
 
     /// <summary>
@@ -411,7 +486,7 @@ public class Blockchain
     /// </summary>
     /// <param name="contract">The smart contract whose state is to be retrieved.</param>
     /// <returns>A task representing the asynchronous operation, with the serialized state as the result.</returns>
-    private async Task<string> GetContractState(SmartContract contract)
+    private async Task<string> GetContractState(SmartContract? contract)
     {
         for (var i = Chain.Count - 1; i >= 0; i--)
             foreach (var transaction in Chain[i].Transactions)
@@ -423,13 +498,107 @@ public class Blockchain
                 }
 
         await MinePendingTransactions(MinerAdress);
-
-        Logger.LogMessage(
-            $"No state found for contract '{contract.Name}', initializing new state. Adding contract state to blockchain");
         var newState = "";
-        await WriteContractStateToBlockchain(contract, newState);
+        if (contract != null)
+        {
+            Logger.LogMessage(
+                $"No state found for contract '{contract.Name}', initializing new state. Adding contract state to blockchain");
+
+            await WriteContractStateToBlockchain(contract, newState);
+        }
+
         return newState;
     }
+
+    /// <summary>
+    ///     Retrieves all smart contracts from the blockchain and returns them as a dictionary.
+    ///     Each entry in the dictionary has the contract name as the key and the SmartContract object as the value.
+    ///     Contracts are identified by transactions with the recipient set to SystemAddress and an info field starting with
+    ///     "$$".
+    /// </summary>
+    /// <returns>A dictionary containing all unique smart contracts found in the blockchain.</returns>
+    private SmartContract? GetContractFromTransactions(string contractName)
+    {
+        lock (Chain)
+        {
+            foreach (var block in Chain.AsEnumerable().Reverse())
+                lock (block)
+                {
+                    var contractTransaction = block.Transactions
+                        .FirstOrDefault(transaction =>
+                            transaction.Recipient == SystemAddress &&
+                            transaction.Info == "$$" + contractName &&
+                            !string.IsNullOrEmpty(transaction.Data));
+
+                    if (contractTransaction != null)
+                        try
+                        {
+                            var contractCode = Serializer.DeserializeFromBase64<string>(contractTransaction.Data);
+                            return new SmartContract(
+                                contractTransaction.Sender,
+                                Serializer.SerializeToBase64(contractCode),
+                                contractName
+                            );
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.LogMessage($"ERROR: Failed to deserialize contract data: {ex.Message}");
+                            return null;
+                        }
+                }
+        }
+
+        Logger.LogMessage($"ERROR: SmartContract '{contractName}' not found in blockchain transactions.");
+        return null;
+    }
+
+    /// <summary>
+    ///     Retrieves all smart contracts from the blockchain and returns them as a dictionary.
+    ///     Each entry in the dictionary has the contract name as the key and the SmartContract object as the value.
+    ///     Contracts are identified by transactions with the recipient set to SystemAddress and an info field starting with
+    ///     "$$".
+    /// </summary>
+    /// <returns>A dictionary containing all unique smart contracts found in the blockchain.</returns>
+    private Dictionary<string, SmartContract?> GetAllContracts()
+    {
+        var contracts = new Dictionary<string, SmartContract?>();
+
+        lock (Chain)
+        {
+            foreach (var block in Chain)
+                lock (block)
+                {
+                    foreach (var transaction in block.Transactions)
+                        if (transaction.Recipient == SystemAddress &&
+                            transaction.Info != null &&
+                            transaction.Info.StartsWith("$$") &&
+                            !string.IsNullOrEmpty(transaction.Data))
+                        {
+                            var contractName = transaction.Info.Substring(2); // Removes "$$" from the start
+
+                            if (!contracts.ContainsKey(contractName)) // Avoids duplicates
+                                try
+                                {
+                                    var contractCode = Serializer.DeserializeFromBase64<string>(transaction.Data);
+                                    var contract = new SmartContract(
+                                        transaction.Sender,
+                                        Serializer.SerializeToBase64(contractCode),
+                                        contractName
+                                    );
+                                    contracts[contractName] = contract;
+                                }
+                                catch (Exception ex)
+                                {
+                                    Logger.LogMessage(
+                                        $"ERROR: Failed to deserialize contract '{contractName}': {ex.Message}");
+                                }
+                        }
+                }
+        }
+
+        return contracts;
+    }
+
 
     /// <summary>
     ///     Mines all pending transactions and adds them to the blockchain.
@@ -438,72 +607,91 @@ public class Blockchain
     /// <param name="minerAddress">The address of the miner receiving the reward.</param>
     public async Task MinePendingTransactions(string minerAddress)
     {
-        while (Node.CurrentNodeIPs.Count == 0) Thread.Sleep(10);
 
-        List<Transaction> transactionsToMine;
+        int counter = 0;
 
-        lock (_pendingTransactionsLock)
+        while (Node.CurrentNodeIPs.Count == 0)
         {
-            if (PendingTransactions.Count == 0)
+            if (counter % 1000 == 0) // All 10 sec (5000 ms / 10 ms = 500 iterations)
             {
-                Logger.LogMessage("No transactions to mine.");
-                return;
+                Logger.LogMessage($"Waiting for validators...");
             }
-
-            transactionsToMine = PendingTransactions.ToList();
-            PendingTransactions.Clear();
+            Thread.Sleep(10);
+            counter++;
         }
 
-        var block = new Block(transactionsToMine, Chain.Last().Hash);
-
-        var (consensusReached, rewardAddresses) = await ReachConsensus(block);
-        if (consensusReached)
-        {
+        if (ValidateChain())
+        { 
+            Block block;
             lock (Chain)
             {
-                if (ValidateChain())
-                    if (AddBlock(block, false))
+                List<Transaction> transactionsToMine;
+                lock (PendingTransactions)
+                {
+                    if (PendingTransactions.Count == 0)
                     {
-                        List<string> ipList;
-
-                        lock (Node.CurrentNodeIPs)
-                        {
-                            ipList = [];
-                            foreach (var ip in Node.CurrentNodeIPs)
-                            {
-                                if (!ip.Contains(NetworkUtils.IP))
-                                {
-                                    ipList.Add(ip);
-                                }
-                            }
-                        }
-
-                        BlockchainServer.BroadcastToPeers(ipList,
-                            "PushServers", string.Join(",", ipList).TrimEnd(','));
-                        BlockchainServer.BroadcastToPeers(ipList,
-                            "NewBlock", block.ToBase64());
+                        Logger.LogMessage("No transactions to mine.");
+                        return;
                     }
+
+                    transactionsToMine = PendingTransactions.ToList(); 
+                }
+
+                block = new Block(transactionsToMine, Chain.Last().Hash);
             }
 
-            var rewardTransaction = new RewardTransaction(this, Config.Default.MinerAddress);
-            AddTransaction(rewardTransaction);
+            //find consensus between validators
+            var (consensusReached, rewardAddresses) = await ReachConsensus(block);
+            if (consensusReached)
+            { 
+                //add do chain after successful validation 
+                if (AddBlock(block, false))
+                {
+                    Broadcast(block);
+                    PendingTransactions.Clear();
+                }
 
-            Logger.LogMessage($"Miner reward: Reward {rewardTransaction.Reward} to miner {minerAddress}");
+                //send a reward to the miner
+                var rewardTransaction = new RewardTransaction(this, Config.Default.MinerAddress);
+                await AddTransaction(rewardTransaction);
 
-            foreach (var address in rewardAddresses)
+                Logger.LogMessage($"Miner reward: Reward {rewardTransaction.Reward} to miner {minerAddress}");
+
+                //send a reward to the validators
+                foreach (var address in rewardAddresses)
+                {
+                    if (address == minerAddress)
+                        continue;
+
+                    rewardTransaction = new RewardTransaction(this, address, true);
+                    await AddTransaction(rewardTransaction);
+                    Logger.LogMessage(
+                        $"Validator reward: Reward {rewardTransaction.Reward} to validator {address}");
+                }
+            }
+            else
             {
-                if (address == minerAddress)
-                    continue;
-
-                rewardTransaction = new RewardTransaction(this, address, true);
-                AddTransaction(rewardTransaction);
-                Logger.LogMessage($"Validator reward: Reward {rewardTransaction.Reward} to validator {address}");
+                Logger.LogMessage("ERROR: Block rejected");
             }
         }
         else
         {
-            Logger.LogMessage("Block rejected");
-        }
+            Logger.LogMessage("ERROR: The chain is not valid");
+        } 
+    }
+
+    /// <summary>
+    ///     Broadcasts a given block to all peers in the network except the current node's IPs.
+    ///     Sends two types of broadcasts: one to push the list of servers and another to
+    ///     share the new block.
+    /// </summary>
+    /// <param name="block">The block to broadcast to the network.</param>
+    private void Broadcast(Block block)
+    {
+        BlockchainServer.BroadcastToPeers(Node.CurrentNodeIPs,
+            "PushServers", string.Join(",", Node.CurrentNodeIPs).TrimEnd(','));
+        BlockchainServer.BroadcastToPeers(Node.CurrentNodeIPs,
+            "NewBlock", block.ToBase64());
     }
 
     /// <summary>
@@ -511,34 +699,46 @@ public class Blockchain
     /// </summary>
     /// <param name="contract">The smart contract to validate and reach consensus on.</param>
     /// <returns>True if consensus is reached; otherwise, false.</returns>
-    private async Task<bool> ReachCodeConsensus(SmartContract contract)
+    private async Task<bool> ReachCodeConsensus(SmartContract? contract)
     {
         try
         {
-            Logger.LogMessage($"Starting Snowman-Consensus for contract: {contract.Name}");
+            if (contract != null)
+            {
+                if (Node.CurrentNodeIPs.Count == 0)
+                {
+                    Logger.LogMessage($"ERROR: No validator adresses found for: {contract.Name}");
+                    return false;
+                }
 
-            var requiredVotes = Node.CurrentNodeIPs.Count / 2 + 1;
+                Logger.LogMessage($"Starting Snowman-Consensus for contract: {contract.Name}");
+                var requiredVotes = Node.CurrentNodeIPs.Count / 2 + 1;
 
-            var voteTasks = new List<Task<bool>>();
+                var voteTasks = new List<Task<bool>>();
 
-            foreach (var validator in Node.CurrentNodeIPs)
-                voteTasks.Add(SendCodeForVerificationAsync(validator, contract));
+                foreach (var validator in Node.CurrentNodeIPs)
+                {
+                    if (!NetworkUtils.IP.Contains(validator))
+                        voteTasks.Add(SendCodeForVerificationAsync(validator, contract));
+                }
+                
+                var results = await Task.WhenAll(voteTasks);
 
-            var results = await Task.WhenAll(voteTasks);
+                var positiveVotes = results.Count(result => result);
 
-            var positiveVotes = results.Count(result => result);
+                Logger.LogMessage(positiveVotes >= requiredVotes
+                    ? $"Consensus reached for {contract.Name}. Code is safe."
+                    : $"No consensus reached for contract {contract.Name}. Code discarded.");
 
-            Logger.LogMessage(positiveVotes >= requiredVotes
-                ? $"Consensus reached for {contract.Name}. Code is safe."
-                : $"No consensus reached for contract {contract.Name}. Code discarded.");
-
-            return positiveVotes >= requiredVotes;
+                return positiveVotes >= requiredVotes;
+            }
         }
         catch (Exception ex)
         {
             Logger.LogMessage($"Error during consensus: {ex.Message}");
-            return false;
         }
+
+        return false;
     }
 
     /// <summary>
@@ -547,56 +747,32 @@ public class Blockchain
     /// <param name="serverAddress">The address of the server for verification.</param>
     /// <param name="contract">The smart contract to be verified.</param>
     /// <returns>A boolean indicating whether the code verification was successful.</returns>
-    private async Task<bool> SendCodeForVerificationAsync(string serverAddress, SmartContract contract)
+    private async Task<bool> SendCodeForVerificationAsync(string serverAddress, SmartContract? contract)
     {
         try
         {
-            var message = $"VerifyCode:{contract.SerializedContractCode}";
-            var response = await SocketManager.GetInstance(serverAddress).SendMessageAsync(message);
-            if (Config.Default.Debug)
+            if (contract != null)
             {
-                Logger.LogMessage($"Code {contract.Name} sent to {serverAddress} for verification.");
-                Logger.LogMessage($"Response from server for code {contract.Name}: {response}", false);
-            } 
-            return response == "ok";
+                var message = $"VerifyCode:{contract.SerializedContractCode}";
+                var response = await SocketManager.GetInstance(serverAddress).SendMessageAsync(message);
+                if (Config.Default.Debug)
+                {
+                    Logger.LogMessage($"Code {contract.Name} sent to {serverAddress} for verification.");
+                    Logger.LogMessage($"Response from server for code {contract.Name}: {response}", false);
+                }
+
+                return response == "ok";
+            }
+            Logger.LogMessage($"ERROR: sending code to {serverAddress} failed: contract is empty");
+
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"Error sending code {contract.Name} to {serverAddress}: {ex.Message}");
+            if (contract != null)
+                Logger.LogMessage($"ERROR: sending code {contract.Name} to {serverAddress} failed: {ex.Message}");
         }
 
         return false;
-    }
-
-    /// <summary>
-    ///     Retrieves the latest block in the blockchain.
-    /// </summary>
-    public Block GetLatestBlock()
-    {
-        lock (Chain)
-        {
-            return Chain.Last();
-        }
-    }
-
-    /// <summary>
-    ///     Retrieves a smart contract from the blockchain by its name.
-    /// </summary>
-    /// <param name="contractName">The name of the smart contract to retrieve.</param>
-    /// <returns>The smart contract with the specified name, or null if not found.</returns>
-    public SmartContract? GetContractByName(string contractName)
-    {
-        return Chain.SelectMany(block => block.SmartContracts)
-            .FirstOrDefault(contract => contract.Name == contractName);
-    }
-
-    /// <summary>
-    ///     Retrieves a list of smart contracts from the blockchain.
-    /// </summary>
-    /// <returns>A list of smart contracts</returns>
-    public IEnumerable<SmartContract> GetContracts()
-    {
-        return Chain?.SelectMany(block => block.SmartContracts) ?? Enumerable.Empty<SmartContract>();
     }
 
     /// <summary>
@@ -739,7 +915,7 @@ public class Blockchain
             var difficulty = chainElement.GetProperty("_difficulty").GetInt32();
             var minerAddress = chainElement.GetProperty("MinerAdress").GetString();
 
-            var blockchain = new Blockchain(difficulty, minerAddress);
+            var blockchain = new Blockchain(minerAddress, difficulty);
 
             blockchain.Chain = JsonSerializer.Deserialize<List<Block>>(innerChainElement.GetRawText());
 
@@ -749,7 +925,9 @@ public class Blockchain
             if (root.TryGetProperty("Balances", out var balancesJson))
             {
                 var balances = JsonSerializer.Deserialize<Dictionary<string, double>>(balancesJson.GetRawText());
-                foreach (var balance in balances) Transaction.Balances[balance.Key] = balance.Value;
+                if (balances != null)
+                    foreach (var balance in balances)
+                        Transaction.Balances[balance.Key] = balance.Value;
             }
 
             if (root.TryGetProperty("Allowances", out var allowancesJson))
@@ -757,7 +935,9 @@ public class Blockchain
                 var allowances =
                     JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, double>>>(
                         allowancesJson.GetRawText());
-                foreach (var allowance in allowances) Transaction.Allowances[allowance.Key] = allowance.Value;
+                if (allowances != null)
+                    foreach (var allowance in allowances)
+                        Transaction.Allowances[allowance.Key] = allowance.Value;
             }
 
             if (root.TryGetProperty("AuthenticatedUsers", out var authenticatedUsersJson))
@@ -858,7 +1038,7 @@ public class Blockchain
             // Check if the current block's hash is valid
             if (currentBlock.Hash != currentBlock.CalculateHash())
             {
-                Logger.LogMessage($"Block {i} has an invalid hash.");
+                Logger.LogMessage($"ERROR: Block {i} has an invalid hash.");
                 isValid = false;
                 state.Stop(); // Stop further iterations if invalid
             }
@@ -866,7 +1046,7 @@ public class Blockchain
             // Check if the previous hash in the current block matches the hash of the previous block
             if (currentBlock.PreviousHash != previousBlock.Hash)
             {
-                Logger.LogMessage($"Block {i} has an invalid previous hash.");
+                Logger.LogMessage($"ERROR: Block {i} has an invalid previous hash.");
                 isValid = false;
                 state.Stop(); // Stop further iterations if invalid
             }
@@ -940,7 +1120,7 @@ public class Blockchain
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"Error archiving transactions for {address}: {ex.Message}");
+            Logger.LogMessage($"ERROR: archiving transactions for {address} failed: {ex.Message}");
         }
     }
 
@@ -969,7 +1149,7 @@ public class Blockchain
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"Error loading archived transactions for {address}: {ex.Message}");
+            Logger.LogMessage($"ERROR: loading archived transactions for {address} failed: {ex.Message}");
         }
 
         return transactions;

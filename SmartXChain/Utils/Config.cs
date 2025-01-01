@@ -1,23 +1,34 @@
 ﻿using System.Security.Cryptography;
 using System.Text.RegularExpressions;
-using NBitcoin.Protocol;
-using Newtonsoft.Json.Linq;
-using Org.BouncyCastle.Bcpg.OpenPgp;
 
 namespace SmartXChain.Utils;
 
 /// <summary>
-/// Represents the configuration management for the SmartXChain application,
-/// including server, miner, and peer settings.
+///     Represents the configuration management for the SmartXChain application,
+///     including server, miner, and peer settings.
 /// </summary>
 public class Config
 {
+    public enum ConfigKey
+    {
+        ChainId,
+        BlockchainPath,
+        MinerAddress,
+        Mnemonic,
+        WalletPrivateKey,
+        Port,
+        IP,
+        Debug,
+        ServerPublicKey,
+        ServerPrivateKey
+    }
+
     private static readonly Lazy<Config> _defaultInstance = new(() =>
     {
         var startupDirectory = AppDomain.CurrentDomain.BaseDirectory;
 
         // Ensure the AppData directory exists
-        var appDirectory = Config.AppDirectory();
+        var appDirectory = AppDirectory();
         Directory.CreateDirectory(appDirectory);
 
         var appDataConfigPath = Path.Combine(appDirectory, ConfigFileName());
@@ -36,7 +47,7 @@ public class Config
     });
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Config" /> class and loads the configuration from a file.
+    ///     Initializes a new instance of the <see cref="Config" /> class and loads the configuration from a file.
     /// </summary>
     /// <param name="filePath">The file path to the configuration file.</param>
     public Config(string filePath)
@@ -58,28 +69,17 @@ public class Config
     public List<string> Peers { get; }
     public int Port { get; private set; }
     public string IP { get; private set; }
-    public bool Debug { get; private set; }
+    public bool Debug { get; 
+        private set; }
     public string BlockchainPath { get; private set; }
     public string ServerPublicKey { get; private set; }
     public string ServerPrivateKey { get; private set; }
     public static Config Default => _defaultInstance.Value;
 
-    public enum ConfigKey
-    {
-        ChainId,
-        BlockchainPath,
-        MinerAddress,
-        Mnemonic,
-        WalletPrivateKey,
-        Port,
-        IP,
-        Debug,
-        ServerPublicKey,
-        ServerPrivateKey
-    }
+    public static string ChainName { get; set; } = "SmartXChain";
 
     /// <summary>
-    /// Deletes the configuration file.
+    ///     Deletes the configuration file.
     /// </summary>
     /// <returns>True if the file was successfully deleted; otherwise, false.</returns>
     public bool Delete()
@@ -103,7 +103,7 @@ public class Config
     }
 
     /// <summary>
-    /// Reloads the configuration file into memory.
+    ///     Reloads the configuration file into memory.
     /// </summary>
     public void ReloadConfig()
     {
@@ -129,7 +129,7 @@ public class Config
     }
 
     /// <summary>
-    /// Sets a new blockchain path and updates the configuration file.
+    ///     Sets a new blockchain path and updates the configuration file.
     /// </summary>
     /// <param name="newPath">The new blockchain path to set.</param>
     public void SetBlockchainPath(string newPath)
@@ -139,7 +139,7 @@ public class Config
     }
 
     /// <summary>
-    /// Sets a property in the configuration file.
+    ///     Sets a property in the configuration file.
     /// </summary>
     /// <param name="key">The key of the property as an enum.</param>
     /// <param name="value">The value to set.</param>
@@ -152,8 +152,8 @@ public class Config
         }
 
         var filePath = Path.Combine(AppDirectory(), ConfigFileName());
-        string keyName = key.ToString();
-        string section = GetSectionForKey(key);
+        var keyName = key.ToString();
+        var section = GetSectionForKey(key);
 
         if (!File.Exists(filePath))
         {
@@ -173,13 +173,9 @@ public class Config
                 l.TrimStart().StartsWith($"{keyName}=", StringComparison.OrdinalIgnoreCase));
 
             if (keyIndex >= 0)
-            {
                 lines[keyIndex] = $"{keyName}={value}";
-            }
             else
-            {
                 lines.Insert(sectionIndex + 1, $"{keyName}={value}");
-            }
         }
         else
         {
@@ -190,14 +186,15 @@ public class Config
 
         File.WriteAllLines(filePath, lines);
         Logger.LogMessage($"Property '{keyName}' in section '{section}' set to '{value}'.");
+        ReloadConfig();
     }
 
     /// <summary>
-    /// Retrieves a property value from the configuration file.
+    ///     Retrieves a property value from the configuration file.
     /// </summary>
     /// <param name="key">The key of the property as an enum.</param>
     /// <returns>The value of the property, or null if not found.</returns>
-    public string GetProperty(ConfigKey key)
+    public string? GetProperty(ConfigKey key)
     {
         var filePath = Path.Combine(AppDirectory(), ConfigFileName());
 
@@ -208,8 +205,8 @@ public class Config
         }
 
         var lines = File.ReadAllLines(filePath);
-        string keyName = key.ToString();
-        string section = GetSectionForKey(key);
+        var keyName = key.ToString();
+        var section = GetSectionForKey(key);
         var sectionHeader = $"[{section}]";
         var isInSection = false;
 
@@ -233,9 +230,7 @@ public class Config
             {
                 var parts = trimmedLine.Split('=', StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 2 && parts[0].Trim().Equals(keyName, StringComparison.OrdinalIgnoreCase))
-                {
                     return parts[1].Trim();
-                }
             }
         }
 
@@ -243,7 +238,7 @@ public class Config
     }
 
     /// <summary>
-    /// Determines the section for a given key.
+    ///     Determines the section for a given key.
     /// </summary>
     /// <param name="key">The key as an enum.</param>
     /// <returns>The section name as a string.</returns>
@@ -270,8 +265,6 @@ public class Config
         return ChainName == "SmartXChain" ? "config.txt" : "config.testnet.txt";
     }
 
-    public static string ChainName { get; set; } = "SmartXChain";
-
     public static string AppDirectory(string chainName = "")
     {
         if (string.IsNullOrWhiteSpace(chainName))
@@ -280,6 +273,7 @@ public class Config
         var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         return Path.Combine(appDataPath, chainName);
     }
+
     public void GenerateServerKeys()
     {
         using var rsa = RSA.Create(2048);
@@ -296,14 +290,12 @@ public class Config
         if (serverSectionIndex >= 0)
         {
             for (var i = serverSectionIndex + 1; i < lines.Count; i++)
-            {
                 if (string.IsNullOrWhiteSpace(lines[i]) || lines[i].StartsWith("["))
                 {
                     lines.Insert(i, $"ServerPublicKey={ServerPublicKey}");
                     lines.Insert(i + 1, $"ServerPrivateKey={ServerPrivateKey}");
                     break;
                 }
-            }
         }
         else
         {
@@ -352,7 +344,8 @@ public class Config
                             Port = port;
                         if (key.Equals("IP", StringComparison.OrdinalIgnoreCase))
                             IP = value;
-                        if (key.Equals("Debug", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var debug))
+                        if (key.Equals("Debug", StringComparison.OrdinalIgnoreCase) &&
+                            bool.TryParse(value, out var debug))
                             Debug = debug;
                         if (key.Equals("ChainId", StringComparison.OrdinalIgnoreCase))
                             ChainId = value;
@@ -370,20 +363,16 @@ public class Config
                             ServerPublicKey = value;
                         if (key.Equals("ServerPrivateKey", StringComparison.OrdinalIgnoreCase))
                             ServerPrivateKey = value;
-                        break; 
+                        break;
                 }
             }
             else if (currentSection == "[Peers]")
             {
                 var peerValue = trimmedLine;
                 if (Regex.IsMatch(peerValue, @"^https?://[\w\-.]+(:\d+)?$"))
-                {
                     Peers.Add(peerValue);
-                }
                 else
-                {
                     Console.WriteLine($"Invalid Peer URL: {peerValue}");
-                }
             }
         }
     }

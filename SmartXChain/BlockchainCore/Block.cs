@@ -1,3 +1,4 @@
+using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -17,7 +18,7 @@ public class Block
         Transactions = transactions;
         PreviousHash = previousHash;
         Hash = CalculateHash();
-        SmartContracts = new List<SmartContract>();
+        SmartContracts = new Dictionary<string, SmartContract?>();
     }
 
     [JsonInclude] public DateTime Timestamp { get; } = DateTime.MinValue;
@@ -25,7 +26,7 @@ public class Block
     [JsonInclude] public string PreviousHash { get; set; }
     [JsonInclude] public string Hash { get; private set; }
     [JsonInclude] public int Nonce { get; private set; }
-    [JsonInclude] public List<SmartContract> SmartContracts { get; private set; }
+    [JsonInclude] public Dictionary<string, SmartContract?> SmartContracts { get; internal set; }
     [JsonIgnore] public string Base64Encoded => Convert.ToBase64String(GetBytes());
 
     /// <summary>
@@ -45,11 +46,15 @@ public class Block
     public string CalculateHash()
     {
         using var sha256 = SHA256.Create();
-        var rawData = $"{string.Join(",", Transactions)}-{PreviousHash}-{Nonce}";
-        var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(rawData));
-        Hash = Convert.ToBase64String(bytes);
-        return Hash;
-    }
+
+        string transactionsHash = "";
+        foreach (var transaction in Transactions) 
+            transactionsHash += transaction.CalculateHash(); 
+
+        var rawData = $"{transactionsHash}-{PreviousHash}-{Nonce}"; 
+        var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(rawData)); 
+        return Convert.ToBase64String(bytes);
+    } 
 
     /// <summary>
     ///     Mines the block by adjusting the nonce until the hash meets the difficulty requirements.
@@ -57,11 +62,18 @@ public class Block
     /// <param name="difficulty">The number of leading zeros required in the hash.</param>
     public void Mine(int difficulty)
     {
-        var hashPrefix = new string('0', difficulty);
-        while (!Hash.StartsWith(hashPrefix))
+        if (difficulty == 0)
         {
-            Nonce++;
             Hash = CalculateHash();
+        }
+        else
+        {
+            var hashPrefix = new string('0', difficulty);
+            while (!Hash.StartsWith(hashPrefix))
+            {
+                Nonce++;
+                Hash = CalculateHash();
+            }
         }
 
         Logger.LogMessage($"Block mined: {Hash}");
@@ -135,38 +147,7 @@ public class Block
         var block = JsonSerializer.Deserialize<Block>(jsonString);
         return block;
     }
-
-    /// <summary>
-    ///     Verifies the integrity of a block using a Base64-encoded message.
-    /// </summary>
-    /// <param name="base64BlockMessage">The Base64 string containing the block message.</param>
-    /// <returns>True if the block is valid, otherwise false.</returns>
-    public bool Verify(string base64BlockMessage)
-    {
-        const string prefix = "Vote:";
-        if (!base64BlockMessage.StartsWith(prefix))
-        {
-            Logger.LogMessage("Invalid base64BlockMessage received.");
-            return false;
-        }
-
-        try
-        {
-            var base64 = base64BlockMessage.Substring(prefix.Length);
-            var block = FromBase64(base64);
-            if (block != null)
-            {
-                var hash = block.Hash;
-                if (block.CalculateHash() == hash) return true;
-            }
-        }
-        catch (Exception e)
-        {
-            Logger.LogMessage($"Invalid base64BlockMessage. {e.Message}");
-        }
-
-        return false;
-    }
+     
 
     /// <summary>
     ///     Returns a detailed string representation of the block.

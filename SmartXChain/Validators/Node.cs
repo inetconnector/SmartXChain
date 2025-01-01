@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Collections.Concurrent;
+using System.Net;
 using System.Net.Sockets;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Server;
@@ -11,10 +12,7 @@ namespace SmartXChain.Validators;
 /// </summary>
 public class Node
 {
-    /// <summary>
-    ///     A list of IP addresses for nodes currently known to the system.
-    /// </summary>
-    public static List<string> CurrentNodeIPs = new();
+
 
     internal static List<string> DiscoveredServers = new();
 
@@ -28,6 +26,11 @@ public class Node
         NodeAddress = nodeAddress;
         ChainId = chainId;
     }
+
+    /// <summary>
+    ///     A list of IP addresses for nodes currently known to the system.
+    /// </summary> 
+    public static ConcurrentBag<string> CurrentNodeIPs { get; set; } = new ();
 
     /// <summary>
     ///     Gets the blockchain chain identifier associated with this node.
@@ -60,11 +63,14 @@ public class Node
         var chainId = Config.Default.ChainId;
 
         var node = new Node(nodeAddress, chainId);
-        Logger.LogMessage("Starting automatic server discovery...");
+        Logger.LogMessage("Starting server discovery...");
 
         // Discover servers from the configuration
         var peers = Config.Default.Peers;
-        DiscoveredServers = node.DiscoverServers(peers);
+        lock (DiscoveredServers)
+        {
+            DiscoveredServers = node.DiscoverServers(peers);
+        }
 
         // Retry server discovery if no active servers are found
         if (DiscoveredServers.Count == 0)
@@ -82,9 +88,7 @@ public class Node
             .Where(ip => !ip.Contains(NetworkUtils.IP) && !ip.Contains(NetworkUtils.GetLocalIP())).ToList();
 
         // Register with a discovery server
-        Logger.LogMessage("Registering with a discovery server...");
-        await node.RegisterWithDiscoveryAsync(DiscoveredServers);
-        Logger.LogMessage("Node successfully registered.");
+        await node.RegisterWithDiscoveryAsync(DiscoveredServers); 
 
         // Send periodic heartbeats to the servers
         Task.Run(async () =>
@@ -116,29 +120,37 @@ public class Node
                                     var response = await SocketManager.GetInstance(server)
                                         .SendMessageAsync("GetChain#" + node.NodeAddress);
 
-                                    var remoteChain = Blockchain.FromBase64(response);
-
-                                    if (BlockchainServer.Startup.Blockchain != null)
+                                    if (response.ToLower().Contains("error"))
                                     {
-                                        lock (BlockchainServer.Startup.Blockchain)
+                                        Logger.LogMessage($"No chaindata from {server}: {response}");
+                                    }
+                                    else
+                                    {
+                                        var remoteChain = Blockchain.FromBase64(response);
+
+                                        if (BlockchainServer.Startup.Blockchain != null)
                                         {
-                                            if (remoteChain != null &&
-                                                remoteChain.Chain.Count >=
-                                                BlockchainServer.Startup.Blockchain.Chain.Count &&
-                                                remoteChain.IsValid())
+                                            lock (BlockchainServer.Startup.Blockchain)
                                             {
-                                                BlockchainServer.Startup.Blockchain = remoteChain;
-                                                node.StartupResult = BlockchainServer.Startup;
-                                                SaveBlockChain(remoteChain, node);
+                                                if (remoteChain != null &&
+                                                    remoteChain.Chain.Count >=
+                                                    BlockchainServer.Startup.Blockchain.Chain.Count &&
+                                                    remoteChain.IsValid())
+                                                {
+                                                    BlockchainServer.Startup.Blockchain = remoteChain;
+                                                    node.StartupResult = BlockchainServer.Startup;
+                                                    SaveBlockChain(remoteChain, node);
+                                                }
                                             }
+
+                                            Logger.LogMessage(
+                                                $"GetChain request to {server} success: Blockchain blocks: {BlockchainServer.Startup.Blockchain.Chain.Count}");
                                         }
 
-                                        Logger.LogMessage(
-                                            $"GetChain request to {server} success: Blockchain blocks: {BlockchainServer.Startup.Blockchain.Chain.Count}");
-                                    }
-                                    if (Config.Default.Debug)
-                                        Logger.LogMessage($"Response from server {server}: {response}");
-                                } 
+                                        if (Config.Default.Debug)
+                                            Logger.LogMessage($"Response from server {server}: {response}");
+                                    } 
+                                }
                             }
                             catch (Exception ex)
                             {
@@ -162,16 +174,15 @@ public class Node
             {
                 try
                 {
-                    foreach (var server in DiscoveredServers)
-                    {
-                        var nodeIPList = await node.GetRegisteredNodesAsync(server);
-                        foreach (var nodeIP in nodeIPList)
-                            if (!string.IsNullOrEmpty(nodeIP) && !CurrentNodeIPs.Contains(nodeIP))
-                                lock (CurrentNodeIPs)
-                                {
+                    if (DiscoveredServers != null)
+                        foreach (var server in DiscoveredServers)
+                        {
+                            var nodeIPList = await node.GetRegisteredNodesAsync(server);
+
+                            foreach (var nodeIP in nodeIPList)
+                                if (!string.IsNullOrEmpty(nodeIP) && !CurrentNodeIPs.Contains(nodeIP))
                                     CurrentNodeIPs.Add(nodeIP);
-                                }
-                    }
+                        }
                 }
                 catch (Exception ex)
                 {
@@ -289,7 +300,8 @@ public class Node
     /// </summary>
     /// <param name="discoveryServers">List of discovery server addresses.</param>
     public async Task RegisterWithDiscoveryAsync(List<string> discoveryServers)
-    {
+    { 
+        Logger.LogMessage($"Registering with {discoveryServers.Count} discovery servers...");
         foreach (var serverAddress in discoveryServers) await RegisterWithServerAsync(serverAddress);
     }
 
@@ -305,12 +317,18 @@ public class Node
             var response = await SocketManager.GetInstance(serverAddress)
                 .SendMessageAsync($"Register:{NodeAddress}|{signature}");
 
+            if (response.Contains("ok") && !CurrentNodeIPs.Contains(serverAddress))
+            {
+                CurrentNodeIPs.Add(serverAddress);
+                Logger.LogMessage($"{serverAddress} added to node servers");
+            }
+               
             if (Config.Default.Debug)
                 Logger.LogMessage($"Response from server {serverAddress}: {response}");
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"Error registering with server {serverAddress}: {ex.Message}");
+            Logger.LogMessage($"ERROR: registering with server {serverAddress} failed: {ex.Message}");
         }
     }
 
@@ -332,9 +350,10 @@ public class Node
 
             if (response == "ERROR: Timeout" || string.IsNullOrEmpty(response))
             {
-                Logger.LogMessage($"Error: Timeout from server {serverAddress}");
+                Logger.LogMessage($"ERROR: Timeout from server {serverAddress}");
                 return ret;
             }
+
             if (string.IsNullOrEmpty(response))
             {
                 Logger.LogMessage($"No new nodes received from {serverAddress}");
@@ -350,7 +369,7 @@ public class Node
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"Error retrieving registered nodes from {serverAddress}: {ex.Message}");
+            Logger.LogMessage($"ERROR: retrieving registered nodes from {serverAddress} failed: {ex.Message}");
         }
 
         return ret;
@@ -375,7 +394,7 @@ public class Node
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"Error sending heartbeat to {serverAddress}: {ex.Message}");
+            Logger.LogMessage($"ERROR: sending heartbeat to {serverAddress} failed: {ex.Message}");
         }
     }
 
@@ -399,7 +418,7 @@ public class Node
 
                 if (parts.Length != 2)
                 {
-                    Logger.LogMessage("Invalid server address format: " + server);
+                    Logger.LogMessage("ERROR: Invalid server address format: " + server);
                     continue;
                 }
 
@@ -421,13 +440,13 @@ public class Node
                 }
                 catch (Exception dnsEx)
                 {
-                    Logger.LogMessage($"DNS resolution failed for {host}: {dnsEx.Message}");
+                    Logger.LogMessage($"ERROR: DNS resolution failed for {host}: {dnsEx.Message}");
                 }
             }
         }
         catch (Exception ex)
         {
-            Logger.LogMessage("Error during server discovery: " + ex.Message);
+            Logger.LogMessage("ERROR: server discovery failed: " + ex.Message);
         }
 
         return staticServers;

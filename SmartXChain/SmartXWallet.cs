@@ -82,7 +82,7 @@ public class SmartXWallet
         Config.Default.SetProperty(Config.ConfigKey.MinerAddress, WalletAddresses[0]);
         Config.Default.SetProperty(Config.ConfigKey.Mnemonic, mnemonic.ToString());
         Config.Default.SetProperty(Config.ConfigKey.WalletPrivateKey, privateKey.ToString(Network.Main));
-         
+
         Logger.LogMessage("New miner address generated and saved.");
 
         return (WalletAddresses, privateKey, mnemonic.ToString());
@@ -140,7 +140,7 @@ public class SmartXWallet
     private static void SaveToFile(string fileName, string content)
     {
         try
-        { 
+        {
             var path = Path.Combine(Config.AppDirectory(), fileName);
 
             // Write the content to the file securely
@@ -162,7 +162,7 @@ public class SmartXWallet
     public static List<string> LoadWalletAdresses(string fileName = "walletadresses.txt")
     {
         try
-        { 
+        {
             var path = Path.Combine(Config.AppDirectory(), fileName);
 
             if (!File.Exists(path))

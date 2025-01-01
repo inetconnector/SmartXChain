@@ -10,11 +10,11 @@ public static class Logger
     /// </summary>
     /// <param name="message">The message to log. Defaults to an empty string.</param>
     public static void LogMessage(string message = "", bool trim = true)
-    { 
+    {
         // Format the message with a timestamp
         var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
         var formattedMessage = timestamp + " - " + Config.ChainName + " - " + message;
-        
+
         // Print the message to the console, truncating if it exceeds 100 characters
         if (formattedMessage.Length > 110 && trim)
             Console.WriteLine(formattedMessage.Substring(0, 110) + "...");

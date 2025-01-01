@@ -9,6 +9,8 @@ namespace SmartXChain.Contracts;
 /// </summary>
 public class SmartContract
 {
+    private string _name;
+
     /// <summary>
     ///     Initializes a new instance of the SmartContract class.
     /// </summary>
@@ -18,7 +20,7 @@ public class SmartContract
     public SmartContract(string owner, string serializedContractCode, string name = "")
     {
         if (string.IsNullOrEmpty(name) && string.IsNullOrEmpty(Name))
-            Name = ShortGuid.NewGuid();
+            Name = Functions.NewGuid();
         if (name != "")
             Name = name;
 
@@ -34,7 +36,11 @@ public class SmartContract
     /// <summary>
     ///     Gets or sets the name of the contract.
     /// </summary>
-    public string Name { get; set; }
+    public string Name
+    {
+        get => _name;
+        set => _name = Functions.AllowOnlyAlphanumeric(value);
+    }
 
     /// <summary>
     ///     Gets the owner of the contract.
@@ -78,7 +84,7 @@ public class SmartContract
         }
         catch (Exception ex)
         {
-            result = ($"Execution of {Name} failed: {ex.Message}", currentState);
+            result = ($"ERROR: Execution of {Name} failed: {ex.Message}", currentState);
         }
 
         return result;
@@ -98,7 +104,12 @@ public class SmartContract
     {
         var contract =
             new SmartContract(ownerAddress, Serializer.SerializeToBase64(contractCode), contractName);
-        var added = await blockchain.AddSmartContract(contract);
+        var added = blockchain != null && await blockchain.AddSmartContract(blockchain, contract);
         return (contract, added);
+    }
+
+    public override string ToString()
+    { 
+        return $"Name: {Name} Owner {Owner}";
     }
 }

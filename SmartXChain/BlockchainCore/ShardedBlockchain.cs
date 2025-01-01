@@ -18,13 +18,13 @@ public class ShardedBlockchain : Blockchain
     /// </summary>
     /// <param name="difficulty">The difficulty level for mining blocks.</param>
     /// <param name="minerAddress">The address of the miner.</param>
-    public ShardedBlockchain(int difficulty, string minerAddress)
-        : base(difficulty, minerAddress)
+    public ShardedBlockchain(string minerAddress, int difficulty = 0)
+        : base(minerAddress, difficulty)
     {
         // Initialize shards with separate blockchains
         _shards = new List<Blockchain>[ShardCount];
         for (var i = 0; i < ShardCount; i++)
-            _shards[i] = new List<Blockchain> { new(difficulty, minerAddress) };
+            _shards[i] = new List<Blockchain> { new(minerAddress, difficulty) };
     }
 
     /// <summary>
@@ -32,7 +32,7 @@ public class ShardedBlockchain : Blockchain
     /// </summary>
     /// <param name="transaction">The transaction to be added.</param>
     /// <returns>True if the transaction was successfully added; otherwise, false.</returns>
-    public bool AddTransaction(Transaction transaction)
+    public Task<bool> AddTransaction(Transaction transaction)
     {
         var shardIndex = GetShardIndex(transaction);
         return _shards[shardIndex][0].AddTransaction(transaction);
@@ -125,14 +125,12 @@ public class ShardedBlockchain : Blockchain
     /// </summary>
     /// <param name="filePath">The path to the compressed file.</param>
     /// <returns>The deserialized <see cref="Block" /> object.</returns>
-    private Block LoadArchivedBlock(string filePath)
+    private Block? LoadArchivedBlock(string filePath)
     {
-        using (var fileStream = new FileStream(filePath, FileMode.Open))
-        using (var decompressionStream = new GZipStream(fileStream, CompressionMode.Decompress))
-        using (var reader = new StreamReader(decompressionStream))
-        {
-            var blockData = reader.ReadToEnd();
-            return JsonSerializer.Deserialize<Block>(blockData);
-        }
+        using var fileStream = new FileStream(filePath, FileMode.Open);
+        using var decompressionStream = new GZipStream(fileStream, CompressionMode.Decompress);
+        using var reader = new StreamReader(decompressionStream);
+        var blockData = reader.ReadToEnd();
+        return JsonSerializer.Deserialize<Block>(blockData);
     }
 }
