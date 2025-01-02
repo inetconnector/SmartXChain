@@ -24,6 +24,7 @@ public class RewardTransaction : Transaction
     {
         Sender = sender;
         Recipient = recipient;
+        TransactionType = validator ? TransactionTypes.ValidatorReward : TransactionTypes.MinerReward;
 
         // Rewards are only distributed if the balance count is below 50,000
         // and the sender is the system address.
@@ -75,7 +76,8 @@ public class RewardTransaction : Transaction
             Sender = sender,
             Recipient = recipient,
             Amount = amount,
-            Timestamp = DateTime.UtcNow
+            Timestamp = DateTime.UtcNow,
+            TransactionType = TransactionTypes.MinerReward
         };
         if (chain != null) chain.AddTransaction(transferTransaction);
 

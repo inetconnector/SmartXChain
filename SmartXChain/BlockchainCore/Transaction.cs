@@ -9,6 +9,18 @@ namespace SmartXChain.BlockchainCore;
 
 public class Transaction
 {
+    public enum TransactionTypes
+    {
+        NotDefined,
+        NativeTransfer,
+        MinerReward,
+        ContractCode,
+        ContractState,
+        Gas,
+        ValidatorReward,
+        Data
+    }
+
     private string _data;
     private string _info;
     private string _sender;
@@ -21,6 +33,7 @@ public class Transaction
         Symbol = "SXC";
         Decimals = 18;
         TotalSupply = initialSupply;
+        TransactionType = TransactionTypes.NotDefined;
 
         // Assign initial supply to the owner's balance
         if (!Balances.ContainsKey(owner)) Balances.Add(owner, initialSupply);
@@ -40,6 +53,12 @@ public class Transaction
     /// </summary>
     [JsonInclude]
     internal static Dictionary<string, string> AuthenticatedUsers { get; } = new();
+
+    /// <summary>
+    ///     Stores TransactionType.
+    /// </summary>
+    [JsonInclude]
+    internal TransactionTypes TransactionType { get; set; }
 
     /// <summary>
     ///     Holds the balance of each account.
@@ -169,7 +188,7 @@ public class Transaction
             Data = Data,
             Info = Info,
             Sender = Sender
-        }; 
+        };
         calculator.CalculateGas();
         Gas = calculator.Gas;
     }
@@ -291,6 +310,7 @@ public class Transaction
             return false;
         }
 
+        TransactionType = TransactionTypes.NativeTransfer;
         UpdateBalancesFromChain(chain);
 
         if (!Balances.ContainsKey(sender) || Balances[sender] < amount)
@@ -308,6 +328,9 @@ public class Transaction
             Info = info,
             Data = data
         };
+
+        if (TransactionType == TransactionTypes.NotDefined)
+            TransactionType = TransactionTypes.NativeTransfer;
 
         if (chain != null)
         {
@@ -390,7 +413,7 @@ public class Transaction
     /// </summary>
     public override string ToString()
     {
-        return $"{Name} {Sender} -> {Recipient}: {Timestamp} {Amount}, Gas: {Gas}";
+        return $"{Name} {TransactionType} {Sender} -> {Recipient}: {Timestamp} {Amount}, Gas: {Gas}";
     }
 
     /// <summary>

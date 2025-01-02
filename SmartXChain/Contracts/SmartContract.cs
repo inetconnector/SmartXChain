@@ -45,7 +45,7 @@ public class SmartContract
     /// <summary>
     ///     Gets the owner of the contract.
     /// </summary>
-    public string Owner { get; private set; }
+    public string Owner { get; }
 
     /// <summary>
     ///     Gets the gas consumed by the last execution of the contract.
@@ -109,7 +109,7 @@ public class SmartContract
     }
 
     public override string ToString()
-    { 
+    {
         return $"Name: {Name} Owner {Owner}";
     }
 }

@@ -28,6 +28,7 @@
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.12.0" />
 		<PackageReference Include="NBitcoin" Version="7.0.46" />
 		<PackageReference Include="Nethereum.Web3" Version="4.26.0" />
+		<PackageReference Include="System.Data.SQLite.Core" Version="1.0.119" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -38,7 +38,7 @@ public partial class BlockchainServer
         var node = await Node.Start();
 
         // Create a new blockchain with the provided wallet address
-        var blockchain = new Blockchain(walletAddress);
+        var blockchain = new Blockchain(walletAddress, node.ChainId);
 
         // Publish the server's IP address in a transaction on the blockchain
         var nodeTransaction = new Transaction
@@ -46,7 +46,9 @@ public partial class BlockchainServer
             Sender = Blockchain.SystemAddress,
             Recipient = Blockchain.SystemAddress,
             Data = Convert.ToBase64String(Encoding.ASCII.GetBytes(NetworkUtils.IP)), // Store data as Base64 string
-            Timestamp = DateTime.UtcNow
+            Info = "IP",
+            Timestamp = DateTime.UtcNow,
+            TransactionType = Transaction.TransactionTypes.Data
         };
 
         await blockchain.AddTransaction(nodeTransaction);

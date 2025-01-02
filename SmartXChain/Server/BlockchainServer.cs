@@ -109,8 +109,8 @@ public partial class BlockchainServer
                 if (server.StartsWith("http://") && !_registeredNodes.ContainsKey(server))
                 {
                     _registeredNodes.TryAdd(server, DateTime.UtcNow);
-                    
-                    if (!Node.CurrentNodeIPs.Contains(server)) 
+
+                    if (!Node.CurrentNodeIPs.Contains(server))
                         Node.CurrentNodeIPs.Add(server);
 
                     serverAdded = true;
@@ -127,6 +127,7 @@ public partial class BlockchainServer
             var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
             Logger.LogMessage($"Vote: {message}");
             var result = HandleVote(message);
+            Logger.LogMessage($"Vote Result: {result}");
             await context.Response.WriteAsync(result);
         });
 
@@ -135,6 +136,7 @@ public partial class BlockchainServer
             var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
             Logger.LogMessage($"VerifyCode: {message}");
             var result = HandleVerifyCode(message);
+            Logger.LogMessage($"VerifyCode Result: {result}");
             await context.Response.WriteAsync(result);
         });
 
@@ -270,7 +272,7 @@ public partial class BlockchainServer
                 Logger.LogMessage($"ERROR: {e.Message}\n{e.StackTrace}");
             }
 
-            if (newBlock != null && Startup.Blockchain.AddBlock(newBlock, true, false))
+            if (newBlock != null && Startup.Blockchain != null && Startup.Blockchain.AddBlock(newBlock, true, false))
                 await context.Response.WriteAsync("ok");
             else
                 await context.Response.WriteAsync("");
@@ -356,7 +358,7 @@ public partial class BlockchainServer
                     {
                         _peerServers.Add(peer);
                         validPeers.Add(peer);
-                    } 
+                    }
                 }
 
             Logger.LogMessage($"Static peers discovered: {string.Join(", ", validPeers)}");
@@ -538,6 +540,11 @@ public partial class BlockchainServer
         foreach (var node in inactiveNodes)
         {
             _registeredNodes.TryRemove(node, out _);
+
+            // Remove from CurrentNodeIPs
+            var updatedNodeIPs = new ConcurrentBag<string>(Node.CurrentNodeIPs.Where(ip => ip != node));
+            Node.CurrentNodeIPs = updatedNodeIPs;
+
             Logger.LogMessage($"Node removed: {node} (Inactive)");
         }
     }
@@ -582,10 +589,8 @@ public partial class BlockchainServer
                         var responseBody = await response.Content.ReadAsStringAsync();
 
                         foreach (var node in responseBody.Split(','))
-                        {
                             if (node.Contains("http"))
                                 _registeredNodes.TryAdd(node, DateTime.UtcNow);
-                        } 
                     }
                     else
                     {

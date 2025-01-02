@@ -61,5 +61,5 @@ public class Crypt
         stream.Position = 0;
         var hash = sha256.ComputeHash(stream);
         return Convert.ToBase64String(hash);
-    } 
+    }
 }

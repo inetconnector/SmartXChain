@@ -69,8 +69,9 @@ public class Config
     public List<string> Peers { get; }
     public int Port { get; private set; }
     public string IP { get; private set; }
-    public bool Debug { get; 
-        private set; }
+
+    public bool Debug { get; private set; }
+
     public string BlockchainPath { get; private set; }
     public string ServerPublicKey { get; private set; }
     public string ServerPrivateKey { get; private set; }

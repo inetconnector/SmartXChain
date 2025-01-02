@@ -12,8 +12,6 @@ namespace SmartXChain.Validators;
 /// </summary>
 public class Node
 {
-
-
     internal static List<string> DiscoveredServers = new();
 
     /// <summary>
@@ -29,8 +27,8 @@ public class Node
 
     /// <summary>
     ///     A list of IP addresses for nodes currently known to the system.
-    /// </summary> 
-    public static ConcurrentBag<string> CurrentNodeIPs { get; set; } = new ();
+    /// </summary>
+    public static ConcurrentBag<string> CurrentNodeIPs { get; set; } = new();
 
     /// <summary>
     ///     Gets the blockchain chain identifier associated with this node.
@@ -88,7 +86,7 @@ public class Node
             .Where(ip => !ip.Contains(NetworkUtils.IP) && !ip.Contains(NetworkUtils.GetLocalIP())).ToList();
 
         // Register with a discovery server
-        await node.RegisterWithDiscoveryAsync(DiscoveredServers); 
+        await node.RegisterWithDiscoveryAsync(DiscoveredServers);
 
         // Send periodic heartbeats to the servers
         Task.Run(async () =>
@@ -149,7 +147,7 @@ public class Node
 
                                         if (Config.Default.Debug)
                                             Logger.LogMessage($"Response from server {server}: {response}");
-                                    } 
+                                    }
                                 }
                             }
                             catch (Exception ex)
@@ -281,7 +279,7 @@ public class Node
     ///     Returns <c>true</c> if the blockchain was successfully saved and verified;
     ///     otherwise, <c>false</c>.
     /// </returns>
-    public static bool SaveBlockChain(Blockchain blockchain, Node node)
+    public static bool SaveBlockChain(Blockchain? blockchain, Node node)
     {
         var chainPath = Path.Combine(Config.Default.BlockchainPath, "chain-" + node.ChainId);
         if (blockchain.Save(chainPath) && File.Exists(chainPath))
@@ -300,7 +298,7 @@ public class Node
     /// </summary>
     /// <param name="discoveryServers">List of discovery server addresses.</param>
     public async Task RegisterWithDiscoveryAsync(List<string> discoveryServers)
-    { 
+    {
         Logger.LogMessage($"Registering with {discoveryServers.Count} discovery servers...");
         foreach (var serverAddress in discoveryServers) await RegisterWithServerAsync(serverAddress);
     }
@@ -322,7 +320,7 @@ public class Node
                 CurrentNodeIPs.Add(serverAddress);
                 Logger.LogMessage($"{serverAddress} added to node servers");
             }
-               
+
             if (Config.Default.Debug)
                 Logger.LogMessage($"Response from server {serverAddress}: {response}");
         }

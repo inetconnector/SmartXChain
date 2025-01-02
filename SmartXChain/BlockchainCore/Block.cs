@@ -1,4 +1,3 @@
-using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -47,14 +46,14 @@ public class Block
     {
         using var sha256 = SHA256.Create();
 
-        string transactionsHash = "";
-        foreach (var transaction in Transactions) 
-            transactionsHash += transaction.CalculateHash(); 
+        var transactionsHash = "";
+        foreach (var transaction in Transactions)
+            transactionsHash += transaction.CalculateHash();
 
-        var rawData = $"{transactionsHash}-{PreviousHash}-{Nonce}"; 
-        var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(rawData)); 
+        var rawData = $"{transactionsHash}-{PreviousHash}-{Nonce}";
+        var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(rawData));
         return Convert.ToBase64String(bytes);
-    } 
+    }
 
     /// <summary>
     ///     Mines the block by adjusting the nonce until the hash meets the difficulty requirements.
@@ -147,7 +146,7 @@ public class Block
         var block = JsonSerializer.Deserialize<Block>(jsonString);
         return block;
     }
-     
+
 
     /// <summary>
     ///     Returns a detailed string representation of the block.

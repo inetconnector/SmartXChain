@@ -16,15 +16,16 @@ public class ShardedBlockchain : Blockchain
     /// <summary>
     ///     Initializes a new instance of the <see cref="ShardedBlockchain" /> class.
     /// </summary>
+    /// <param name="chainId">The chainId of the blockchain.</param>
     /// <param name="difficulty">The difficulty level for mining blocks.</param>
     /// <param name="minerAddress">The address of the miner.</param>
-    public ShardedBlockchain(string minerAddress, int difficulty = 0)
-        : base(minerAddress, difficulty)
+    public ShardedBlockchain(string minerAddress, string chainId, int difficulty = 0)
+        : base(minerAddress, chainId, difficulty)
     {
         // Initialize shards with separate blockchains
         _shards = new List<Blockchain>[ShardCount];
         for (var i = 0; i < ShardCount; i++)
-            _shards[i] = new List<Blockchain> { new(minerAddress, difficulty) };
+            _shards[i] = new List<Blockchain> { new(minerAddress, chainId, difficulty) };
     }
 
     /// <summary>
@@ -44,7 +45,7 @@ public class ShardedBlockchain : Blockchain
     /// <param name="shardIndex">The index of the shard to retrieve blocks from.</param>
     /// <returns>A list of blocks from the specified shard.</returns>
     /// <exception cref="ArgumentException">Thrown if the shard index is invalid.</exception>
-    public List<Block> GetBlocksFromShard(int shardIndex)
+    public List<Block>? GetBlocksFromShard(int shardIndex)
     {
         if (shardIndex < 0 || shardIndex >= ShardCount)
             throw new ArgumentException("Invalid shard index");

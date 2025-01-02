@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.RegularExpressions;
 using SmartXChain;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Contracts;
@@ -108,7 +109,7 @@ internal class Program
                             (!Config.Default.Debug).ToString());
                         break;
                     case 'n':
-                        DisplayNodes(startup); 
+                        DisplayNodes(startup);
                         break;
                     case '0':
                         return;
@@ -127,24 +128,13 @@ internal class Program
         if (startup != null && startup.Node != null)
         {
             if (Node.CurrentNodeIPs.Count == 0)
-            {
                 Logger.LogMessage("ERROR: no nodes found!");
-            }
             else
-            {
                 foreach (var ip in Node.CurrentNodeIPs)
-                {
                     if (ip == startup.Node.NodeAddress)
-                    {
                         Logger.LogMessage("*" + ip);
-                    }
                     else
-                    {
                         Logger.LogMessage(ip);
-                    }
-                }
-
-            }
         }
     }
 
@@ -172,7 +162,7 @@ internal class Program
     private static async Task RunCoinClassTesterAsync()
     {
         Logger.LogMessage("1: Coin class tester");
-  
+
         // Test ERC20 coin functionalities
         var walletAddresses = SmartXWallet.LoadWalletAdresses();
 
@@ -214,8 +204,8 @@ internal class Program
     }
 
     private static async Task RunSmartContractDemoAsync(BlockchainServer.NodeStartupResult? node)
-    { 
-        Logger.LogMessage("2: SmartContract Demo"); 
+    {
+        Logger.LogMessage("2: SmartContract Demo");
 
         // Demonstrate ERC20 and GoldCoin smart contracts
         var walletAddresses = SmartXWallet.LoadWalletAdresses();
@@ -261,12 +251,13 @@ internal class Program
     }
 
     private static void DisplayBlockchainState(BlockchainServer.NodeStartupResult? node)
-    { 
-        Logger.LogMessage("3: Blockchain state"); 
+    {
+        Logger.LogMessage("3: Blockchain state");
 
         // Show current state of the blockchain
-        foreach (var block in node.Blockchain.Chain)
-            Logger.LogMessage($"Block {node.Blockchain.Chain.IndexOf(block)}: {block.Hash}");
+        if (node != null)
+            foreach (var block in node.Blockchain.Chain)
+                Logger.LogMessage($"Block {node.Blockchain.Chain.IndexOf(block)}: {block.Hash}");
     }
 
     private static void DisplayWalletBalances(BlockchainServer.NodeStartupResult? node)
@@ -274,7 +265,7 @@ internal class Program
         Logger.LogMessage("4: Wallet Balances");
 
         // Display balances of all wallets 
-        if (node != null)
+        if (node != null && node.Blockchain != null)
             foreach (var (address, balance) in node.Blockchain.GetAllBalancesFromChain())
                 Logger.LogMessage($"{address}: {balance}");
     }
@@ -282,13 +273,13 @@ internal class Program
     private static void DisplayChainInfo(BlockchainServer.NodeStartupResult? node)
     {
         Logger.LogMessage("5: Chain Info");
-        if (node != null && node.Blockchain != null) 
+        if (node != null && node.Blockchain != null)
             node.Blockchain.PrintAllBlocksAndTransactions();
     }
 
     private static void DeleteWallet(BlockchainServer.NodeStartupResult? node)
-    { 
-        Logger.LogMessage("8: Delete wallet and local chain"); 
+    {
+        Logger.LogMessage("8: Delete wallet and local chain");
 
         // deletes wallet
         SmartXWallet.DeleteWallet();
@@ -315,8 +306,8 @@ internal class Program
     }
 
     private static void DisplayContracts(BlockchainServer.NodeStartupResult? node)
-    { 
-        Logger.LogMessage("6: Show Contracts"); 
+    {
+        Logger.LogMessage("6: Show Contracts");
 
         // List all deployed contracts and save to File
         var contractsDirectory = Path.Combine(Config.AppDirectory(), "Contracts");
@@ -324,16 +315,17 @@ internal class Program
 
         if (node != null && node.Blockchain != null)
         {
-            Logger.LogMessage("Contracts:"); 
+            Logger.LogMessage("Contracts:");
             foreach (var contract in node.Blockchain.SmartContracts.Values)
-            {
-                Logger.LogMessage($"Name: {contract.Name}, Owner: {contract.Owner}, Gas: {contract.Gas}");
-                var contractSrc = Serializer.DeserializeFromBase64<string>(contract.SerializedContractCode);
-                var path = Path.Combine(contractsDirectory, contract.Name);
+                if (contract != null)
+                {
+                    Logger.LogMessage($"Name: {contract.Name}, Owner: {contract.Owner}, Gas: {contract.Gas}");
+                    var contractSrc = Serializer.DeserializeFromBase64<string>(contract.SerializedContractCode);
+                    var path = Path.Combine(contractsDirectory, contract.Name);
 
-                File.WriteAllText(path + ".cs", contractSrc, Encoding.UTF8);
-                Logger.LogMessage($"Contract: {contract.Name} saved to {path}");
-            }
+                    File.WriteAllText(path + ".cs", contractSrc, Encoding.UTF8);
+                    Logger.LogMessage($"Contract: {contract.Name} saved to {path}");
+                }
 
             if (Directory.Exists(contractsDirectory) && node.Blockchain.SmartContracts.Values.Any())
                 Process.Start("explorer.exe", contractsDirectory);
@@ -345,8 +337,8 @@ internal class Program
     }
 
     private static async Task UploadContract(BlockchainServer.NodeStartupResult? node)
-    { 
-        Logger.LogMessage("7: Upload Contract"); 
+    {
+        Logger.LogMessage("7: Upload Contract");
         // Upload contract from file to blochchain
 
         var contractsDirectory = Path.Combine(Config.AppDirectory(), "Contracts");
@@ -355,38 +347,49 @@ internal class Program
         Logger.LogMessage("Enter filename");
         var fileName = Console.ReadLine();
 
-        var fi = new FileInfo(fileName);
-        if (fi.Exists && fi.Extension.ToLower() != ".cs")
+        if (!string.IsNullOrEmpty(fileName))
         {
-            Logger.LogMessage("ERROR: invalid file specified");
-        }
-        else
-        {
-            if (node != null && node.Blockchain != null)
+            var fi = new FileInfo(fileName);
+            if (!fi.Exists || fi.Extension.ToLower() != ".cs")
             {
-                Logger.LogMessage("Enter contract name");
-                var contractName = Console.ReadLine();
-
-                var walletAddresses = SmartXWallet.LoadWalletAdresses();
-                if (walletAddresses.Count == 0)
-                {
-                    Logger.LogMessage("ERROR: SmartXWallet adresses are empty. SmartContractDemo cancelled.");
-                    return;
-                }
-
-                var ownerAddress = walletAddresses[0];
-                var contractCode = File.ReadAllText(fileName);
-                var (contract, created) =
-                    await SmartContract.Create(contractName, node.Blockchain, ownerAddress, contractCode);
-                if (!created)
-                    Logger.LogMessage($"Contract {contract} could not be created");
-                else
-                    Logger.LogMessage($"Contract {contract} created");
+                Logger.LogMessage("ERROR: invalid file specified");
             }
             else
             {
-                Logger.LogMessage("ERROR: Chain not available");
+                if (node != null && node.Blockchain != null)
+                {
+                    var contractCode = File.ReadAllText(fileName);
+
+                    var pattern = @"\bclass\s+(\w+)";
+                    var match = Regex.Match(contractCode, pattern);
+                    var contractName = "";
+                    if (match.Success && match.Groups.Count > 1)
+                        contractName = match.Groups[1].Value;
+
+                    var walletAddresses = SmartXWallet.LoadWalletAdresses();
+                    if (walletAddresses.Count == 0)
+                    {
+                        Logger.LogMessage("ERROR: SmartXWallet adresses are empty. SmartContractDemo cancelled.");
+                        return;
+                    }
+
+                    var ownerAddress = walletAddresses[0];
+                    var (contract, created) =
+                        await SmartContract.Create(contractName, node.Blockchain, ownerAddress, contractCode);
+                    if (!created)
+                        Logger.LogMessage($"Contract {contract} could not be created");
+                    else
+                        Logger.LogMessage($"Contract {contract} created");
+                }
+                else
+                {
+                    Logger.LogMessage("ERROR: Chain not available");
+                }
             }
+        }
+        else
+        {
+            Logger.LogMessage("ERROR: No contract filename specified");
         }
     }
 
@@ -487,7 +490,7 @@ internal class Program
 
         try
         {
-            executionResult = await blockchain.ExecuteSmartContract(contract.Name, inputs);
+            if (blockchain != null) executionResult = await blockchain.ExecuteSmartContract(contract.Name, inputs);
 
             if (debug)
             {
