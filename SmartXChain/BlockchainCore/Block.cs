@@ -75,7 +75,7 @@ public class Block
             }
         }
 
-        Logger.LogMessage($"Block mined: {Hash}");
+        Logger.Log($"Block mined: {Hash}");
     }
 
     /// <summary>
@@ -131,7 +131,7 @@ public class Block
     public void Save(string filePath)
     {
         File.WriteAllBytes(filePath, GetBytes());
-        Logger.LogMessage("Block saved (compressed) to file.");
+        Logger.Log("Block saved (compressed) to file.");
     }
 
     /// <summary>

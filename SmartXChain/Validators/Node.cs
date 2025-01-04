@@ -61,7 +61,7 @@ public class Node
         var chainId = Config.Default.ChainId;
 
         var node = new Node(nodeAddress, chainId);
-        Logger.LogMessage("Starting server discovery...");
+        Logger.Log("Starting server discovery...");
 
         // Discover servers from the configuration
         var peers = Config.Default.Peers;
@@ -73,7 +73,7 @@ public class Node
         // Retry server discovery if no active servers are found
         if (DiscoveredServers.Count == 0)
         {
-            Logger.LogMessage("No active servers found. Waiting for a server...");
+            Logger.Log("No active servers found. Waiting for a server...");
             while (DiscoveredServers.Count == 0)
             {
                 await Task.Delay(5000);
@@ -120,7 +120,7 @@ public class Node
 
                                     if (response.ToLower().Contains("error"))
                                     {
-                                        Logger.LogMessage($"No chaindata from {server}: {response}");
+                                        Logger.Log($"No chaindata from {server}: {response}");
                                     }
                                     else
                                     {
@@ -141,24 +141,24 @@ public class Node
                                                 }
                                             }
 
-                                            Logger.LogMessage(
+                                            Logger.Log(
                                                 $"GetChain request to {server} success: Blockchain blocks: {BlockchainServer.Startup.Blockchain.Chain.Count}");
                                         }
 
                                         if (Config.Default.Debug)
-                                            Logger.LogMessage($"Response from server {server}: {response}");
+                                            Logger.Log($"Response from server {server}: {response}");
                                     }
                                 }
                             }
                             catch (Exception ex)
                             {
-                                Logger.LogMessage($"Error sending GetChain request to {server}: {ex.Message}");
+                                Logger.Log($"Error sending GetChain request to {server}: {ex.Message}");
                             }
                         }
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogMessage($"Error sending heartbeat: {ex.Message}");
+                    Logger.Log($"Error sending heartbeat: {ex.Message}");
                 }
 
                 Thread.Sleep(20000);
@@ -184,7 +184,7 @@ public class Node
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogMessage($"Error retrieving nodes: {ex.Message}");
+                    Logger.Log($"Error retrieving nodes: {ex.Message}");
                 }
 
                 Thread.Sleep(30000);
@@ -215,7 +215,7 @@ public class Node
                     continue;
 
                 if (Config.Default.Debug)
-                    Logger.LogMessage($"Checking blockchain with node {remoteNode}...");
+                    Logger.Log($"Checking blockchain with node {remoteNode}...");
 
                 // Retrieve blockchain size from remote node
                 var blockchainSizeResponse =
@@ -224,14 +224,14 @@ public class Node
 
                 if (!int.TryParse(blockchainSizeResponse, out var remoteBlockCount))
                 {
-                    Logger.LogMessage($"Invalid blockchain size response from node {remoteNode}.");
+                    Logger.Log($"Invalid blockchain size response from node {remoteNode}.");
                     continue;
                 }
 
                 if (currentBlockCount >= remoteBlockCount)
                 {
                     if (Config.Default.Debug)
-                        Logger.LogMessage($"Local blockchain is up-to-date compared to node {remoteNode}.");
+                        Logger.Log($"Local blockchain is up-to-date compared to node {remoteNode}.");
                     continue;
                 }
 
@@ -241,11 +241,11 @@ public class Node
 
                 if (!isRemoteBlockchainValid)
                 {
-                    Logger.LogMessage($"Remote blockchain from node {remoteNode} is invalid.");
+                    Logger.Log($"Remote blockchain from node {remoteNode} is invalid.");
                     continue;
                 }
 
-                Logger.LogMessage($"Synchronizing with node {remoteNode}...");
+                Logger.Log($"Synchronizing with node {remoteNode}...");
                 // Fetch and add missing blocks
                 for (var i = currentBlockCount; i < remoteBlockCount; i++)
                 {
@@ -255,7 +255,7 @@ public class Node
                     if (block != null)
                     {
                         blockchain.AddBlock(block, true, false, i);
-                        Logger.LogMessage($"Block {i} added.");
+                        Logger.Log($"Block {i} added.");
                     }
                 }
 
@@ -264,7 +264,7 @@ public class Node
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"Error during blockchain synchronization: {ex.Message}");
+            Logger.Log($"Error during blockchain synchronization: {ex.Message}");
         }
 
         return blockchain;
@@ -285,11 +285,11 @@ public class Node
         if (blockchain.Save(chainPath) && File.Exists(chainPath))
         {
             blockchain = Blockchain.Load(chainPath);
-            Logger.LogMessage($"Blockchain saved to {chainPath}");
+            Logger.Log($"Blockchain saved to {chainPath}");
             return true;
         }
 
-        Logger.LogMessage($"Blockchain could not be saved to {chainPath}");
+        Logger.Log($"Blockchain could not be saved to {chainPath}");
         return false;
     }
 
@@ -299,7 +299,7 @@ public class Node
     /// <param name="discoveryServers">List of discovery server addresses.</param>
     public async Task RegisterWithDiscoveryAsync(List<string> discoveryServers)
     {
-        Logger.LogMessage($"Registering with {discoveryServers.Count} discovery servers...");
+        Logger.Log($"Registering with {discoveryServers.Count} discovery servers...");
         foreach (var serverAddress in discoveryServers) await RegisterWithServerAsync(serverAddress);
     }
 
@@ -318,15 +318,15 @@ public class Node
             if (response.Contains("ok") && !CurrentNodeIPs.Contains(serverAddress))
             {
                 CurrentNodeIPs.Add(serverAddress);
-                Logger.LogMessage($"{serverAddress} added to node servers");
+                Logger.Log($"{serverAddress} added to node servers");
             }
 
             if (Config.Default.Debug)
-                Logger.LogMessage($"Response from server {serverAddress}: {response}");
+                Logger.Log($"Response from server {serverAddress}: {response}");
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"ERROR: registering with server {serverAddress} failed: {ex.Message}");
+            Logger.Log($"ERROR: registering with server {serverAddress} failed: {ex.Message}");
         }
     }
 
@@ -348,13 +348,13 @@ public class Node
 
             if (response == "ERROR: Timeout" || string.IsNullOrEmpty(response))
             {
-                Logger.LogMessage($"ERROR: Timeout from server {serverAddress}");
+                Logger.Log($"ERROR: Timeout from server {serverAddress}");
                 return ret;
             }
 
             if (string.IsNullOrEmpty(response))
             {
-                Logger.LogMessage($"No new nodes received from {serverAddress}");
+                Logger.Log($"No new nodes received from {serverAddress}");
                 return ret;
             }
 
@@ -363,11 +363,11 @@ public class Node
                     ret.Add(nodeAddress);
 
             if (Config.Default.Debug)
-                Logger.LogMessage($"Active nodes from server {serverAddress}: {response}");
+                Logger.Log($"Active nodes from server {serverAddress}: {response}");
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"ERROR: retrieving registered nodes from {serverAddress} failed: {ex.Message}");
+            Logger.Log($"ERROR: retrieving registered nodes from {serverAddress} failed: {ex.Message}");
         }
 
         return ret;
@@ -386,13 +386,13 @@ public class Node
             var response = await SocketManager.GetInstance(serverAddress).SendMessageAsync($"Heartbeat:{NodeAddress}");
             if (Config.Default.Debug)
             {
-                Logger.LogMessage($"Heartbeat sent to {serverAddress}");
-                Logger.LogMessage($"Response from server {serverAddress}: {response}");
+                Logger.Log($"Heartbeat sent to {serverAddress}");
+                Logger.Log($"Response from server {serverAddress}: {response}");
             }
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"ERROR: sending heartbeat to {serverAddress} failed: {ex.Message}");
+            Logger.Log($"ERROR: sending heartbeat to {serverAddress} failed: {ex.Message}");
         }
     }
 
@@ -416,7 +416,7 @@ public class Node
 
                 if (parts.Length != 2)
                 {
-                    Logger.LogMessage("ERROR: Invalid server address format: " + server);
+                    Logger.Log("ERROR: Invalid server address format: " + server);
                     continue;
                 }
 
@@ -432,19 +432,19 @@ public class Node
 
                     if (ipAddresses.Any())
                     {
-                        Logger.LogMessage("DNS discovery successful: " + string.Join(", ", ipAddresses));
+                        Logger.Log("DNS discovery successful: " + string.Join(", ", ipAddresses));
                         return ipAddresses;
                     }
                 }
                 catch (Exception dnsEx)
                 {
-                    Logger.LogMessage($"ERROR: DNS resolution failed for {host}: {dnsEx.Message}");
+                    Logger.Log($"ERROR: DNS resolution failed for {host}: {dnsEx.Message}");
                 }
             }
         }
         catch (Exception ex)
         {
-            Logger.LogMessage("ERROR: server discovery failed: " + ex.Message);
+            Logger.Log("ERROR: server discovery failed: " + ex.Message);
         }
 
         return staticServers;

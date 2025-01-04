@@ -41,7 +41,7 @@ public partial class BlockchainServer
         _serverAddressExtern = $"http://{externIP}:{Config.Default.Port}";
         _serverAddressIntern = $"http://{internIP}:{Config.Default.Port}";
 
-        Logger.LogMessage($"Starting server at {_serverAddressIntern}/{_serverAddressExtern}...");
+        Logger.Log($"Starting server at {_serverAddressIntern}/{_serverAddressExtern}...");
     }
 
     /// <summary>
@@ -85,7 +85,7 @@ public partial class BlockchainServer
         endpoints.MapPost("/api/Register", async context =>
         {
             var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-            Logger.LogMessage($"Register: {message}");
+            Logger.Log($"Register: {message}");
             var result = HandleRegistration(message);
             await context.Response.WriteAsync(result);
         });
@@ -97,13 +97,13 @@ public partial class BlockchainServer
             await context.Response.WriteAsync(result);
 
             if (Config.Default.Debug && result.Length > 0)
-                Logger.LogMessage($"GetNodes: {result}");
+                Logger.Log($"GetNodes: {result}");
         });
 
         endpoints.MapPost("/api/PushServers", async context =>
         {
             var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-            Logger.LogMessage($"PushServers: {message}");
+            Logger.Log($"PushServers: {message}");
             var serverAdded = false;
             foreach (var server in message.Split(','))
                 if (server.StartsWith("http://") && !_registeredNodes.ContainsKey(server))
@@ -125,18 +125,18 @@ public partial class BlockchainServer
         endpoints.MapPost("/api/Vote", async context =>
         {
             var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-            Logger.LogMessage($"Vote: {message}");
+            Logger.Log($"Vote: {message}");
             var result = HandleVote(message);
-            Logger.LogMessage($"Vote Result: {result}");
+            Logger.Log($"Vote Result: {result}");
             await context.Response.WriteAsync(result);
         });
 
         endpoints.MapPost("/api/VerifyCode", async context =>
         {
             var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-            Logger.LogMessage($"VerifyCode: {message}");
+            Logger.Log($"VerifyCode: {message}");
             var result = HandleVerifyCode(message);
-            Logger.LogMessage($"VerifyCode Result: {result}");
+            Logger.Log($"VerifyCode Result: {result}");
             await context.Response.WriteAsync(result);
         });
 
@@ -144,7 +144,7 @@ public partial class BlockchainServer
         {
             var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
             if (Config.Default.Debug)
-                Logger.LogMessage($"Heartbeat: {message}");
+                Logger.Log($"Heartbeat: {message}");
             HandleHeartbeat(message);
             await context.Response.WriteAsync("ok");
         });
@@ -155,7 +155,7 @@ public partial class BlockchainServer
             {
                 _blockCount = Startup.Blockchain.Chain.Count;
                 if (Config.Default.Debug)
-                    Logger.LogMessage($"GetBlockCount: {Startup.Blockchain.Chain.Count}");
+                    Logger.Log($"GetBlockCount: {Startup.Blockchain.Chain.Count}");
             }
 
             var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
@@ -184,7 +184,7 @@ public partial class BlockchainServer
             var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
             var isvalid = Startup.Blockchain.IsValid();
             if (Config.Default.Debug)
-                Logger.LogMessage($"ValidateChain: {isvalid}");
+                Logger.Log($"ValidateChain: {isvalid}");
             if (isvalid)
                 await context.Response.WriteAsync("ok");
             else
@@ -195,7 +195,7 @@ public partial class BlockchainServer
         {
             var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
             if (Config.Default.Debug)
-                Logger.LogMessage($"GetChain: {message}");
+                Logger.Log($"GetChain: {message}");
             await context.Response.WriteAsync(Startup.Blockchain.ToBase64());
         });
 
@@ -217,7 +217,7 @@ public partial class BlockchainServer
             }
 
             if (Config.Default.Debug)
-                Logger.LogMessage(
+                Logger.Log(
                     $"Sent block {blockIndex} {Startup.Blockchain.Chain[blockIndex].Hash} parent:{Startup.Blockchain.Chain[blockIndex].PreviousHash}");
             var block = Startup.Blockchain.Chain[blockIndex].ToBase64();
 
@@ -230,7 +230,7 @@ public partial class BlockchainServer
             try
             {
                 var serializedChain = await new StreamReader(context.Request.Body).ReadToEndAsync();
-                Logger.LogMessage($"PushChain: {serializedChain}");
+                Logger.Log($"PushChain: {serializedChain}");
                 var incomingChain = Blockchain.FromBase64(serializedChain);
                 if (Startup.Blockchain != null && Startup.Blockchain.SmartContracts.Count == 0)
                 {
@@ -251,7 +251,7 @@ public partial class BlockchainServer
             }
             catch (Exception e)
             {
-                Logger.LogMessage($"ERROR: {e.Message}\n{e.StackTrace}");
+                Logger.Log($"ERROR: {e.Message}\n{e.StackTrace}");
             }
 
             await context.Response.WriteAsync("");
@@ -261,7 +261,7 @@ public partial class BlockchainServer
         {
             var serializedBlock = await new StreamReader(context.Request.Body).ReadToEndAsync();
             if (Config.Default.Debug)
-                Logger.LogMessage($"NewBlock: {serializedBlock}");
+                Logger.Log($"NewBlock: {serializedBlock}");
             Block newBlock = null;
             try
             {
@@ -269,7 +269,7 @@ public partial class BlockchainServer
             }
             catch (Exception e)
             {
-                Logger.LogMessage($"ERROR: {e.Message}\n{e.StackTrace}");
+                Logger.Log($"ERROR: {e.Message}\n{e.StackTrace}");
             }
 
             if (newBlock != null && Startup.Blockchain != null && Startup.Blockchain.AddBlock(newBlock, true, false))
@@ -302,12 +302,12 @@ public partial class BlockchainServer
                 server = new BlockchainServer(NetworkUtils.IP, NetworkUtils.GetLocalIP());
                 server.Start();
 
-                Logger.LogMessage(
+                Logger.Log(
                     $"Server node for blockchain '{Config.Default.ChainId}' started at {NetworkUtils.IP}");
             }
             catch (Exception ex)
             {
-                Logger.LogMessage($"Error starting server: {ex.Message}");
+                Logger.Log($"Error starting server: {ex.Message}");
             }
         });
         Startup = result;
@@ -325,14 +325,14 @@ public partial class BlockchainServer
                 }
                 else
                 {
-                    Logger.LogMessage($"No existing chain found in {chainPath}");
-                    Logger.LogMessage("Waiting for synchronization...");
+                    Logger.Log($"No existing chain found in {chainPath}");
+                    Logger.Log("Waiting for synchronization...");
                 }
             }
             catch (Exception ex)
             {
-                Logger.LogMessage($"Error loading existing chain from {chainPath}");
-                Logger.LogMessage($"ERROR: {ex.Message}");
+                Logger.Log($"Error loading existing chain from {chainPath}");
+                Logger.Log($"ERROR: {ex.Message}");
             }
         }
 
@@ -361,11 +361,11 @@ public partial class BlockchainServer
                     }
                 }
 
-            Logger.LogMessage($"Static peers discovered: {string.Join(", ", validPeers)}");
+            Logger.Log($"Static peers discovered: {string.Join(", ", validPeers)}");
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"Error processing static peers: {ex.Message}");
+            Logger.Log($"Error processing static peers: {ex.Message}");
         }
     }
 
@@ -401,14 +401,14 @@ public partial class BlockchainServer
         // Security check using signature validation
         if (!ValidateSignature(nodeAddress, signature))
         {
-            Logger.LogMessage($"ValidateSignature failed. Node not registered: {nodeAddress} Signature: {signature}");
+            Logger.Log($"ValidateSignature failed. Node not registered: {nodeAddress} Signature: {signature}");
             return "";
         }
 
 
         // Register the node
         _registeredNodes[nodeAddress] = DateTime.UtcNow;
-        Logger.LogMessage($"Node registered: {nodeAddress}");
+        Logger.Log($"Node registered: {nodeAddress}");
 
         return "ok";
     }
@@ -440,7 +440,7 @@ public partial class BlockchainServer
         const string prefix = "Vote:";
         if (!message.StartsWith(prefix))
         {
-            Logger.LogMessage("Invalid Vote message received.");
+            Logger.Log("Invalid Vote message received.");
             return "";
         }
 
@@ -457,7 +457,7 @@ public partial class BlockchainServer
         }
         catch (Exception e)
         {
-            Logger.LogMessage($"Invalid Vote message received. {e.Message}");
+            Logger.Log($"Invalid Vote message received. {e.Message}");
         }
 
         return "";
@@ -473,7 +473,7 @@ public partial class BlockchainServer
         const string prefix = "VerifyCode:";
         if (!message.StartsWith(prefix))
         {
-            Logger.LogMessage("Invalid verification request received.");
+            Logger.Log("Invalid verification request received.");
             return "";
         }
 
@@ -495,7 +495,7 @@ public partial class BlockchainServer
         const string prefix = "Heartbeat:";
         if (!message.StartsWith(prefix))
         {
-            Logger.LogMessage("Invalid Heartbeat message received.");
+            Logger.Log("Invalid Heartbeat message received.");
             return;
         }
 
@@ -503,7 +503,7 @@ public partial class BlockchainServer
 
         if (!Uri.IsWellFormedUriString(nodeAddress, UriKind.Absolute))
         {
-            Logger.LogMessage("Invalid node address in heartbeat received.");
+            Logger.Log("Invalid node address in heartbeat received.");
             return;
         }
 
@@ -516,7 +516,7 @@ public partial class BlockchainServer
             }
 
         if (Config.Default.Debug)
-            Logger.LogMessage($"Heartbeat {nodeAddress} - {now} (HandleHeartbeat)");
+            Logger.Log($"Heartbeat {nodeAddress} - {now} (HandleHeartbeat)");
 
         GC.Collect();
         GC.WaitForPendingFinalizers();
@@ -545,7 +545,7 @@ public partial class BlockchainServer
             var updatedNodeIPs = new ConcurrentBag<string>(Node.CurrentNodeIPs.Where(ip => ip != node));
             Node.CurrentNodeIPs = updatedNodeIPs;
 
-            Logger.LogMessage($"Node removed: {node} (Inactive)");
+            Logger.Log($"Node removed: {node} (Inactive)");
         }
     }
 
@@ -595,13 +595,13 @@ public partial class BlockchainServer
                     else
                     {
                         // Log any error with the response from the peer
-                        Logger.LogMessage($"Error synchronizing with peer {peer}: {response.StatusCode}");
+                        Logger.Log($"Error synchronizing with peer {peer}: {response.StatusCode}");
                     }
                 }
                 catch (Exception ex)
                 {
                     // Log exceptions that occur during the synchronization process
-                    Logger.LogMessage($"Error synchronizing with peer {peer}: {ex.Message}");
+                    Logger.Log($"Error synchronizing with peer {peer}: {ex.Message}");
                 }
 
             // Wait for 20 seconds before the next synchronization cycle
@@ -635,7 +635,7 @@ public partial class BlockchainServer
 
                     // Log the broadcast request details
                     if (Config.Default.Debug)
-                        Logger.LogMessage($"BroadcastToPeers async: {url}\n{content}");
+                        Logger.Log($"BroadcastToPeers async: {url}\n{content}");
                     var response = await httpClient.PostAsync(url, content);
 
                     // If the response is successful, log the response content
@@ -643,19 +643,19 @@ public partial class BlockchainServer
                     {
                         var responseString = response.Content.ReadAsStringAsync().Result;
                         if (Config.Default.Debug)
-                            Logger.LogMessage($"BroadcastToPeers response: {responseString}");
+                            Logger.Log($"BroadcastToPeers response: {responseString}");
                     }
                     else
                     {
                         // Log an error message if the response status indicates failure
                         var error = $"ERROR: BroadcastToPeers {response.StatusCode} - {response.ReasonPhrase}";
-                        Logger.LogMessage(error);
+                        Logger.Log(error);
                     }
                 }
                 catch (Exception ex)
                 {
                     // Log exceptions that occur during the broadcasting process
-                    Logger.LogMessage($"Error sending to peer {peer}: {ex.Message}");
+                    Logger.Log($"Error sending to peer {peer}: {ex.Message}");
                 }
             });
         }

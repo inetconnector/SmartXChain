@@ -9,7 +9,7 @@ public static class Logger
     ///     Logs a message to the console with a timestamp, excluding specific messages based on predefined filters.
     /// </summary>
     /// <param name="message">The message to log. Defaults to an empty string.</param>
-    public static void LogMessage(string message = "", bool trim = true)
+    public static void Log(string message = "", bool trim = true)
     {
         // Format the message with a timestamp
         var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");

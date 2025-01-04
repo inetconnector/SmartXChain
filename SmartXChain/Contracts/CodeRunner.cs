@@ -14,7 +14,7 @@ public class CodeRunner
     /// <summary>
     ///     Contains additional imports needed for serializer functionality.
     /// </summary>
-    private const string serializerClassImports =
+    private const string InjectImports =
         @"
 using System.IO.Compression;
 using System.Text;
@@ -28,7 +28,7 @@ using System.IO;
     public static ScriptOptions ScriptOptions = ScriptOptions.Default
         .AddReferences(AppDomain.CurrentDomain.GetAssemblies().Where(a => !a.IsDynamic))
         .AddImports("System", "System.Linq", "System.Collections.Generic", "System.Text");
-
+     
     /// <summary>
     ///     Executes a C# script asynchronously with the provided inputs and state.
     /// </summary>
@@ -40,7 +40,7 @@ using System.IO;
     public async Task<(string, string)> RunScriptAsync(string code, string[] inputs, string currentState,
         CancellationToken ct)
     {
-        var message = "";
+        var message = ""; 
         if (!CodeSecurityAnalyzer.IsCodeSafe(code, ref message))
             return ($"The code contains forbidden constructs and was not executed. Details: {message}", currentState);
 
@@ -54,7 +54,7 @@ using System.IO;
         code = InjectInputsAfterImports(code, inputs);
 
         // Add Serializer class to the provided code
-        code = InjectSerializerClass(code);
+        code = InjectCode(code);
 
         var globals = new Globals
         {
@@ -104,52 +104,23 @@ using System.IO;
             var position = lastUsing.FullSpan.End;
             var codeInserted = code.Insert(position, $"\n\n{inputDeclarations}\n");
 
-            return serializerClassImports + codeInserted;
+            return InjectImports + codeInserted;
         }
 
         // If no using directives, inject at the start of the code
-        return $"\n\n{serializerClassImports}\n\n{inputDeclarations}\n\n{code}";
+        return $"\n\n{InjectImports}\n\n{inputDeclarations}\n\n{code}";
     }
 
     /// <summary>
-    ///     Adds a static serializer class to the provided code.
+    ///     Adds a static code to inject a class to the provided code.
     /// </summary>
     /// <param name="code">The original code to modify.</param>
-    /// <returns>Modified code with the serializer class appended.</returns>
-    private string InjectSerializerClass(string code)
+    /// <returns>Modified code with the injected class appended.</returns>
+    private string InjectCode(string code)
     {
-        const string serializerClass = @"
-public static class Serializer
-{
-    public static string SerializeToBase64<T>(T instance)
-    {
-        var json = JsonSerializer.Serialize(instance, new JsonSerializerOptions { WriteIndented = true });
+        const string injectCode = @"";
 
-        using (var memoryStream = new MemoryStream())
-        using (var gzipStream = new GZipStream(memoryStream, CompressionMode.Compress))
-        {
-            var jsonBytes = Encoding.UTF8.GetBytes(json);
-            gzipStream.Write(jsonBytes, 0, jsonBytes.Length);
-            gzipStream.Close();
-            return Convert.ToBase64String(memoryStream.ToArray());
-        }
-    }
-
-    public static T DeserializeFromBase64<T>(string base64Data) where T : class
-    {
-        var compressedData = Convert.FromBase64String(base64Data);
-
-        using (var memoryStream = new MemoryStream(compressedData))
-        using (var gzipStream = new GZipStream(memoryStream, CompressionMode.Decompress))
-        using (var reader = new StreamReader(gzipStream, Encoding.UTF8))
-        {
-            var json = reader.ReadToEnd();
-            return JsonSerializer.Deserialize<T>(json);
-        }
-    }
-}";
-
-        return $"{code}\n\n{serializerClass}";
+        return $"{code}\n\n{injectCode}";
     }
 
     /// <summary>

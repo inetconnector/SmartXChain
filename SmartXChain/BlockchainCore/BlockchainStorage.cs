@@ -99,7 +99,7 @@ public static class BlockchainStorage
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"ERROR: Block could not be saved to SQLite: {ex.Message}");
+            Logger.Log($"ERROR: Block could not be saved to SQLite: {ex.Message}");
             return false;
         }
     }
@@ -112,7 +112,7 @@ public static class BlockchainStorage
         {
             if (!File.Exists(databasePath))
             {
-                Logger.LogMessage($"ERROR: Database not found at {databasePath}");
+                Logger.Log($"ERROR: Database not found at {databasePath}");
                 return null;
             }
 
@@ -138,7 +138,7 @@ public static class BlockchainStorage
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"ERROR: Block could not be retrieved from SQLite: {ex.Message}");
+            Logger.Log($"ERROR: Block could not be retrieved from SQLite: {ex.Message}");
             return null;
         }
     }

@@ -39,7 +39,7 @@ public class Config
         {
             // Copy the startup config to AppData
             File.Copy(startupConfigPath, appDataConfigPath);
-            Logger.LogMessage("Initial configuration file copied from startup directory to AppData.");
+            Logger.Log("Initial configuration file copied from startup directory to AppData.");
         }
 
         var configFilePath = Path.Combine(appDirectory, ConfigFileName());
@@ -91,13 +91,13 @@ public class Config
             if (File.Exists(configFilePath))
             {
                 File.Delete(configFilePath);
-                Logger.LogMessage("Config file deleted");
+                Logger.Log("Config file deleted");
                 return true;
             }
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"Error deleting file {ex.Message}");
+            Logger.Log($"Error deleting file {ex.Message}");
         }
 
         return false;
@@ -111,7 +111,7 @@ public class Config
         var configFilePath = Path.Combine(AppDirectory(), ConfigFileName());
         if (!File.Exists(configFilePath))
         {
-            Logger.LogMessage("Config file not found during reload.");
+            Logger.Log("Config file not found during reload.");
             return;
         }
 
@@ -126,7 +126,7 @@ public class Config
         BlockchainPath = "";
 
         LoadConfig(configFilePath);
-        Logger.LogMessage("Configuration reloaded successfully.");
+        Logger.Log("Configuration reloaded successfully.");
     }
 
     /// <summary>
@@ -148,7 +148,7 @@ public class Config
     {
         if (value == null)
         {
-            Logger.LogMessage("Invalid value for SetProperty.");
+            Logger.Log("Invalid value for SetProperty.");
             return;
         }
 
@@ -158,9 +158,9 @@ public class Config
 
         if (!File.Exists(filePath))
         {
-            Logger.LogMessage($"Config file not found: {filePath}");
+            Logger.Log($"Config file not found: {filePath}");
             File.WriteAllText(filePath, $"[{section}]\n{keyName}={value}\n");
-            Logger.LogMessage($"New config file created: {filePath}");
+            Logger.Log($"New config file created: {filePath}");
             return;
         }
 
@@ -186,7 +186,7 @@ public class Config
         }
 
         File.WriteAllLines(filePath, lines);
-        Logger.LogMessage($"Property '{keyName}' in section '{section}' set to '{value}'.");
+        Logger.Log($"Property '{keyName}' in section '{section}' set to '{value}'.");
         ReloadConfig();
     }
 
@@ -201,7 +201,7 @@ public class Config
 
         if (!File.Exists(filePath))
         {
-            Logger.LogMessage($"Config file not found: {filePath}");
+            Logger.Log($"Config file not found: {filePath}");
             return null;
         }
 
@@ -307,7 +307,7 @@ public class Config
         }
 
         File.WriteAllLines(filePath, lines);
-        Logger.LogMessage("Server keys generated and saved to config.");
+        Logger.Log("Server keys generated and saved to config.");
     }
 
     private void LoadConfig(string filePath)

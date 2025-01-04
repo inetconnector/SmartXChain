@@ -34,7 +34,7 @@ public class SmartXWallet
 
             // 1. Generate a 12-word Mnemonic phrase (BIP-39)
             mnemonic = new Mnemonic(Wordlist.English, WordCount.Twelve);
-            Logger.LogMessage($"\n\nYour Mnemonic Phrase (Keep it secure!):\n{mnemonic}\n");
+            Logger.Log($"\n\nYour Mnemonic Phrase (Keep it secure!):\n{mnemonic}\n");
 
             // 2. Derive the seed from the Mnemonic (BIP-39)
             var seed = mnemonic.DeriveSeed();
@@ -54,25 +54,25 @@ public class SmartXWallet
 
             // 5. Convert the private key to an Ethereum-compatible address
             var account = new Account(privateKey.ToHex());
-            Logger.LogMessage("\nYour SmartXChain Address:\n" + smartX + account.Address.Substring(2));
+            Logger.Log("\nYour SmartXChain Address:\n" + smartX + account.Address.Substring(2));
             WalletAddresses.Add(smartX + account.Address.Substring(2));
 
             // 6. Generate additional addresses in the same wallet
-            Logger.LogMessage("\nAdditional Addresses in Wallet:");
+            Logger.Log("\nAdditional Addresses in Wallet:");
             for (var i = 1; i <= 9; i++)
             {
                 var derivedKey = masterKey.Derive(new KeyPath($"m/44'/60'/0'/0/{i}"));
                 var derivedAccount = new Account(derivedKey.PrivateKey.ToHex());
                 var additionalAddress = smartX + derivedAccount.Address.Substring(2);
                 WalletAddresses.Add(additionalAddress);
-                Logger.LogMessage($"Address {i}: {additionalAddress}");
+                Logger.Log($"Address {i}: {additionalAddress}");
             }
 
-            Logger.LogMessage();
+            Logger.Log();
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"An error occurred: {ex.Message}");
+            Logger.Log($"An error occurred: {ex.Message}");
         }
 
         // Save all generated wallet addresses to a file
@@ -83,7 +83,7 @@ public class SmartXWallet
         Config.Default.SetProperty(Config.ConfigKey.Mnemonic, mnemonic.ToString());
         Config.Default.SetProperty(Config.ConfigKey.WalletPrivateKey, privateKey.ToString(Network.Main));
 
-        Logger.LogMessage("New miner address generated and saved.");
+        Logger.Log("New miner address generated and saved.");
 
         return (WalletAddresses, privateKey, mnemonic.ToString());
     }
@@ -92,12 +92,12 @@ public class SmartXWallet
     {
         try
         {
-            Logger.LogMessage("Are you sure you want to delete the wallet? This action cannot be undone. (yes/no):");
+            Logger.Log("Are you sure you want to delete the wallet? This action cannot be undone. (yes/no):");
             var confirmation = Console.ReadLine();
 
             if (confirmation == null || !confirmation.Equals("yes", StringComparison.OrdinalIgnoreCase))
             {
-                Logger.LogMessage("Wallet deletion canceled.");
+                Logger.Log("Wallet deletion canceled.");
                 return false;
             }
 
@@ -120,12 +120,12 @@ public class SmartXWallet
 
             Config.Default.Delete();
 
-            Logger.LogMessage("Wallet successfully deleted.");
+            Logger.Log("Wallet successfully deleted.");
             return true;
         }
         catch (Exception e)
         {
-            Logger.LogMessage($"Error deleting wallet: {e.Message}");
+            Logger.Log($"Error deleting wallet: {e.Message}");
         }
 
         return false;
@@ -146,11 +146,11 @@ public class SmartXWallet
             // Write the content to the file securely
             File.WriteAllText(path, content);
 
-            Logger.LogMessage($"[INFO] Securely saved: {path}");
+            Logger.Log($"[INFO] Securely saved: {path}");
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"[ERROR] Failed to save {fileName}: {ex.Message}");
+            Logger.Log($"[ERROR] Failed to save {fileName}: {ex.Message}");
         }
     }
 
@@ -167,13 +167,13 @@ public class SmartXWallet
 
             if (!File.Exists(path))
             {
-                Logger.LogMessage($"File {fileName} not found at {path}");
+                Logger.Log($"File {fileName} not found at {path}");
             }
             else
             {
                 var content = File.ReadAllText(path);
 
-                Logger.LogMessage($"[INFO] Securely loaded: {fileName}");
+                Logger.Log($"[INFO] Securely loaded: {fileName}");
                 var walletAddresses = content.Split(new[] { Environment.NewLine }, StringSplitOptions.None).ToList();
                 WalletAddresses = walletAddresses;
                 return walletAddresses;
@@ -181,7 +181,7 @@ public class SmartXWallet
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"[ERROR] Failed to load {fileName}: {ex.Message}");
+            Logger.Log($"[ERROR] Failed to load {fileName}: {ex.Message}");
         }
 
         return new List<string>();

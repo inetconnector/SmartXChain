@@ -59,28 +59,5 @@ namespace SmartXChain.Properties {
                 resourceCulture = value;
             }
         }
-        
-        /// <summary>
-        ///   Sucht eine lokalisierte Zeichenfolge, die using System.Text.Json.Serialization;
-        ///
-        ///public class ERC20Token
-        ///{
-        ///    public ERC20Token()
-        ///    {
-        ///        Balances = new Dictionary&lt;string, ulong&gt;();
-        ///        Allowances = new Dictionary&lt;string, Dictionary&lt;string, ulong&gt;&gt;();
-        ///        AuthenticatedUsers = new Dictionary&lt;string, string&gt;(); // Speichert Adressen und ihre &quot;private Keys&quot;
-        ///    }
-        ///
-        ///    public ERC20Token(string name, string symbol, uint decimals, ulong initialSupply, string owner, string ownerKey)
-        ///    {
-        ///        Name = name;
-        ///        Symbol =  [Rest der Zeichenfolge wurde abgeschnitten]&quot;; ähnelt.
-        /// </summary>
-        internal static string ERC20 {
-            get {
-                return ResourceManager.GetString("ERC20", resourceCulture);
-            }
-        }
     }
 }

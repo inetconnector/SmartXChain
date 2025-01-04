@@ -67,14 +67,14 @@ public class ShardedBlockchain : Blockchain
         {
             if (previousBlock != null && block.PreviousHash != previousBlock.Hash)
             {
-                Logger.LogMessage(
+                Logger.Log(
                     $"Validation failed: Block {block.Hash} does not match previous block {previousBlock.Hash}.");
                 return false;
             }
 
             if (block.Hash != block.CalculateHash())
             {
-                Logger.LogMessage($"Validation failed: Block {block.Hash} hash is invalid.");
+                Logger.Log($"Validation failed: Block {block.Hash} hash is invalid.");
                 return false;
             }
 
@@ -91,14 +91,14 @@ public class ShardedBlockchain : Blockchain
 
                 if (previousBlock != null && archivedBlock.PreviousHash != previousBlock.Hash)
                 {
-                    Logger.LogMessage(
+                    Logger.Log(
                         $"Validation failed: Archived block {archivedBlock.Hash} does not match previous block {previousBlock.Hash}.");
                     return false;
                 }
 
                 if (archivedBlock.Hash != archivedBlock.CalculateHash())
                 {
-                    Logger.LogMessage($"Validation failed: Archived block {archivedBlock.Hash} hash is invalid.");
+                    Logger.Log($"Validation failed: Archived block {archivedBlock.Hash} hash is invalid.");
                     return false;
                 }
 
@@ -106,7 +106,7 @@ public class ShardedBlockchain : Blockchain
             }
         }
 
-        Logger.LogMessage("Blockchain validated successfully.");
+        Logger.Log("Blockchain validated successfully.");
         return true;
     }
 

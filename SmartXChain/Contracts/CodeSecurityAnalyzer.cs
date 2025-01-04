@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Utils;
+using System.Text.RegularExpressions;
 
 namespace SmartXChain.Contracts;
 
@@ -18,6 +19,7 @@ public class CodeSecurityAnalyzer
         "System.Linq",
         "System.Threading",
         "System.Threading.Tasks",
+        "System.Threading.Tasks",
         "System.Diagnostics",
         "System.Net.Http",
         "System.Xml",
@@ -33,7 +35,7 @@ public class CodeSecurityAnalyzer
         "CryptoStream", "DES", "TripleDES", "RSA", "Aes", "Stream", "FileStream",
         "System.Windows", "Console", "Debugger", "ServiceController", "Win32Exception",
         "Reflection", "Delegate", "MethodInfo", "PropertyInfo", "EventInfo",
-        "Kernel32", "DllImportAttribute"
+        "Kernel32", "DllImportAttribute, GZipStream, MemoryStream"
     };
 
     private static readonly string[] ForbiddenMethods =
@@ -52,8 +54,8 @@ public class CodeSecurityAnalyzer
 
     private static readonly string[] ForbiddenKeywords =
     {
-        "unsafe", "dynamic", "DllImport", "extern", "lock",
-        "goto", "volatile", "fixed", "stackalloc", "yield", "sealed", "base", "asm",
+        "unsafe", "dynamic", "dllimport", "extern", "lock",
+        "goto", "volatile", "fixed", "stackalloc", "yield", "sealed", "base.", "asm",
         "ref", "partial", "override"
     };
 
@@ -75,9 +77,32 @@ public class CodeSecurityAnalyzer
         "\\|\\|", ".*\\$.*", "<script>", "eval\\(", "\\bexec\\b"
     };
 
+    private static string _safeContractCode = "";
     public static bool IsCodeSafe(string code, ref string message)
     {
-        var tree = CSharpSyntaxTree.ParseText(code);
+        if (_safeContractCode=="")
+        {
+            var contractBaseFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Contracts", "Contract.cs");
+
+            if (!File.Exists(contractBaseFile))
+            {
+                Logger.Log($"ERROR: Contract.cs not found at {contractBaseFile}.");
+                return false;
+            }
+            var contractBaseContent = File.ReadAllText(contractBaseFile);
+            if (!contractBaseContent.Contains("public Contract()"))
+            {
+                Logger.Log($"ERROR: {contractBaseFile} is invalid.");
+                return false;
+            }
+
+            var usingRegex = new Regex(@"^using\s+[^;]+;", RegexOptions.Multiline);
+            string code1WithoutUsings = usingRegex.Replace(contractBaseContent, "").Trim();
+
+             _safeContractCode = code1WithoutUsings;
+        }
+
+        var tree = CSharpSyntaxTree.ParseText(code.Replace(_safeContractCode,""));
         var root = tree.GetRoot();
         // Check for non-whitelisted namespaces
         var usingDirectives = root.DescendantNodes().OfType<UsingDirectiveSyntax>();
@@ -87,7 +112,7 @@ public class CodeSecurityAnalyzer
             if (!AllowedNamespaces.Any(ns.StartsWith))
             {
                 message = $"Non-whitelisted namespace detected: {ns}";
-                Logger.LogMessage(message);
+                Logger.Log(message);
                 return false;
             }
         }
@@ -95,7 +120,7 @@ public class CodeSecurityAnalyzer
         if (code.Contains("#define") || code.Contains("#if"))
         {
             message = "Forbidden compiler directive detected.";
-            Logger.LogMessage(message);
+            Logger.Log(message);
             return false;
         }
 
@@ -103,14 +128,14 @@ public class CodeSecurityAnalyzer
             if (code.Contains(pattern))
             {
                 message = $"Forbidden reflection usage detected: {pattern}";
-                Logger.LogMessage(message);
+                Logger.Log(message);
                 return false;
             }
 
         if (code.Contains("../"))
         {
             message = "Path traversal detected.";
-            Logger.LogMessage(message);
+            Logger.Log(message);
             return false;
         }
 
@@ -118,7 +143,7 @@ public class CodeSecurityAnalyzer
             if (code.Contains(action))
             {
                 message = $"Forbidden Action detected: {action}";
-                Logger.LogMessage(message);
+                Logger.Log(message);
                 return false;
             }
 
@@ -126,7 +151,7 @@ public class CodeSecurityAnalyzer
             if (code.Contains(path))
             {
                 message = $"Forbidden path detected: {path}";
-                Logger.LogMessage(message);
+                Logger.Log(message);
                 return false;
             }
 
@@ -134,7 +159,7 @@ public class CodeSecurityAnalyzer
         if (root.DescendantNodes().OfType<UnsafeStatementSyntax>().Any())
         {
             message = "Unsafe code block detected.";
-            Logger.LogMessage(message);
+            Logger.Log(message);
             return false;
         }
 
@@ -143,7 +168,7 @@ public class CodeSecurityAnalyzer
             if (code.Contains(pattern))
             {
                 message = $"Forbidden pattern detected: '{pattern}'";
-                Logger.LogMessage(message);
+                Logger.Log(message);
                 return false;
             }
 
@@ -155,7 +180,7 @@ public class CodeSecurityAnalyzer
             if (ForbiddenClasses.Any(f => typeName.Contains(f)))
             {
                 message = $"Forbidden class detected: {typeName}";
-                Logger.LogMessage(message);
+                Logger.Log(message);
                 return false;
             }
         }
@@ -168,17 +193,17 @@ public class CodeSecurityAnalyzer
             if (ForbiddenMethods.Contains(memberName))
             {
                 message = $"Forbidden method detected: {memberName}";
-                Logger.LogMessage(message);
+                Logger.Log(message);
                 return false;
             }
         }
 
         // Check for dangerous keywords
         foreach (var keyword in ForbiddenKeywords)
-            if (code.Contains(keyword))
+            if (code.ToLower().Contains(keyword.ToLower()))
             {
                 message = $"Forbidden keyword detected: {keyword}";
-                Logger.LogMessage(message);
+                Logger.Log(message);
                 return false;
             }
 
@@ -186,11 +211,11 @@ public class CodeSecurityAnalyzer
         var attributes = root.DescendantNodes().OfType<AttributeSyntax>();
         foreach (var attr in attributes)
         {
-            var attributeName = attr.Name.ToString();
+            var attributeName = attr.Name.ToString().ToLower();
             if (ForbiddenKeywords.Contains(attributeName))
             {
                 message = $"Forbidden attribute detected: {attributeName}";
-                Logger.LogMessage(message);
+                Logger.Log(message);
                 return false;
             }
         }
@@ -201,7 +226,7 @@ public class CodeSecurityAnalyzer
             if (loop.Condition.ToString() == "true")
             {
                 message = "Infinite loop detected.";
-                Logger.LogMessage(message);
+                Logger.Log(message);
                 return false;
             }
 
@@ -213,7 +238,7 @@ public class CodeSecurityAnalyzer
         if (delayMethods.Any())
         {
             message = "Potential delay-causing method detected.";
-            Logger.LogMessage(message);
+            Logger.Log(message);
             return false;
         }
 
@@ -230,7 +255,7 @@ public class CodeSecurityAnalyzer
             if (!IsCodeSafe(command, ref message))
             {
                 messages.Add(message);
-                Logger.LogMessage("Unsafe command detected.");
+                Logger.Log("Unsafe command detected.");
                 return false;
             }
         }

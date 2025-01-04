@@ -2,25 +2,25 @@
 using System.Text;
 using System.Text.Json.Serialization;
 
-public class ERC20Token
+public class ERC20Token : Contract
 {
     public ERC20Token()
     {
-        Balances = new Dictionary<string, ulong>();
-        Allowances = new Dictionary<string, Dictionary<string, ulong>>();
+        Balances = new Dictionary<string, decimal>();
+        Allowances = new Dictionary<string, Dictionary<string, decimal>>();
         AuthenticatedUsers = new Dictionary<string, string>();
         Version = "1.0.0";
         DeploymentDate = DateTime.UtcNow;
     }
 
-    public ERC20Token(string name, string symbol, uint decimals, ulong initialSupply, string owner)
+    public ERC20Token(string name, string symbol, uint decimals, decimal initialSupply, string owner)
     {
         Name = name;
         Symbol = symbol;
         Decimals = decimals;
         TotalSupply = initialSupply;
-        Balances = new Dictionary<string, ulong>();
-        Allowances = new Dictionary<string, Dictionary<string, ulong>>();
+        Balances = new Dictionary<string, decimal>();
+        Allowances = new Dictionary<string, Dictionary<string, decimal>>();
         AuthenticatedUsers = new Dictionary<string, string>();
 
         // Assign initial supply to the owner's balance
@@ -29,29 +29,32 @@ public class ERC20Token
         DeploymentDate = DateTime.UtcNow;
     }
 
-    [JsonInclude] public string Name { get; private set; }
-    [JsonInclude] public string Symbol { get; private set; }
-    [JsonInclude] public uint Decimals { get; private set; }
-    [JsonInclude] public ulong TotalSupply { get; private set; }
-    [JsonInclude] private Dictionary<string, ulong> Balances { get; set; }
-    [JsonInclude] private Dictionary<string, Dictionary<string, ulong>> Allowances { get; set; }
-    [JsonInclude] private Dictionary<string, string> AuthenticatedUsers { get; set; } // Authentifizierungsspeicher
-    [JsonInclude] public string Version { get; private set; }
-    [JsonInclude] public DateTime DeploymentDate { get; private set; }
+    [JsonInclude] public string Symbol { get; private protected set; }
+    [JsonInclude] public uint Decimals { get; private protected set; }
+    [JsonInclude] public decimal TotalSupply { get; private protected set; }
+    [JsonInclude] private protected Dictionary<string, decimal> Balances { get; set; }
+    [JsonInclude] private protected Dictionary<string, Dictionary<string, decimal>> Allowances { get; set; }
+    [JsonInclude] private protected Dictionary<string, string> AuthenticatedUsers { get; set; }
+    [JsonInclude] public string Version { get; private protected set; }
+    [JsonInclude] public DateTime DeploymentDate { get; private protected set; }
 
     // Exposed read-only versions
-    [JsonIgnore] public IReadOnlyDictionary<string, ulong> GetBalances => Balances;
+    [JsonIgnore] public IReadOnlyDictionary<string, decimal> GetBalances => Balances;
 
     [JsonIgnore]
-    public IReadOnlyDictionary<string, IReadOnlyDictionary<string, ulong>> GetAllowances =>
-        Allowances.ToDictionary(k => k.Key, v => (IReadOnlyDictionary<string, ulong>)v.Value);
+    public IReadOnlyDictionary<string, IReadOnlyDictionary<string, decimal>> GetAllowances =>
+        Allowances.ToDictionary(k => k.Key, v => (IReadOnlyDictionary<string, decimal>)v.Value);
 
-    public ulong BalanceOf(string account)
+    public event Action<string, string, decimal> TransferEvent;
+    public event Action<string, string, string, decimal> TransferFromEvent;
+    public event Action<string, string, decimal> ApprovalEvent;
+
+    public decimal BalanceOf(string account)
     {
         return Balances.ContainsKey(account) ? Balances[account] : 0;
     }
 
-    public ulong Allowance(string owner, string spender)
+    public decimal Allowance(string owner, string spender)
     {
         if (Allowances.ContainsKey(owner) && Allowances[owner].ContainsKey(spender)) return Allowances[owner][spender];
         return 0;
@@ -97,14 +100,7 @@ public class ERC20Token
         return AuthenticatedUsers.ContainsKey(address) && AuthenticatedUsers[address] == hashedKey;
     }
 
-    public void Log(string message)
-    {
-        var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
-        var formattedMessage = timestamp + " - [ERC20Token] " + message;
-        Console.WriteLine(formattedMessage);
-    }
-
-    public bool Transfer(string from, string to, ulong amount, string privateKey)
+    public bool Transfer(string from, string to, decimal amount, string privateKey)
     {
         if (!IsAuthenticated(from, privateKey))
         {
@@ -129,10 +125,12 @@ public class ERC20Token
         Balances[to] += amount;
 
         Log($"Transfer successful: {amount} tokens from {from} to {to}.");
+
+        TransferEvent?.Invoke(from, to, amount);
         return true;
     }
 
-    public bool Approve(string owner, string spender, ulong amount, string privateKey)
+    public bool Approve(string owner, string spender, decimal amount, string privateKey)
     {
         if (!IsAuthenticated(owner, privateKey))
         {
@@ -146,13 +144,15 @@ public class ERC20Token
             return false;
         }
 
-        if (!Allowances.ContainsKey(owner)) Allowances[owner] = new Dictionary<string, ulong>();
+        if (!Allowances.ContainsKey(owner)) Allowances[owner] = new Dictionary<string, decimal>();
         Allowances[owner][spender] = amount;
+
         Log($"Approval successful: {spender} can spend {amount} tokens from {owner}.");
+        ApprovalEvent?.Invoke(owner, spender, amount); // Event auslösen
         return true;
     }
 
-    public bool TransferFrom(string spender, string from, string to, ulong amount, string spenderKey)
+    public bool TransferFrom(string spender, string from, string to, decimal amount, string spenderKey)
     {
         if (!IsAuthenticated(spender, spenderKey))
         {
@@ -171,6 +171,8 @@ public class ERC20Token
 
         Allowances[from][spender] -= amount;
         Log($"TransferFrom successful: {spender} transferred {amount} tokens from {from} to {to}.");
+
+        TransferFromEvent?.Invoke(spender, from, to, amount);
         return true;
     }
 }

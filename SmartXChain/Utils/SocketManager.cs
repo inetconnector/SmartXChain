@@ -43,7 +43,7 @@ public class SocketManager : IDisposable
         var keyToRemove = _instances.FirstOrDefault(kv => kv.Value == this).Key;
         if (keyToRemove != null) _instances.TryRemove(keyToRemove, out _);
 
-        Logger.LogMessage("SocketManager disposed.");
+        Logger.Log("SocketManager disposed.");
     }
 
     /// <summary>
@@ -84,7 +84,7 @@ public class SocketManager : IDisposable
         try
         {
             using var httpClient = new HttpClient { BaseAddress = new Uri(_serverAddress) };
-            Logger.LogMessage($"HTTP client initialized with server: {_serverAddress}");
+            Logger.Log($"HTTP client initialized with server: {_serverAddress}");
 
             foreach (var (message, tcs) in _messageQueue.GetConsumingEnumerable(cancellationToken))
                 lock (_sendLock)
@@ -93,7 +93,7 @@ public class SocketManager : IDisposable
                     {
                         var content = new StringContent(message, Encoding.UTF8, "application/json");
                         if (Config.Default.Debug)
-                            Logger.LogMessage($"Sending queued message to server: {message}");
+                            Logger.Log($"Sending queued message to server: {message}");
 
                         // Send message to the server's REST endpoint
                         var response = httpClient.PostAsync("/api/" + message.Split(':')[0], content).Result;
@@ -102,31 +102,31 @@ public class SocketManager : IDisposable
                         {
                             var responseString = response.Content.ReadAsStringAsync().Result;
                             if (Config.Default.Debug)
-                                Logger.LogMessage($"Received response: {responseString}");
+                                Logger.Log($"Received response: {responseString}");
                             tcs.TrySetResult(responseString);
                         }
                         else
                         {
                             var error = $"ERROR: {response.StatusCode} - {response.ReasonPhrase}";
-                            Logger.LogMessage(error);
+                            Logger.Log(error);
                             tcs.TrySetResult(error);
                         }
                     }
                     catch (Exception ex)
                     {
                         // Handle exceptions during message processing
-                        Logger.LogMessage($"Error processing message: {ex.Message}");
+                        Logger.Log($"Error processing message: {ex.Message}");
                         tcs.TrySetException(ex);
                     }
                 }
         }
         catch (OperationCanceledException)
         {
-            Logger.LogMessage("Processing queue canceled.");
+            Logger.Log("Processing queue canceled.");
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"Critical error in ProcessQueue: {ex.Message}");
+            Logger.Log($"Critical error in ProcessQueue: {ex.Message}");
         }
     }
 }

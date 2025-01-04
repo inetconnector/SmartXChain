@@ -265,7 +265,7 @@ public class Transaction
         }
         catch (Exception ex)
         {
-            Logger.LogMessage($"Error in VerifyPrivateKey: {ex.Message}");
+            Logger.Log($"Error in VerifyPrivateKey: {ex.Message}");
             return false;
         }
     }
@@ -379,7 +379,7 @@ public class Transaction
                     Balances[account] = 0;
         }
 
-        Logger.LogMessage("Balances updated successfully from the blockchain.");
+        Logger.Log("Balances updated successfully from the blockchain.");
     }
 
     /// <summary>
@@ -405,7 +405,7 @@ public class Transaction
     /// </summary>
     private protected void Log(string message)
     {
-        Logger.LogMessage($"[Transaction] {message}");
+        Logger.Log($"[Transaction] {message}");
     }
 
     /// <summary>

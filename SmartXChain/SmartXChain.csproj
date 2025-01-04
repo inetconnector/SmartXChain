@@ -10,15 +10,10 @@
 	<ItemGroup>
 		<Compile Remove="BlockchainCore\ERC20.cs" />
 		<Compile Remove="Contracts.Designer.cs" />
-		<Compile Remove="Resources\ERC20.cs" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<EmbeddedResource Remove="Contracts.resx" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<None Include="Resources\ERC20.cs" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -32,6 +27,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<Compile Update="Contracts\Contract.cs">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</Compile>
 		<Compile Update="Properties\Resources.Designer.cs">
 			<DesignTime>True</DesignTime>
 			<AutoGen>True</AutoGen>
@@ -45,6 +43,10 @@
 			<LastGenOutput>Resources.Designer.cs</LastGenOutput>
 			<CopyToOutputDirectory>Never</CopyToOutputDirectory>
 		</EmbeddedResource>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Resources\" />
 	</ItemGroup>
 
 </Project>
