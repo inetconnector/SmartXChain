@@ -111,6 +111,9 @@ internal class Program
                     case 'n':
                         DisplayNodes(startup);
                         break;
+                    case 's':
+                        await SendNativeTokens(startup);
+                        break;
                     case '0':
                         return;
                 }
@@ -120,6 +123,31 @@ internal class Program
                 Logger.Log($"ERROR: {ex.Message}");
                 throw;
             }
+    }
+
+    private static async Task SendNativeTokens(BlockchainServer.NodeStartupResult? startup)
+    {
+        Logger.Log("s: Send SCX Tokens");
+        var walletAddresses = SmartXWallet.LoadWalletAdresses();
+
+        Logger.Log("Enter recipient");
+        var recipient = Console.ReadLine();
+
+        Logger.Log("Enter SCX amount (i.e. 0.01)");
+        decimal amount = Convert.ToDecimal(Console.ReadLine());
+
+        Logger.Log("Enter info");
+        var info = Console.ReadLine();
+
+        if (amount>0)
+        {
+            Logger.Log($"Ready to send {amount} to {recipient} ? (y/n)");
+            if (Console.ReadLine() == "y")
+            {
+                var success = await PerformNativeTransfer(startup.Blockchain, walletAddresses[0], recipient, amount, info, PrivateKey);
+                Logger.Log("Success: " + success);
+            } 
+        }
     }
 
     private static void DisplayNodes(BlockchainServer.NodeStartupResult? startup)
@@ -144,6 +172,7 @@ internal class Program
         Logger.Log("----------------------------------------------------");
         Logger.Log("Enter mode:");
         Logger.Log("n: Show nodes");
+        Logger.Log("s: Send SCX Tokens");
         Logger.Log("c: Clear screen");
         Logger.Log();
         Logger.Log("1: Coin class tester");
@@ -226,31 +255,43 @@ internal class Program
         await GoldCoinExample(walletAddresses[0], walletAddresses, SmartXWallet.LoadWalletAdresses(),
             node.Blockchain);
 
-        PerformNativeTransfer(node.Blockchain, walletAddresses);
+        await PerformNativeTransfer(node.Blockchain, 
+            walletAddresses[0], 
+            walletAddresses[1],
+            (decimal)0.01,
+            "49.83278, 9.88167",
+            PrivateKey );
     }
 
-    private static async void PerformNativeTransfer(Blockchain? chain, List<string> walletAddresses)
+    private static async Task<bool> PerformNativeTransfer(Blockchain? chain, 
+                                                    string sender, 
+                                                    string recipient, 
+                                                    decimal amount,
+                                                    string data,
+                                                    string privateKey)
     {
         // Perform native token transfer
         var transaction = new Transaction();
-
-        transaction.RegisterUser(walletAddresses[0], PrivateKey);
+        
+        transaction.RegisterUser(sender, privateKey);
         var (transferred,message) = await transaction.Transfer(
             chain,
-            walletAddresses[0],
-            walletAddresses[1],
-            (decimal)0.01,
-            PrivateKey,
+            sender,
+            recipient,
+            amount,
+            privateKey,
             "native transfer",
-            "49.83278, 9.88167");
+            data);
 
         if (chain != null)
-            await chain.MinePendingTransactions(walletAddresses[0]);
+            await chain.MinePendingTransactions(sender);
 
         if (transferred)
-            Logger.Log($"Transferred SCX from {walletAddresses[0]} to {walletAddresses[1]}");
+            Logger.Log($"Transferred SCX from {sender} to {recipient}");
         else
-            Logger.Log($"SCX could not be transferred from {walletAddresses[0]} to {walletAddresses[1]}");
+            Logger.Log($"SCX could not be transferred from {sender} to {recipient}");
+
+        return transferred;
     }
 
     private static void DisplayBlockchainState(BlockchainServer.NodeStartupResult? node)
@@ -258,7 +299,7 @@ internal class Program
         Logger.Log("3: Blockchain state");
 
         // Show current state of the blockchain
-        if (node != null)
+        if (node != null && node.Blockchain != null && node.Blockchain.Chain != null)
             foreach (var block in node.Blockchain.Chain)
                 Logger.Log($"Block {node.Blockchain.Chain.IndexOf(block)}: {block.Hash}");
     }
@@ -267,10 +308,19 @@ internal class Program
     {
         Logger.Log("4: Wallet Balances");
 
+        var walletAddresses = SmartXWallet.LoadWalletAdresses();
+
         // Display balances of all wallets 
         if (node != null && node.Blockchain != null)
             foreach (var (address, balance) in node.Blockchain.GetAllBalancesFromChain())
-                Logger.Log($"{address}: {balance}");
+            {
+                var isMine = "";
+                if (address == walletAddresses[0])
+                    isMine += "*";
+                if (walletAddresses.Contains(address))
+                    isMine += "*";
+                Logger.Log($"{isMine}{address}: {balance}");
+            }
     }
 
     private static void DisplayChainInfo(BlockchainServer.NodeStartupResult? node)
