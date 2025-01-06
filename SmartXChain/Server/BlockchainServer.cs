@@ -52,6 +52,65 @@ public partial class BlockchainServer
     /// <summary>
     ///     Starts the main server and configures routing for API endpoints.
     /// </summary>
+    //private void StartMainServer()
+    //{
+    //    var swagger = "/swagger/v1/swagger.json";
+    //    var host = Host.CreateDefaultBuilder()
+    //        .ConfigureWebHostDefaults(webBuilder =>
+    //        {
+    //            webBuilder.UseKestrel()
+    //                .UseUrls($"http://0.0.0.0:{Config.Default.Port}")  
+    //                //.UseUrls($"http://127.0.0.1:{Config.Default.Port}")  
+    //                .Configure(app =>
+    //                {  
+    //                    // Enable Swagger
+    //                    app.UseSwagger();
+    //                    app.UseSwaggerUI(c =>
+    //                    {
+    //                        c.SwaggerEndpoint(swagger, "Blockchain API V1");
+    //                        c.RoutePrefix = string.Empty; // Makes Swagger UI available at the root
+    //                    });
+
+    //                    // Routing for Endpoints
+    //                    app.UseRouting();
+    //                    app.UseEndpoints(RestEndpoints);
+
+    //                });
+    //        })
+    //        .ConfigureLogging(logging =>
+    //        {
+    //            logging.ClearProviders(); 
+    //            //logging.AddConsole(); // Logs to the console
+    //        }) 
+    //        .ConfigureServices(services =>
+    //        {
+    //            // Register Swagger generator
+    //            services.AddSwaggerGen(options =>
+    //            {
+    //                var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    //                var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    //                options.IncludeXmlComments(xmlPath);
+
+    //                options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    //                {
+    //                    Title = "SmartX Blockchain API",
+    //                    Version = "v1",
+    //                    Description = "API documentation for the blockchain server.",
+    //                });
+    //                // Optional: Add comments from XML file for methods (if generated)
+    //                // var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    //                // var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    //                // options.IncludeXmlComments(xmlPath);
+    //            });
+    //        })
+    //        .Build();
+
+    //    var url = $"http://{NetworkUtils.IP}:{Config.Default.Port}";
+    //    Logger.Log($"API active at: {url}");
+    //    Logger.Log($"               {url}{swagger}");
+
+    //    host.Run();
+    //}
     private void StartMainServer()
     {
         var host = Host.CreateDefaultBuilder()
@@ -90,14 +149,14 @@ public partial class BlockchainServer
             await context.Response.WriteAsync(result);
         });
 
-        endpoints.MapPost("/api/GetNodes", async context =>
+        endpoints.MapPost("/api/Nodes", async context =>
         {
             var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-            var result = HandleGetNodes(message);
+            var result = HandleNodes(message);
             await context.Response.WriteAsync(result);
 
             if (Config.Default.Debug && result.Length > 0)
-                Logger.Log($"GetNodes: {result}");
+                Logger.Log($"Nodes: {result}");
         });
 
         endpoints.MapPost("/api/PushServers", async context =>
@@ -149,13 +208,13 @@ public partial class BlockchainServer
             await context.Response.WriteAsync("ok");
         });
 
-        endpoints.MapPost("/api/GetBlockCount", async context =>
+        endpoints.MapPost("/api/BlockCount", async context =>
         {
-            if (_blockCount != Startup.Blockchain.Chain.Count)
+            if (Startup.Blockchain != null && _blockCount != Startup.Blockchain.Chain.Count)
             {
                 _blockCount = Startup.Blockchain.Chain.Count;
                 if (Config.Default.Debug)
-                    Logger.Log($"GetBlockCount: {Startup.Blockchain.Chain.Count}");
+                    Logger.Log($"BlockCount: {Startup.Blockchain.Chain.Count}");
             }
 
             var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
@@ -198,8 +257,65 @@ public partial class BlockchainServer
                 Logger.Log($"GetChain: {message}");
             await context.Response.WriteAsync(Startup.Blockchain.ToBase64());
         });
+        endpoints.MapGet("/api/GetBlockCount", async context =>
+        {
+            if (Startup.Blockchain != null && _blockCount != Startup.Blockchain.Chain.Count)
+            {
+                _blockCount = Startup.Blockchain.Chain.Count;
+                if (Config.Default.Debug)
+                    Logger.Log($"GetBlockCount: {Startup.Blockchain.Chain.Count}");
+            }
 
-        endpoints.MapPost("/api/GetBlock/{block:int}", async context =>
+            var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
+            if (message.Contains(':'))
+            {
+                var sp = message.Split(':');
+                if (sp.Length == 5)
+                {
+                    var remoteBlockCount = Convert.ToInt64(sp.ToArray().Last());
+                    var remoteServer = sp[1] + ":" + sp[2] + ":" + sp[3];
+                    if (remoteBlockCount < _blockCount)
+                        if (NetworkUtils.IsValidServer(remoteServer))
+                            lock (Node.DiscoveredServers)
+                            {
+                                if (!Node.DiscoveredServers.Contains(remoteServer))
+                                    Node.DiscoveredServers.Add(remoteServer);
+                            }
+                }
+            }
+
+            await context.Response.WriteAsync(_blockCount.ToString());
+        });
+        endpoints.MapPost("/api/GetBlockData/{block:int}", async context =>
+        {
+            var blockIndexStr = (string)context.Request.RouteValues["block"];
+            if (!int.TryParse(blockIndexStr, out var blockIndex))
+            {
+                context.Response.StatusCode = 400; // Bad Request
+                await context.Response.WriteAsync("ERROR: Invalid block index.");
+                return;
+            }
+
+            if (Startup.Blockchain != null && (blockIndex < 0 || blockIndex >= Startup.Blockchain.Chain.Count))
+            {
+                context.Response.StatusCode = 404; // Not Found
+                await context.Response.WriteAsync($"ERROR: Block {blockIndex} not found.");
+                return;
+            }
+
+            if (Config.Default.Debug)
+                Logger.Log(
+                    $"Sent block {blockIndex} {Startup.Blockchain.Chain[blockIndex].Hash} parent:{Startup.Blockchain.Chain[blockIndex].PreviousHash}");
+            if (Startup.Blockchain != null)
+            {
+                var block = Startup.Blockchain.Chain[blockIndex].ToBase64();
+
+                context.Response.ContentType = "application/json";
+                await context.Response.WriteAsync(block);
+            }
+        });
+
+        endpoints.MapGet("/api/GetBlock/{block:int}", async context =>
         {
             var blockIndexStr = (string)context.Request.RouteValues["block"];
             if (!int.TryParse(blockIndexStr, out var blockIndex))
@@ -219,10 +335,69 @@ public partial class BlockchainServer
             if (Config.Default.Debug)
                 Logger.Log(
                     $"Sent block {blockIndex} {Startup.Blockchain.Chain[blockIndex].Hash} parent:{Startup.Blockchain.Chain[blockIndex].PreviousHash}");
-            var block = Startup.Blockchain.Chain[blockIndex].ToBase64();
+            var block = Startup.Blockchain.Chain[blockIndex];
 
             context.Response.ContentType = "application/json";
-            await context.Response.WriteAsync(block);
+            await context.Response.WriteAsync(block.ToString());
+        });
+        endpoints.MapGet("/api/GetContractCode/{contract}", async context =>
+        {
+            var contractName = context.Request.RouteValues["contract"] as string;
+
+            if (string.IsNullOrEmpty(contractName))
+            {
+                context.Response.StatusCode = 400; // Bad Request
+                await context.Response.WriteAsync("ERROR: Contract name cannot be null or empty.");
+                return;
+            }
+
+            var contractCode =
+                BlockchainStorage.GetContractCode(contractName, Config.Default.BlockchainPath, Config.Default.ChainId);
+
+            if (string.IsNullOrEmpty(contractCode))
+            {
+                context.Response.StatusCode = 404; // Not Found
+                await context.Response.WriteAsync("ERROR: Contract code not found.");
+                return;
+            }
+
+            if (Config.Default.Debug)
+                Logger.Log($"Sent contract code for {contractName}");
+
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsync(contractCode);
+        });
+
+        endpoints.MapGet("/api/GetContractNames/{search?}/{max:int?}", async context =>
+        {
+            var search = context.Request.RouteValues["search"] as string;
+             
+            int maxResults = 50;
+            if (context.Request.RouteValues.TryGetValue("max", out var maxRouteValue) &&
+                int.TryParse(maxRouteValue?.ToString(), out var parsedMaxResults))
+            {
+                maxResults = parsedMaxResults;
+            } 
+
+            if (maxResults < 1 || maxResults > 50)
+            {
+                context.Response.StatusCode = 400; // Bad Request
+                await context.Response.WriteAsync("ERROR: The maximum number of results must be between 1 and 50.");
+                return;
+            }
+
+            var contractNames = BlockchainStorage.GetContractNames(
+                Config.Default.BlockchainPath,
+                Config.Default.ChainId,
+                search,
+                maxResults);
+
+            if (Config.Default.Debug)
+                Logger.Log(
+                    $"Sent {contractNames.Count} contract names for filter '{search}' with max results {maxResults}");
+
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsync(JsonSerializer.Serialize(contractNames));
         });
 
         endpoints.MapPost("/api/PushChain", async context =>
@@ -278,6 +453,7 @@ public partial class BlockchainServer
                 await context.Response.WriteAsync("");
         });
     }
+
 
     /// <summary>
     ///     Starts the server asynchronously.
@@ -418,7 +594,7 @@ public partial class BlockchainServer
     /// </summary>
     /// <param name="message">A dummy message for compatibility (not used).</param>
     /// <returns>A comma-separated list of active node addresses.</returns>
-    private string HandleGetNodes(string message)
+    private string HandleNodes(string message)
     {
         RemoveInactiveNodes();
         if (_registeredNodes.Keys.Count > 0)
@@ -581,7 +757,7 @@ public partial class BlockchainServer
 
                     // Send an empty request to the /api/GetNodes endpoint
                     var content = new StringContent(JsonSerializer.Serialize(""), Encoding.UTF8, "application/json");
-                    var response = await httpClient.PostAsync("/api/GetNodes", content);
+                    var response = await httpClient.PostAsync("/api/Nodes", content);
 
                     // If the response is successful, update the list of registered nodes
                     if (response.IsSuccessStatusCode)

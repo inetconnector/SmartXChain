@@ -220,7 +220,7 @@ public class Node
                 // Retrieve blockchain size from remote node
                 var blockchainSizeResponse =
                     await SocketManager.GetInstance(remoteNode)
-                        .SendMessageAsync($"GetBlockCount:{node.NodeAddress}:{blockchain.Chain.Count}");
+                        .SendMessageAsync($"BlockCount:{node.NodeAddress}:{blockchain.Chain.Count}");
 
                 if (!int.TryParse(blockchainSizeResponse, out var remoteBlockCount))
                 {
@@ -344,7 +344,7 @@ public class Node
 
         try
         {
-            var response = await SocketManager.GetInstance(serverAddress).SendMessageAsync("GetNodes");
+            var response = await SocketManager.GetInstance(serverAddress).SendMessageAsync("Nodes");
 
             if (response == "ERROR: Timeout" || string.IsNullOrEmpty(response))
             {

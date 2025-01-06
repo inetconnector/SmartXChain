@@ -1,10 +1,27 @@
-﻿using System.Text.Json.Serialization;
+﻿
+using System.Text.Json.Serialization;
 
+/// <summary>
+///     Extended ERC20 token class with additional features such as minting, burning, pausing transfers,
+///     freezing accounts, and transferring ownership.
+/// </summary>
 public class ERC20Extended : ERC20Token
 {
+    /// <summary>
+    ///     Default constructor for the ERC20Extended class.
+    /// </summary>
     public ERC20Extended()
     {
     }
+
+    /// <summary>
+    ///     Initializes a new instance of the ERC20Extended class with specific attributes.
+    /// </summary>
+    /// <param name="name">The name of the token.</param>
+    /// <param name="symbol">The symbol of the token.</param>
+    /// <param name="decimals">Number of decimal places for the token.</param>
+    /// <param name="initialSupply">Initial supply of tokens.</param>
+    /// <param name="owner">Address of the token owner.</param>
     public ERC20Extended(string name, string symbol, uint decimals, decimal initialSupply, string owner)
     {
         Name = name;
@@ -22,18 +39,66 @@ public class ERC20Extended : ERC20Token
         Owner = owner;
     }
 
-    [JsonInclude] public List<string> FrozenAccounts { get; private protected set; }
-    [JsonInclude] public string Owner { get; private protected set; }
-    [JsonInclude] public bool TransfersPaused { get; private protected set; }
+    /// <summary>
+    ///     List of accounts that are frozen and cannot perform transfers.
+    /// </summary>
+    [JsonInclude]
+    public List<string> FrozenAccounts { get; private protected set; }
+
+    /// <summary>
+    ///     The address of the owner of the token.
+    /// </summary>
+    [JsonInclude]
+    public string Owner { get; private protected set; }
+
+    /// <summary>
+    ///     Indicates whether transfers are currently paused.
+    /// </summary>
+    [JsonInclude]
+    public bool TransfersPaused { get; private protected set; }
+
+    /// <summary>
+    ///     Triggered when tokens are minted.
+    /// </summary>
     public event Action<string, decimal>? OnMint;
+
+    /// <summary>
+    ///     Triggered when tokens are burned.
+    /// </summary>
     public event Action<string, decimal>? OnBurn;
+
+    /// <summary>
+    ///     Triggered when transfers are paused.
+    /// </summary>
     public event Action? OnTransfersPaused;
+
+    /// <summary>
+    ///     Triggered when transfers are resumed.
+    /// </summary>
     public event Action? OnTransfersResumed;
+
+    /// <summary>
+    ///     Triggered when a transfer occurs.
+    /// </summary>
     public event Action<string, string, decimal>? OnTransfer;
+
+    /// <summary>
+    ///     Triggered when an account is frozen.
+    /// </summary>
     public event Action<string>? OnAccountFrozen;
+
+    /// <summary>
+    ///     Triggered when an account is unfrozen.
+    /// </summary>
     public event Action<string>? OnAccountUnfrozen;
 
-    // Burn tokens
+    /// <summary>
+    ///     Burns a specified amount of tokens from the owner's balance.
+    /// </summary>
+    /// <param name="amount">The amount of tokens to burn.</param>
+    /// <param name="owner">The address of the owner initiating the burn.</param>
+    /// <param name="privateKey">The private key of the owner for authentication.</param>
+    /// <returns>True if the burn was successful; otherwise, false.</returns>
     public bool Burn(decimal amount, string owner, string privateKey)
     {
         if (!IsAuthenticated(owner, privateKey))
@@ -57,7 +122,14 @@ public class ERC20Extended : ERC20Token
         return true;
     }
 
-    // Mint tokens
+    /// <summary>
+    ///     Mints a specified amount of tokens to a given account.
+    /// </summary>
+    /// <param name="amount">The amount of tokens to mint.</param>
+    /// <param name="to">The address of the recipient account.</param>
+    /// <param name="owner">The address of the owner initiating the mint.</param>
+    /// <param name="privateKey">The private key of the owner for authentication.</param>
+    /// <returns>True if the mint was successful; otherwise, false.</returns>
     public bool Mint(decimal amount, string to, string owner, string privateKey)
     {
         if (!IsAuthenticated(owner, privateKey) || owner != Owner)
@@ -77,6 +149,11 @@ public class ERC20Extended : ERC20Token
         return true;
     }
 
+    /// <summary>
+    ///     Pauses all token transfers. Only the owner can initiate this action.
+    /// </summary>
+    /// <param name="owner">The address of the owner initiating the pause.</param>
+    /// <param name="privateKey">The private key of the owner for authentication.</param>
     public void PauseTransfers(string owner, string privateKey)
     {
         if (!IsAuthenticated(owner, privateKey) || owner != Owner)
@@ -92,7 +169,11 @@ public class ERC20Extended : ERC20Token
         OnTransfersPaused?.Invoke();
     }
 
-
+    /// <summary>
+    ///     Resumes all token transfers. Only the owner can initiate this action.
+    /// </summary>
+    /// <param name="owner">The address of the owner initiating the resume.</param>
+    /// <param name="privateKey">The private key of the owner for authentication.</param>
     public void ResumeTransfers(string owner, string privateKey)
     {
         if (!IsAuthenticated(owner, privateKey) || owner != Owner)
@@ -108,6 +189,14 @@ public class ERC20Extended : ERC20Token
         OnTransfersResumed?.Invoke();
     }
 
+    /// <summary>
+    ///     Transfers tokens from one account to another.
+    /// </summary>
+    /// <param name="from">The sender's address.</param>
+    /// <param name="to">The recipient's address.</param>
+    /// <param name="amount">The amount of tokens to transfer.</param>
+    /// <param name="privateKey">The private key of the sender for authentication.</param>
+    /// <returns>True if the transfer was successful; otherwise, false.</returns>
     public new bool Transfer(string from, string to, decimal amount, string privateKey)
     {
         if (TransfersPaused)
@@ -151,8 +240,12 @@ public class ERC20Extended : ERC20Token
         return true;
     }
 
-
-    // Freeze account
+    /// <summary>
+    ///     Freezes the specified account, preventing it from transferring tokens.
+    /// </summary>
+    /// <param name="account">The address of the account to freeze.</param>
+    /// <param name="owner">The address of the owner initiating the action.</param>
+    /// <param name="privateKey">The private key of the owner for authentication.</param>
     public void FreezeAccount(string account, string owner, string privateKey)
     {
         if (!IsAuthenticated(owner, privateKey) || owner != Owner)
@@ -167,6 +260,12 @@ public class ERC20Extended : ERC20Token
         OnAccountFrozen?.Invoke(account);
     }
 
+    /// <summary>
+    ///     Unfreezes the specified account, allowing it to transfer tokens.
+    /// </summary>
+    /// <param name="account">The address of the account to unfreeze.</param>
+    /// <param name="owner">The address of the owner initiating the action.</param>
+    /// <param name="privateKey">The private key of the owner for authentication.</param>
     public void UnfreezeAccount(string account, string owner, string privateKey)
     {
         if (!IsAuthenticated(owner, privateKey) || owner != Owner)
@@ -182,8 +281,10 @@ public class ERC20Extended : ERC20Token
         OnAccountUnfrozen?.Invoke(account);
     }
 
-
-    // Get total token holders
+    /// <summary>
+    ///     Retrieves the total number of accounts holding tokens.
+    /// </summary>
+    /// <returns>The number of accounts with a non-zero token balance.</returns>
     public int GetTotalTokenHolders()
     {
         var holders = Balances.Count(b => b.Value > 0);
@@ -191,7 +292,12 @@ public class ERC20Extended : ERC20Token
         return holders;
     }
 
-    // Transfer ownership
+    /// <summary>
+    ///     Transfers ownership of the token to a new owner.
+    /// </summary>
+    /// <param name="newOwner">The address of the new owner.</param>
+    /// <param name="currentOwner">The address of the current owner.</param>
+    /// <param name="privateKey">The private key of the current owner for authentication.</param>
     public void TransferOwnership(string newOwner, string currentOwner, string privateKey)
     {
         if (!IsAuthenticated(currentOwner, privateKey) || currentOwner != Owner)

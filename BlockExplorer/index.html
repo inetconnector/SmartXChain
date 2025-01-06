@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartXChain Block Explorer</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <header>
+        <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
+            <img src="smartxchain.webp" alt="SmartXChain Logo" style="height: 100px; width: auto;">
+            <h1>SmartXChain Block Explorer</h1>
+        </div>
+        <div id="controls">
+            <select id="network-switch">
+                <option value="mainnet">MainNet</option>
+                <option value="testnet">TestNet</option>
+            </select>
+            <select id="language-switch">
+                <option value="en">English</option>
+                <option value="de">Deutsch</option>
+            </select>
+            <input type="text" id="contract-name" placeholder="Enter Contract Name">
+            <button id="fetch-contract-code">Get Contract Code</button>
+        </div>
+    </header>
+    <main>
+        <section id="latestBlocks">
+            <h2>Latest Blocks</h2>
+            <ul id="blockList"></ul>
+        </section>
+
+        <section id="blockTransactions">
+            <h2>Block Transactions</h2>
+            <ul id="transactionList"></ul>
+        </section>
+
+        <section id="standards">
+            <h2>SmartTokenX Supported Standards</h2>
+            <ul>
+                <li><a href="docu/SmartTokenX_Standard.html" target="_blank" id="standard-link">SmartTokenX Standard</a></li>
+                <li><a href="docu/SmartTokenX_Extended_Standard.html" target="_blank" id="extended-standard-link">SmartTokenX Extended Standard</a></li>
+            </ul>
+        </section>
+    </main>
+    <script src="app.js?timestamp=<?php echo time(); ?>"></script>
+</body>
+</html>

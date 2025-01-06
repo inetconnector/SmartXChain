@@ -93,7 +93,9 @@ public class SocketManager : IDisposable
                     {
                         var content = new StringContent(message, Encoding.UTF8, "application/json");
                         if (Config.Default.Debug)
-                            Logger.Log($"Sending queued message to server: {message}");
+                        {
+                            Logger.Log($"Sending queued message to server: {message}"); 
+                        } 
 
                         // Send message to the server's REST endpoint
                         var response = httpClient.PostAsync("/api/" + message.Split(':')[0], content).Result;

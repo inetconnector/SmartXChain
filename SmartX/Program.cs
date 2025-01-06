@@ -519,6 +519,34 @@ internal class Program
 
         result = await ExecuteSmartContract(blockchain, contract, transferFromInputs);
 
+        // RPC DEMO
+        var notifyMint = "https://www.netregservice.com/smartx/rpc_collector.php";
+        var notifyBurn = "https://www.netregservice.com/smartx/rpc_collector.php";
+
+        string[] rpcHandlerCode =
+        {            
+            $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
+            "",
+            "// Register User",
+            $"token.RegisterUser(\"{minerAddress}\", \"{PrivateKey}\");",
+            "",
+            "// Register RPC handlers",
+            "var rpcHandler = new RpcEventHandler();",
+            $"rpcHandler.RegisterHandler(\"Mint\", \"{notifyMint}\", \"{minerAddress}\");",
+            $"rpcHandler.RegisterHandler(\"Burn\", \"{notifyBurn}\", \"{minerAddress}\");",
+            "",
+            "// Subscribe to token events",
+            "token.OnMint += async (address, amount) => await rpcHandler.TriggerHandlers(\"Mint\", $\"{{\\\"address\\\":\\\"{address}\\\",\\\"amount\\\":{amount}}}\");",
+            "token.OnBurn += async (address, amount) => await rpcHandler.TriggerHandlers(\"Burn\", $\"{{\\\"address\\\":\\\"{address}\\\",\\\"amount\\\":{amount}}}\");",
+            "",
+            "// Trigger events",
+            $"token.Mint(1000, \"{minerAddress}\", \"{minerAddress}\", \"{PrivateKey}\");",
+            $"token.Burn(500, \"{minerAddress}\", \"{PrivateKey}\");"
+        };
+
+        result = await ExecuteSmartContract(blockchain, contract, rpcHandlerCode);
+
+
         Logger.Log("\nGoldCoin Smart Contract finished");
     }
 

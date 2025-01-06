@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using NBitcoin;
 using Nethereum.Web3.Accounts;
@@ -409,14 +410,6 @@ public class Transaction
     }
 
     /// <summary>
-    ///     Converts the transaction details into a readable string format.
-    /// </summary>
-    public override string ToString()
-    {
-        return $"{Name} {TransactionType} {Sender} -> {Recipient}: {Timestamp} {Amount}, Gas: {Gas}";
-    }
-
-    /// <summary>
     ///     Computes the hash of the transaction for integrity verification.
     /// </summary>
     public string CalculateHash()
@@ -426,4 +419,44 @@ public class Transaction
         var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(rawData));
         return BitConverter.ToString(bytes).Replace("-", "").ToLower();
     }
+
+    /// <summary>
+    /// Converts the transaction details into a JSON string format.
+    /// Excludes empty properties from the output.
+    /// </summary>
+    public override string ToString()
+    {
+        // Create a dictionary to hold the non-empty properties
+        var transactionDetails = new Dictionary<string, object>();
+
+        // Helper function to add non-empty properties to the dictionary
+        void AddProperty<T>(string key, T value, Func<T, bool> isEmpty)
+        {
+            if (!isEmpty(value))
+            {
+                transactionDetails[key] = value;
+            }
+        }
+
+        // Add non-empty properties
+        AddProperty("Name", Name, string.IsNullOrEmpty);
+        AddProperty("TransactionType", TransactionType.ToString(), string.IsNullOrEmpty);
+        AddProperty("Sender", Sender, string.IsNullOrEmpty);
+        AddProperty("Recipient", Recipient, string.IsNullOrEmpty);
+        AddProperty("Amount", Amount, v => v == 0);
+        AddProperty("Gas", Gas, v => v == 0);
+        AddProperty("Data", Data, string.IsNullOrEmpty);
+        AddProperty("Info", Info, string.IsNullOrEmpty);
+        AddProperty("Timestamp", Timestamp, v => v == default);
+        AddProperty("Signature", Signature, string.IsNullOrEmpty);
+        AddProperty("Version", Version, string.IsNullOrEmpty);
+
+        // Serialize the dictionary to JSON
+        return JsonSerializer.Serialize(transactionDetails, new JsonSerializerOptions
+        {
+            WriteIndented = true // Pretty print the JSON
+        });
+    }
+
+
 }

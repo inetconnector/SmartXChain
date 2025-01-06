@@ -8,7 +8,7 @@ using SmartXChain.Utils;
 namespace SmartXChain.BlockchainCore;
 
 public class Block
-{
+{ 
     public Block(List<Transaction> transactions, string previousHash)
     {
         if (Timestamp == DateTime.MinValue)
@@ -16,8 +16,7 @@ public class Block
 
         Transactions = transactions;
         PreviousHash = previousHash;
-        Hash = CalculateHash();
-        SmartContracts = new Dictionary<string, SmartContract?>();
+        Hash = CalculateHash(); 
     }
 
     [JsonInclude] public DateTime Timestamp { get; } = DateTime.MinValue;
@@ -25,7 +24,45 @@ public class Block
     [JsonInclude] public string PreviousHash { get; set; }
     [JsonInclude] public string Hash { get; private set; }
     [JsonInclude] public int Nonce { get; private set; }
-    [JsonInclude] public Dictionary<string, SmartContract?> SmartContracts { get; internal set; }
+
+    /// <summary>
+    /// Get a dictionary of SmartContract from the block
+    /// </summary>
+    [JsonInclude]
+    public Dictionary<string, SmartContract?> SmartContracts
+    {
+        get
+        {
+            var contracts = new Dictionary<string, SmartContract?>();
+            foreach (var transaction in Transactions)
+                if (transaction.Recipient == Blockchain.SystemAddress &&
+                    transaction.Info.StartsWith("$$") &&
+                    !string.IsNullOrEmpty(transaction.Data))
+                {
+                    var contractName = transaction.Info.Substring(2); // Removes "$$" from the start
+
+                    if (!contracts.ContainsKey(contractName)) // Avoids duplicates
+                        try
+                        {
+                            var contractCode = Serializer.DeserializeFromBase64<string>(transaction.Data);
+                            var contract = new SmartContract(
+                                transaction.Sender,
+                                Serializer.SerializeToBase64(contractCode),
+                                contractName
+                            );
+                            contracts[contractName] = contract;
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Log(
+                                $"ERROR: Failed to deserialize contract '{contractName}': {ex.Message}");
+                        }
+                }
+
+            return contracts;
+        }
+    }
+
     [JsonIgnore] public string Base64Encoded => Convert.ToBase64String(GetBytes());
 
     /// <summary>
@@ -147,22 +184,30 @@ public class Block
         return block;
     }
 
-
     /// <summary>
-    ///     Returns a detailed string representation of the block.
+    /// Returns a JSON representation of the block, excluding empty properties.
     /// </summary>
-    /// <returns>A string containing all block properties.</returns>
+    /// <returns>A JSON string containing all block properties.</returns>
     public override string ToString()
     {
-        var transactionsInfo = string.Join("\n", Transactions.Select(t => t.ToString()));
-        var contractsInfo = string.Join("\n", SmartContracts.Select(c => c.ToString()));
+        var blockDetails = new Dictionary<string, object>
+        {
+            ["Timestamp"] = Timestamp,
+            ["PreviousHash"] = PreviousHash,
+            ["Hash"] = Hash,
+            ["Nonce"] = Nonce,
+            // Serialize Transactions as JSON objects instead of strings
+            ["Transactions"] = Transactions,
+            ["SmartContracts"] = SmartContracts
+        };
 
-        return $"Block Details:\n" +
-               $"Timestamp: {Timestamp}\n" +
-               $"Previous Hash: {PreviousHash}\n" +
-               $"Hash: {Hash}\n" +
-               $"Nonce: {Nonce}\n" +
-               $"Transactions:\n{transactionsInfo}\n" +
-               $"Smart Contracts:\n{contractsInfo}\n";
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true, // Pretty print JSON
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull // Ignore null values
+        };
+
+        return JsonSerializer.Serialize(blockDetails, options);
     }
+
 }

@@ -1,7 +1,10 @@
-﻿using System.Net.Http;
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
+/// <summary>
+///     Represents a GoldCoin token that adjusts its supply dynamically based on the gold price.
+///     Inherits from the ERC20Extended class.
+/// </summary>
 public class GoldCoin : ERC20Extended
 {
     private static readonly HttpClient HttpClient = new();
@@ -10,47 +13,66 @@ public class GoldCoin : ERC20Extended
     {
         CurrentGoldPrice = 0;
         LastGoldPriceUpdate = DateTime.MinValue;
+        GoldPriceUpdateInterval = TimeSpan.FromMinutes(10); // Default interval
     }
 
     /// <summary>
-    /// Initializes a new instance of the GoldCoin class with specified parameters.
-    /// 
-    /// Example:
-    /// <code>
-    /// var goldCoin = new GoldCoin("GoldCoin", "GLD", 18, 1000m, "smartXOwner123", "ownerPrivateKey");
-    /// 
-    /// // Owner updates the gold price manually
-    /// await goldCoin.UpdateGoldPriceAsync(2000m, "ownerPrivateKey");
-    /// 
-    /// // Or fetch and update the price from an ext. API
-    /// await goldCoin.FetchAndUpdateGoldPriceAsync("ownerPrivateKey");
-    /// </code>
+    ///     Parameterized constructor for initializing a GoldCoin instance with specific attributes.
     /// </summary>
     /// <param name="name">The name of the token.</param>
     /// <param name="symbol">The symbol of the token.</param>
-    /// <param name="decimals">The number of decimals for the token.</param>
-    /// <param name="initialSupply">The initial token supply.</param>
-    /// <param name="owner">The address of the owner.</param>
-    /// <param name="ownerPrivateKey">The private key of the owner.</param>
-    public GoldCoin(string name, string symbol, uint decimals, decimal initialSupply, string owner,
-        string ownerPrivateKey)
+    /// <param name="decimals">Number of decimal places for the token.</param>
+    /// <param name="initialSupply">Initial supply of tokens.</param>
+    /// <param name="owner">Owner's address.</param>
+    public GoldCoin(string name, string symbol, uint decimals, decimal initialSupply, string owner)
         : base(name, symbol, decimals, initialSupply, owner)
     {
         CurrentGoldPrice = 0;
         LastGoldPriceUpdate = DateTime.MinValue;
-        Owner = owner;
-
-        // Register the owner
-        RegisterUser(owner, ownerPrivateKey);
+        GoldPriceUpdateInterval = TimeSpan.FromMinutes(10); // Default interval
     }
 
     [JsonInclude] public DateTime LastGoldPriceUpdate { get; private set; }
     [JsonInclude] public decimal CurrentGoldPrice { get; private set; }
+    [JsonInclude] public TimeSpan GoldPriceUpdateInterval { get; private set; }
+
+    public event Action<string, decimal>? OnGoldPriceUpdated;
+
 
     /// <summary>
-    ///     Updates the current gold price and adjusts the token supply accordingly.
-    ///     Only the owner can update the price.
+    ///     Updates the interval at which the gold price can be updated.
+    ///     Only the owner is authorized to modify this setting.
     /// </summary>
+    /// <param name="newInterval">New time interval for updates.</param>
+    /// <param name="ownerPrivateKey">Private key of the owner for authentication.</param>
+    /// <returns>True if the interval was successfully updated; otherwise, false.</returns>
+    public bool UpdateGoldPriceInterval(TimeSpan newInterval, string ownerPrivateKey)
+    {
+        if (!IsAuthenticated(Owner, ownerPrivateKey))
+        {
+            Log("Gold price interval update failed: Unauthorized action.");
+            return false;
+        }
+
+        if (newInterval.TotalMinutes < 1)
+        {
+            Log("Gold price interval update failed: Interval must be at least 1 minute.");
+            return false;
+        }
+
+        GoldPriceUpdateInterval = newInterval;
+        Log($"Gold price update interval set to {newInterval.TotalMinutes} minutes.");
+        return true;
+    }
+
+
+    /// <summary>
+    ///     Updates the gold price to a new value and adjusts the token supply accordingly.
+    ///     Only the owner is allowed to perform this operation.
+    /// </summary>
+    /// <param name="newGoldPrice">The new gold price in USD per ounce.</param>
+    /// <param name="ownerPrivateKey">Private key of the owner for authentication.</param>
+    /// <returns>True if the gold price was successfully updated; otherwise, false.</returns>
     public async Task<bool> UpdateGoldPriceAsync(decimal newGoldPrice, string ownerPrivateKey)
     {
         if (!IsAuthenticated(Owner, ownerPrivateKey))
@@ -65,16 +87,31 @@ public class GoldCoin : ERC20Extended
             return false;
         }
 
+        var timeSinceLastUpdate = DateTime.UtcNow - LastGoldPriceUpdate;
+        if (timeSinceLastUpdate < GoldPriceUpdateInterval)
+        {
+            Log(
+                $"Gold price update failed: Updates are allowed only every {GoldPriceUpdateInterval.TotalMinutes} minutes. Time since last update: {timeSinceLastUpdate.TotalMinutes} minutes.");
+            return false;
+        }
+
         var previousPrice = CurrentGoldPrice;
         CurrentGoldPrice = newGoldPrice;
         LastGoldPriceUpdate = DateTime.UtcNow;
 
+        OnGoldPriceUpdated?.Invoke(Owner, newGoldPrice);
         Log($"Gold price updated to {newGoldPrice} USD per ounce.");
 
         AdjustTokenSupplyBasedOnGoldPrice(previousPrice, newGoldPrice);
         return true;
     }
 
+    /// <summary>
+    ///     Adjusts the total token supply based on the change in gold price.
+    ///     Tokens are minted or burned proportionally to the price change.
+    /// </summary>
+    /// <param name="previousPrice">The previous gold price.</param>
+    /// <param name="newPrice">The updated gold price.</param>
     private void AdjustTokenSupplyBasedOnGoldPrice(decimal previousPrice, decimal newPrice)
     {
         if (previousPrice <= 0)
@@ -107,8 +144,10 @@ public class GoldCoin : ERC20Extended
     }
 
     /// <summary>
-    ///     Fetches the gold price from an ext. API and updates it.
+    ///     Fetches the latest gold price from an external API and updates the token accordingly.
+    ///     Only the owner can initiate this process.
     /// </summary>
+    /// <param name="ownerPrivateKey">Private key of the owner for authentication.</param>
     public async Task FetchAndUpdateGoldPriceAsync(string ownerPrivateKey)
     {
         try

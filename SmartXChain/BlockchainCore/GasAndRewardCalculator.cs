@@ -62,6 +62,7 @@ public class GasAndRewardCalculator
             Gas = (int)(Gas * 1.2);
         else if (Blockchain.CurrentNetworkLoad < 0.25)
             Gas = (int)(Gas * 0.8);
+         
     }
 
     /// <summary>

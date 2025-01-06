@@ -80,7 +80,10 @@ public class CodeSecurityAnalyzer
     private static string _safeContractCode = "";
     public static bool IsCodeSafe(string code, ref string message)
     {
-        if (_safeContractCode=="")
+        // Preprocess the code to remove comments
+        code = RemoveComments(code);
+
+        if (_safeContractCode == "")
         {
             var contractBaseFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Contracts", "Contract.cs");
 
@@ -89,6 +92,7 @@ public class CodeSecurityAnalyzer
                 Logger.Log($"ERROR: Contract.cs not found at {contractBaseFile}.");
                 return false;
             }
+
             var contractBaseContent = File.ReadAllText(contractBaseFile);
             if (!contractBaseContent.Contains("public Contract()"))
             {
@@ -99,11 +103,12 @@ public class CodeSecurityAnalyzer
             var usingRegex = new Regex(@"^using\s+[^;]+;", RegexOptions.Multiline);
             string code1WithoutUsings = usingRegex.Replace(contractBaseContent, "").Trim();
 
-             _safeContractCode = code1WithoutUsings;
+            _safeContractCode = code1WithoutUsings;
         }
 
-        var tree = CSharpSyntaxTree.ParseText(code.Replace(_safeContractCode,""));
+        var tree = CSharpSyntaxTree.ParseText(code.Replace(_safeContractCode, ""));
         var root = tree.GetRoot();
+
         // Check for non-whitelisted namespaces
         var usingDirectives = root.DescendantNodes().OfType<UsingDirectiveSyntax>();
         foreach (var ud in usingDirectives)
@@ -245,6 +250,13 @@ public class CodeSecurityAnalyzer
         return true;
     }
 
+    // Utility method to remove comments from the code
+    private static string RemoveComments(string code)
+    {
+        var noSingleLineComments = Regex.Replace(code, @"//.*", ""); // Remove single-line comments
+        var noMultiLineComments = Regex.Replace(noSingleLineComments, @"/\*.*?\*/", "", RegexOptions.Singleline); // Remove multi-line comments
+        return noMultiLineComments;
+    }
     public static bool AreCommandsSafe(string[] codeCommands, ref List<string> messages)
     {
         messages = new List<string>();

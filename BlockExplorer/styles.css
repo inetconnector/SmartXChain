@@ -1,0 +1,146 @@
+/* Globale Stile */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #1e1e2f; /* Professioneller dunkler Hintergrund */
+    color: #e6e6e6; /* Helle Textfarbe für Kontrast */
+}
+
+header {
+    background-color: #2a2a40; /* Dunklerer Header für professionelles Aussehen */
+    color: #ffffff; /* Weiße Schrift für Lesbarkeit */
+    padding: 1em;
+    text-align: center;
+}
+
+#controls {
+    margin-top: 10px;
+    text-align: center;
+}
+
+#controls select,
+#controls input,
+#controls button {
+    margin: 5px;
+    padding: 8px 12px;
+    font-size: 1em;
+    border: 1px solid #444; /* Dezente Umrandung für Eingaben */
+    border-radius: 4px;
+    background-color: #2a2a40; /* Dunkler Hintergrund für Eingaben */
+    color: #e6e6e6; /* Helle Textfarbe */
+}
+
+#controls button {
+    background-color: #4caf50; /* Grünes Blockchain-Thema */
+    color: white;
+    cursor: pointer;
+}
+
+#controls button:hover {
+    background-color: #66bb6a; /* Helleres Grün beim Hover */
+}
+
+/* Hauptabschnitt */
+main {
+    padding: 2em;
+}
+
+section {
+    margin-bottom: 2em;
+    border-radius: 8px;
+    background-color: #252538; /* Leicht hellerer Hintergrund für Abschnitte */
+    padding: 1.5em;
+    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2); /* Weicher Schatten für Abschnitte */
+}
+
+section h2 {
+    color: #4caf50; /* Grüne Titel für Blockchain-Abschnitte */
+    margin-bottom: 1em;
+}
+
+/* Standards */
+#standards ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+#standards li {
+    margin: 10px 0;
+}
+
+#standards a {
+    text-decoration: none;
+    color: #4caf50; /* Standard-Grün für Links */
+}
+
+#standards a:hover {
+    text-decoration: underline;
+    color: #66bb6a; /* Helleres Grün beim Hover */
+}
+
+#standards a:visited {
+    color: #a9a9a9; /* Hellgrau für besuchte Links */
+}
+
+/* Listen für Blöcke, Transaktionen und Verträge */
+#blockList,
+#transactionList,
+#contractsList {
+    list-style-type: none;
+    padding: 0;
+}
+
+#blockList li,
+#transactionList li,
+#contractsList li {
+    margin: 5px 0; /* Weniger Abstand zwischen den Listenelementen */
+    padding: 8px; /* Reduziertes Padding innerhalb der Listenelemente */
+    background-color: #2a2a40; /* Leichter Kontrast für Listenelemente */
+    border-radius: 5px;
+    border: 1px solid #444; /* Dezente Umrandung */
+    color: #e6e6e6;
+    font-size: 0.95em; /* Etwas kleinere Schrift für kompaktere Darstellung */
+}
+
+#blockList li a,
+#transactionList li a,
+#contractsList li a {
+    color: #4caf50; /* Standard-Grün für Links */
+    text-decoration: none;
+}
+
+#blockList li a:hover,
+#transactionList li a:hover,
+#contractsList li a:hover {
+    text-decoration: underline;
+    color: #66bb6a; /* Helleres Grün beim Hover */
+}
+
+#blockList li a:visited,
+#transactionList li a:visited,
+#contractsList li a:visited {
+    color: #a9a9a9; /* Hellgrau für besuchte Links */
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    main {
+        padding: 1em;
+    }
+
+    header {
+        padding: 0.5em;
+    }
+
+    #controls {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+    }
+
+    section {
+        padding: 1em;
+    }
+}

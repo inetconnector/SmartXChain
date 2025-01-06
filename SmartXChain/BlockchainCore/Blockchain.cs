@@ -45,14 +45,22 @@ public class Blockchain
     {
         get
         {
-            var smartContracts = FirstBlock.SmartContracts;
-            if (smartContracts.Count == 0)
-            {
-                FirstBlock.SmartContracts = GetAllContracts();
-                smartContracts = FirstBlock.SmartContracts;
-            }
+            var contracts = new Dictionary<string, SmartContract?>();
 
-            return smartContracts;
+            if (Chain != null)
+                lock (Chain)
+                {
+                    foreach (var block in Chain)
+                        lock (block)
+                        {
+                            foreach (var kvp in block.SmartContracts)
+                            {
+                                contracts.Add(kvp.Key, kvp.Value);
+                            }
+                        }
+                }
+
+            return contracts;
         }
     }
 
@@ -572,54 +580,7 @@ public class Blockchain
         Logger.Log($"ERROR: SmartContract '{contractName}' not found in blockchain transactions.");
         return null;
     }
-
-    /// <summary>
-    ///     Retrieves all smart contracts from the blockchain and returns them as a dictionary.
-    ///     Each entry in the dictionary has the contract name as the key and the SmartContract object as the value.
-    ///     Contracts are identified by transactions with the recipient set to SystemAddress and an info field starting with
-    ///     "$$".
-    /// </summary>
-    /// <returns>A dictionary containing all unique smart contracts found in the blockchain.</returns>
-    private Dictionary<string, SmartContract?> GetAllContracts()
-    {
-        var contracts = new Dictionary<string, SmartContract?>();
-
-        if (Chain != null)
-            lock (Chain)
-            {
-                foreach (var block in Chain)
-                    lock (block)
-                    {
-                        foreach (var transaction in block.Transactions)
-                            if (transaction.Recipient == SystemAddress &&
-                                transaction.Info.StartsWith("$$") &&
-                                !string.IsNullOrEmpty(transaction.Data))
-                            {
-                                var contractName = transaction.Info.Substring(2); // Removes "$$" from the start
-
-                                if (!contracts.ContainsKey(contractName)) // Avoids duplicates
-                                    try
-                                    {
-                                        var contractCode = Serializer.DeserializeFromBase64<string>(transaction.Data);
-                                        var contract = new SmartContract(
-                                            transaction.Sender,
-                                            Serializer.SerializeToBase64(contractCode),
-                                            contractName
-                                        );
-                                        contracts[contractName] = contract;
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        Logger.Log(
-                                            $"ERROR: Failed to deserialize contract '{contractName}': {ex.Message}");
-                                    }
-                            }
-                    }
-            }
-
-        return contracts;
-    }
-
+     
 
     /// <summary>
     ///     Mines all pending transactions and adds them to the blockchain.
