@@ -235,11 +235,11 @@ internal class Program
         var transaction = new Transaction();
 
         transaction.RegisterUser(walletAddresses[0], PrivateKey);
-        var transferred = await transaction.Transfer(
+        var (transferred,message) = await transaction.Transfer(
             chain,
             walletAddresses[0],
             walletAddresses[1],
-            0.01d,
+            (decimal)0.01,
             PrivateKey,
             "native transfer",
             "49.83278, 9.88167");
@@ -249,6 +249,8 @@ internal class Program
 
         if (transferred)
             Logger.Log($"Transferred SCX from {walletAddresses[0]} to {walletAddresses[1]}");
+        else
+            Logger.Log($"SCX could not be transferred from {walletAddresses[0]} to {walletAddresses[1]}");
     }
 
     private static void DisplayBlockchainState(BlockchainServer.NodeStartupResult? node)

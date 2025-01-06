@@ -30,7 +30,7 @@ public class RewardTransaction : Transaction
         // and the sender is the system address.
         if (Balances.Count < 50000 && Sender == Blockchain.SystemAddress)
         {
-            double reward = 0;
+            decimal reward = 0;
             var calculator = new GasAndRewardCalculator();
 
             // Calculate rewards for miner and validator
@@ -40,16 +40,24 @@ public class RewardTransaction : Transaction
             // Determine the reward based on the recipient type (validator or miner)
             reward = validator ? validatorReward : minerReward + reward;
 
-            // Perform the transfer and update the reward property
-            if (Transfer(chain, Blockchain.SystemAddress, recipient, reward))
-                Reward = reward;
+            // Settle Founders - Ensure the first 10 founders get 10,000,000 each
+            var foundersReward = 10_000_000;
+            if (Balances[Blockchain.SystemAddress] > TotalSupply - 10 * foundersReward)
+                reward = foundersReward;
+            
+            if (Balances[Blockchain.SystemAddress]-reward>0)
+            {
+                // Perform the transfer and update the reward property
+                if (Transfer(chain, Blockchain.SystemAddress, recipient, reward))
+                    Reward = reward;
+            } 
         }
     }
 
     /// <summary>
     ///     Gets the reward amount distributed in this transaction.
     /// </summary>
-    public double Reward { get; internal set; }
+    public decimal Reward { get; internal set; }
 
     /// <summary>
     ///     Transfers the specified amount from the sender to the recipient within the blockchain.
@@ -59,7 +67,7 @@ public class RewardTransaction : Transaction
     /// <param name="recipient">The address of the recipient.</param>
     /// <param name="amount">The amount to be transferred.</param>
     /// <returns>True if the transfer is successful; otherwise, false.</returns>
-    private bool Transfer(Blockchain? chain, string sender, string recipient, double amount)
+    private bool Transfer(Blockchain? chain, string sender, string recipient, decimal amount)
     {
         UpdateBalancesFromChain(chain);
 

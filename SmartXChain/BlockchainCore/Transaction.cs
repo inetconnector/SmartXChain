@@ -65,7 +65,7 @@ public class Transaction
     ///     Holds the balance of each account.
     /// </summary>
     [JsonInclude]
-    internal static Dictionary<string, double> Balances { get; } = new();
+    internal static Dictionary<string, decimal> Balances { get; } = new();
 
     /// <summary>
     ///     Stores and retrieves the sender's address for the transaction.
@@ -92,7 +92,7 @@ public class Transaction
     ///     The amount of tokens to be transferred in the transaction.
     /// </summary>
     [JsonInclude]
-    internal double Amount { get; set; }
+    internal decimal Amount { get; set; }
 
     /// <summary>
     ///     The timestamp indicating when the transaction was created.
@@ -140,7 +140,7 @@ public class Transaction
     ///     Initially set to 1,000,000,000.
     /// </summary>
     [JsonInclude]
-    internal static ulong TotalSupply { get; private set; }
+    internal static decimal TotalSupply { get; private set; }
 
     /// <summary>
     ///     The version of the transaction system.
@@ -274,7 +274,7 @@ public class Transaction
     /// <summary>
     ///     Retrieves the balance of a specified account.
     /// </summary>
-    public double BalanceOf(string account)
+    public decimal BalanceOf(string account)
     {
         return Balances.TryGetValue(account, out var balance) ? balance : 0;
     }
@@ -282,7 +282,7 @@ public class Transaction
     /// <summary>
     ///     Transfers tokens from one account to another.
     /// </summary>
-    private bool Transfer(string sender, string recipient, double amount)
+    private bool Transfer(string sender, string recipient, decimal amount)
     {
         if (!Balances.ContainsKey(sender) || Balances[sender] < amount)
         {
@@ -301,14 +301,16 @@ public class Transaction
     /// <summary>
     ///     Transfers tokens with blockchain integration and optional metadata.
     /// </summary>
-    public async Task<bool> Transfer(Blockchain? chain, string sender, string recipient, double amount,
+    public async Task<(bool, string)> Transfer(Blockchain? chain, string sender, string recipient, decimal amount,
         string? privateKey,
         string info = "", string data = "")
     {
+        var message = "";
         if (!IsAuthenticated(sender, privateKey))
         {
-            Log($"Transfer failed: Unauthorized action by '{sender}'.");
-            return false;
+            message = $"Transfer failed: Unauthorized action by '{sender}'."; 
+            Log(message);
+            return (false, message);
         }
 
         TransactionType = TransactionTypes.NativeTransfer;
@@ -316,8 +318,9 @@ public class Transaction
 
         if (!Balances.ContainsKey(sender) || Balances[sender] < amount)
         {
-            Log($"Transfer failed: Insufficient balance in account '{sender}'.");
-            return false;
+            message = $"Transfer failed: Insufficient balance in account '{sender}'."; 
+            Log(message);
+            return (false,message);
         }
 
         var transferTransaction = new Transaction
@@ -342,8 +345,9 @@ public class Transaction
         Balances.TryAdd(recipient, 0);
         Balances[recipient] += amount;
 
-        Log($"Transfer successful: {amount} tokens from {sender} to {recipient}.");
-        return true;
+        message = $"Transfer successful: {amount} tokens from {sender} to {recipient}.";
+        Log(message);
+        return (true, message);
     }
 
     /// <summary>
@@ -356,7 +360,7 @@ public class Transaction
             Balances.Clear();
             Balances[Blockchain.SystemAddress] = TotalSupply;
 
-            if (chain != null)
+            if (chain != null && chain.Chain != null)
                 foreach (var block in chain.Chain)
                 foreach (var transaction in block.Transactions)
                 {

@@ -6,12 +6,12 @@ public class GasAndRewardCalculator
     private const int BaseGasTransaction = 5; // Base gas consumption for a transaction
     private const int BaseGasContract = 10; // Base gas consumption for a smart contract
     private const int GasPerCharacter = 2; // Gas consumption per character in data
-    private const double MinerInitialReward = 0.1; // Initial reward for miners
-    private const double ValidatorInitialReward = 0.05; // Initial reward for validators
-    private const double MinerDecayFactor = 0.98; // Decay rate for miner rewards
-    private const double ValidatorDecayFactor = 0.99; // Decay rate for validator rewards
-    private const double MinerMinimumReward = 0.01; // Minimum reward for miners
-    private const double ValidatorMinimumReward = 0.005; // Minimum reward for validators
+    private const decimal MinerInitialReward = (decimal)0.1; // Initial reward for miners
+    private const decimal ValidatorInitialReward = (decimal)0.05; // Initial reward for validators
+    private const decimal MinerDecayFactor = (decimal)0.98; // Decay rate for miner rewards
+    private const decimal ValidatorDecayFactor = (decimal)0.99; // Decay rate for validator rewards
+    private const decimal MinerMinimumReward = (decimal)0.01; // Minimum reward for miners
+    private const decimal ValidatorMinimumReward = (decimal)0.005; // Minimum reward for validators
 
     /// <summary>
     ///     Gets the gas factor used to scale gas calculations.
@@ -92,12 +92,12 @@ public class GasAndRewardCalculator
     /// <param name="walletCount">The number of wallets to consider for the decay calculation.</param>
     /// <param name="address">The address of the miner.</param>
     /// <returns>The calculated reward for the miner.</returns>
-    public double CalculateMinerReward(int walletCount, string address)
+    public decimal CalculateMinerReward(int walletCount, string address)
     {
         if (Transaction.Balances.ContainsKey(address) && Transaction.Balances[address] == 0)
             return MinerInitialReward;
 
-        var reward = MinerInitialReward * Math.Pow(MinerDecayFactor, walletCount);
+        var reward = MinerInitialReward * (decimal)Math.Pow((double)MinerDecayFactor, walletCount);
         return Math.Max(reward, MinerMinimumReward);
     }
 
@@ -107,9 +107,9 @@ public class GasAndRewardCalculator
     /// </summary>
     /// <param name="walletCount">The number of wallets to consider for the decay calculation.</param>
     /// <returns>The calculated reward for the validator.</returns>
-    public double CalculateValidatorReward(int walletCount)
+    public decimal CalculateValidatorReward(int walletCount)
     {
-        var reward = ValidatorInitialReward * Math.Pow(ValidatorDecayFactor, walletCount);
+        var reward = ValidatorInitialReward * (decimal)Math.Pow((double)ValidatorDecayFactor, walletCount);
         return Math.Max(reward, ValidatorMinimumReward);
     }
 }

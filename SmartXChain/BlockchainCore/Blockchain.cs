@@ -623,41 +623,39 @@ public class Blockchain
                 }
 
                 //find consensus between validators
-                if (block != null)
+                var (consensusReached, rewardAddresses) = await ReachConsensus(block);
+                if (consensusReached)
                 {
-                    var (consensusReached, rewardAddresses) = await ReachConsensus(block);
-                    if (consensusReached)
+                    //add do chain after successful validation 
+                    if (AddBlock(block, false))
                     {
-                        //add do chain after successful validation 
-                        if (AddBlock(block, false))
-                        {
-                            Broadcast(block);
+                        Broadcast(block);
+                        if (PendingTransactions != null) 
                             PendingTransactions.Clear();
-                        }
-
-                        //send a reward to the miner
-                        var rewardTransaction = new RewardTransaction(this, Config.Default.MinerAddress);
-                        await AddTransaction(rewardTransaction);
-
-                        Logger.Log(
-                            $"Miner reward: MinerReward {rewardTransaction.Reward} to miner {minerAddress}");
-
-                        //send a reward to the validators
-                        foreach (var address in rewardAddresses)
-                        {
-                            if (address == minerAddress)
-                                continue;
-
-                            rewardTransaction = new RewardTransaction(this, address, true);
-                            await AddTransaction(rewardTransaction);
-                            Logger.Log(
-                                $"Validator reward: MinerReward {rewardTransaction.Reward} to validator {address}");
-                        }
                     }
-                    else
+
+                    //send a reward to the miner
+                    var rewardTransaction = new RewardTransaction(this, Config.Default.MinerAddress);
+                    await AddTransaction(rewardTransaction);
+
+                    Logger.Log(
+                        $"Miner reward: MinerReward {rewardTransaction.Reward} to miner {minerAddress}");
+
+                    //send a reward to the validators
+                    foreach (var address in rewardAddresses)
                     {
-                        Logger.Log("ERROR: Block rejected");
+                        if (address == minerAddress)
+                            continue;
+
+                        rewardTransaction = new RewardTransaction(this, address, true);
+                        await AddTransaction(rewardTransaction);
+                        Logger.Log(
+                            $"Validator reward: MinerReward {rewardTransaction.Reward} to validator {address}");
                     }
+                }
+                else
+                {
+                    Logger.Log("ERROR: Block rejected");
                 }
             }
         }
@@ -836,9 +834,9 @@ public class Blockchain
     ///     Retrieves all account balances from the blockchain by aggregating transaction data.
     /// </summary>
     /// <returns>A dictionary mapping addresses to their respective balances.</returns>
-    public Dictionary<string, double> GetAllBalancesFromChain()
+    public Dictionary<string, decimal> GetAllBalancesFromChain()
     {
-        var balances = new Dictionary<string, double>();
+        var balances = new Dictionary<string, decimal>();
         try
         {
             UpdateBalancesFromChain(this);
@@ -910,7 +908,7 @@ public class Blockchain
 
                 if (root.TryGetProperty("Balances", out var balancesJson))
                 {
-                    var balances = JsonSerializer.Deserialize<Dictionary<string, double>>(balancesJson.GetRawText());
+                    var balances = JsonSerializer.Deserialize<Dictionary<string, Decimal>>(balancesJson.GetRawText());
                     if (balances != null)
                         foreach (var balance in balances)
                             Balances[balance.Key] = balance.Value;

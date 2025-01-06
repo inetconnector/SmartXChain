@@ -424,7 +424,7 @@
                 Gets the reward amount distributed in this transaction.
             </summary>
         </member>
-        <member name="M:SmartXChain.BlockchainCore.RewardTransaction.Transfer(SmartXChain.BlockchainCore.Blockchain,System.String,System.String,System.Double)">
+        <member name="M:SmartXChain.BlockchainCore.RewardTransaction.Transfer(SmartXChain.BlockchainCore.Blockchain,System.String,System.String,System.Decimal)">
             <summary>
                 Transfers the specified amount from the sender to the recipient within the blockchain.
             </summary>
@@ -609,12 +609,12 @@
                 Retrieves the balance of a specified account.
             </summary>
         </member>
-        <member name="M:SmartXChain.BlockchainCore.Transaction.Transfer(System.String,System.String,System.Double)">
+        <member name="M:SmartXChain.BlockchainCore.Transaction.Transfer(System.String,System.String,System.Decimal)">
             <summary>
                 Transfers tokens from one account to another.
             </summary>
         </member>
-        <member name="M:SmartXChain.BlockchainCore.Transaction.Transfer(SmartXChain.BlockchainCore.Blockchain,System.String,System.String,System.Double,System.String,System.String,System.String)">
+        <member name="M:SmartXChain.BlockchainCore.Transaction.Transfer(SmartXChain.BlockchainCore.Blockchain,System.String,System.String,System.Decimal,System.String,System.String,System.String)">
             <summary>
                 Transfers tokens with blockchain integration and optional metadata.
             </summary>
