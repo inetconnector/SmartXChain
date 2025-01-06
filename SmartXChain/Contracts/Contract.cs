@@ -119,14 +119,26 @@ public class Contract
     }
 }
 
+
+/// <summary>
+/// Logger class
+/// </summary>
 public class Logger
 {
+    /// <summary>
+    ///     Logs a message to the console with a timestamp, excluding specific messages based on predefined filters.
+    /// </summary>
+    /// <param name="message">The message to log. Defaults to an empty string.</param>
+    /// <param name="trim">Trims output to 110 chars</param>
     public static void Log(string message = "", bool trim = true)
     {
         // Format the message with a timestamp
         var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
-        var formattedMessage = timestamp + " - " + message;
+        var formattedMessage = $"{timestamp} - {message}";
+        if (message.ToLower().Contains("error"))
+        {
 
+        }
         // Print the message to the console, truncating if it exceeds 100 characters
         if (formattedMessage.Length > 110 && trim)
             Console.WriteLine(formattedMessage.Substring(0, 110) + "...");

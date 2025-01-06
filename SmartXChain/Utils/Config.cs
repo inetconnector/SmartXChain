@@ -373,7 +373,7 @@ public class Config
                 if (Regex.IsMatch(peerValue, @"^https?://[\w\-.]+(:\d+)?$"))
                     Peers.Add(peerValue);
                 else
-                    Console.WriteLine($"Invalid Peer URL: {peerValue}");
+                    Logger.Log($"Invalid Peer URL: {peerValue}");
             }
         }
     }

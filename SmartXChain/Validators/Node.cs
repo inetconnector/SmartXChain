@@ -11,9 +11,7 @@ namespace SmartXChain.Validators;
 ///     Represents a blockchain node responsible for server discovery, registration, and synchronization.
 /// </summary>
 public class Node
-{
-    internal static List<string> DiscoveredServers = new();
-
+{  
     /// <summary>
     ///     Initializes a new instance of the <see cref="Node" /> class.
     /// </summary>
@@ -29,6 +27,11 @@ public class Node
     ///     A list of IP addresses for nodes currently known to the system.
     /// </summary>
     public static ConcurrentBag<string> CurrentNodeIPs { get; set; } = new();
+
+    /// <summary>
+    /// A dictionary of IP addresses for nodes with las activity currently known to the system.
+    /// </summary>
+    public static Dictionary<string,DateTime> CurrentNodeIP_LastActive { get; set; } = new();
 
     /// <summary>
     ///     Gets the blockchain chain identifier associated with this node.
@@ -65,28 +68,35 @@ public class Node
 
         // Discover servers from the configuration
         var peers = Config.Default.Peers;
-        lock (DiscoveredServers)
+
+        var ipList = new List<string>();
+        foreach (var staticIP in node.GetStaticServers(peers))
         {
-            DiscoveredServers = node.DiscoverServers(peers);
-        }
+            if (!ipList.Contains(staticIP))
+                ipList.Add(staticIP);
+        } 
 
         // Retry server discovery if no active servers are found
-        if (DiscoveredServers.Count == 0)
+        if (ipList.Count == 0)
         {
             Logger.Log("No active servers found. Waiting for a server...");
-            while (DiscoveredServers.Count == 0)
+            while (ipList.Count == 0)
             {
                 await Task.Delay(5000);
-                DiscoveredServers = node.DiscoverServers(peers);
+                foreach (var staticIP in node.GetStaticServers(peers))
+                {
+                    if (!ipList.Contains(staticIP))
+                        ipList.Add(staticIP);
+                }
             }
         }
 
         // Filter out the local node's own IP address
-        DiscoveredServers = DiscoveredServers
+        ipList = ipList
             .Where(ip => !ip.Contains(NetworkUtils.IP) && !ip.Contains(NetworkUtils.GetLocalIP())).ToList();
 
         // Register with a discovery server
-        await node.RegisterWithDiscoveryAsync(DiscoveredServers);
+        await node.RegisterWithDiscoveryAsync(ipList);
 
         // Send periodic heartbeats to the servers
         Task.Run(async () =>
@@ -95,66 +105,71 @@ public class Node
             {
                 try
                 {
-                    foreach (var ip in CurrentNodeIPs)
-                        lock (DiscoveredServers)
+                    foreach (var server in CurrentNodeIPs)
+                    {
+                        var alive = await node.SendHeartbeatAsync(server);
+                        if (alive)
                         {
-                            if (!DiscoveredServers.Contains(ip)) DiscoveredServers.Add(ip);
-                        }
-
-                    foreach (var server in DiscoveredServers)
-                        if (node != null && node.StartupResult != null)
-                        {
-                            await node.SendHeartbeatAsync(server);
-                            var newChain = await UpdateBlockchainWithMissingBlocks(node.StartupResult.Blockchain,
-                                node.StartupResult.Node);
-                            if (newChain != null) node.StartupResult.Blockchain = newChain;
-                        }
-                        else if (node != null && node.StartupResult == null && BlockchainServer.Startup != null)
-                        {
-                            try
+                            if (node != null && node.StartupResult != null)
                             {
-                                if (!server.Contains(NetworkUtils.IP))
+                                var newChain = await UpdateBlockchainWithMissingBlocks(node.StartupResult.Blockchain,
+                                    node.StartupResult.Node);
+                                if (newChain != null) node.StartupResult.Blockchain = newChain;
+                            }
+                            else if (node != null && node.StartupResult == null && BlockchainServer.Startup != null)
+                            {
+                                try
                                 {
-                                    var response = await SocketManager.GetInstance(server)
-                                        .SendMessageAsync("GetChain#" + node.NodeAddress);
-
-                                    if (response.ToLower().Contains("error"))
+                                    if (!server.Contains(NetworkUtils.IP))
                                     {
-                                        Logger.Log($"No chaindata from {server}: {response}");
-                                    }
-                                    else
-                                    {
-                                        var remoteChain = Blockchain.FromBase64(response);
+                                        var response = await SocketManager.GetInstance(server)
+                                            .SendMessageAsync("GetChain#" + node.NodeAddress);
 
-                                        if (BlockchainServer.Startup.Blockchain != null)
+                                        if (response.ToLower().Contains("error"))
                                         {
-                                            lock (BlockchainServer.Startup.Blockchain)
+                                            Logger.Log($"No chaindata from {server}: {response}");
+                                        }
+                                        else
+                                        {
+                                            var remoteChain = Blockchain.FromBase64(response);
+
+                                            if (BlockchainServer.Startup.Blockchain != null)
                                             {
-                                                if (remoteChain != null &&
-                                                    remoteChain.Chain.Count >=
-                                                    BlockchainServer.Startup.Blockchain.Chain.Count &&
-                                                    remoteChain.IsValid())
+                                                lock (BlockchainServer.Startup.Blockchain)
                                                 {
-                                                    BlockchainServer.Startup.Blockchain = remoteChain;
-                                                    node.StartupResult = BlockchainServer.Startup;
-                                                    SaveBlockChain(remoteChain, node);
+                                                    if (remoteChain != null &&
+                                                        remoteChain.Chain != null &&
+                                                        BlockchainServer.Startup.Blockchain.Chain != null &&
+                                                        remoteChain.Chain.Count >=
+                                                        BlockchainServer.Startup.Blockchain.Chain.Count &&
+                                                        remoteChain.IsValid())
+                                                    {
+                                                        BlockchainServer.Startup.Blockchain = remoteChain;
+                                                        node.StartupResult = BlockchainServer.Startup;
+                                                        SaveBlockChain(remoteChain, node);
+                                                    }
                                                 }
+
+                                                Logger.Log(
+                                                    $"GetChain request to {server} success: Blockchain blocks: {BlockchainServer.Startup.Blockchain.Chain.Count}");
                                             }
 
-                                            Logger.Log(
-                                                $"GetChain request to {server} success: Blockchain blocks: {BlockchainServer.Startup.Blockchain.Chain.Count}");
+                                            if (Config.Default.Debug)
+                                                Logger.Log($"Response from server {server}: {response}");
                                         }
-
-                                        if (Config.Default.Debug)
-                                            Logger.Log($"Response from server {server}: {response}");
                                     }
                                 }
+                                catch (Exception ex)
+                                {
+                                    Logger.Log($"Error sending GetChain request to {server}: {ex.Message}");
+                                }
                             }
-                            catch (Exception ex)
-                            {
-                                Logger.Log($"Error sending GetChain request to {server}: {ex.Message}");
-                            }
+
                         }
+                        else
+                            RemoveNodeIP(server);
+
+                     }
                 }
                 catch (Exception ex)
                 {
@@ -171,16 +186,15 @@ public class Node
             while (true)
             {
                 try
-                {
-                    if (DiscoveredServers != null)
-                        foreach (var server in DiscoveredServers)
-                        {
-                            var nodeIPList = await node.GetRegisteredNodesAsync(server);
+                { 
+                    foreach (var server in CurrentNodeIPs)
+                    {
+                        var nodeIPList = await node.GetRegisteredNodesAsync(server);
 
-                            foreach (var nodeIP in nodeIPList)
-                                if (!string.IsNullOrEmpty(nodeIP) && !CurrentNodeIPs.Contains(nodeIP))
-                                    CurrentNodeIPs.Add(nodeIP);
-                        }
+                        foreach (var nodeIP in nodeIPList)
+                            if (!string.IsNullOrEmpty(nodeIP) && !CurrentNodeIPs.Contains(nodeIP))
+                                CurrentNodeIPs.Add(nodeIP);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -193,6 +207,54 @@ public class Node
 
         return node;
     }
+
+    /// <summary>
+    /// Removes a node from CurrentNodeIPs and CurrentNodeIP_LastActive
+    /// </summary>
+    /// <param name="ip"></param>
+    public static void RemoveNodeIP(string ip)
+    {
+        if (CurrentNodeIPs.Contains(ip))
+        {
+            var tempList = new List<string>();
+
+            while (CurrentNodeIPs.TryTake(out var currentIp))
+            {
+                if (!currentIp.Equals(ip, StringComparison.OrdinalIgnoreCase))
+                {
+                    tempList.Add(currentIp);
+                }
+                else
+                {
+                    Logger.Log($"Node removed {ip}...");
+                }
+            }
+            foreach (var remainingIp in tempList)
+            {
+                CurrentNodeIPs.Add(remainingIp);
+            }
+
+            lock (CurrentNodeIP_LastActive)
+            {
+                if (CurrentNodeIP_LastActive.ContainsKey(ip))
+                    CurrentNodeIP_LastActive.Remove(ip);
+            }
+            SocketManager.RemoveInstance(ip);
+        } 
+    }
+
+    /// <summary> and updates CurrentNodeIP_LastActive
+    /// </summary>
+    /// <param name="server"></param>
+    public static void AddNodeIP(string server)
+    {
+        Node.CurrentNodeIP_LastActive.TryAdd(server, DateTime.UtcNow);
+        Node.CurrentNodeIP_LastActive[server] = DateTime.UtcNow;
+
+        if (!Node.CurrentNodeIPs.Contains(server))
+            Node.CurrentNodeIPs.Add(server);
+    }
+
 
     /// <summary>
     ///     Updates the local blockchain with missing blocks from peer nodes.
@@ -211,55 +273,61 @@ public class Node
         {
             foreach (var remoteNode in CurrentNodeIPs)
             {
-                if (remoteNode.Contains(NetworkUtils.IP))
-                    continue;
-
-                if (Config.Default.Debug)
-                    Logger.Log($"Checking blockchain with node {remoteNode}...");
-
-                // Retrieve blockchain size from remote node
-                var blockchainSizeResponse =
-                    await SocketManager.GetInstance(remoteNode)
-                        .SendMessageAsync($"BlockCount:{node.NodeAddress}:{blockchain.Chain.Count}");
-
-                if (!int.TryParse(blockchainSizeResponse, out var remoteBlockCount))
+                var alive = await node.SendHeartbeatAsync(remoteNode);
+                if (alive)
                 {
-                    Logger.Log($"Invalid blockchain size response from node {remoteNode}.");
-                    continue;
-                }
 
-                if (currentBlockCount >= remoteBlockCount)
-                {
+                    if (remoteNode.Contains(NetworkUtils.IP))
+                        continue;
+
                     if (Config.Default.Debug)
-                        Logger.Log($"Local blockchain is up-to-date compared to node {remoteNode}.");
-                    continue;
-                }
+                        Logger.Log($"Checking blockchain with node {remoteNode}...");
 
-                // Validate the remote blockchain
-                var isRemoteBlockchainValid =
-                    await SocketManager.GetInstance(remoteNode).SendMessageAsync("ValidateChain") == "ok";
+                    // Retrieve blockchain size from remote node
+                    var blockchainSizeResponse =
+                        await SocketManager.GetInstance(remoteNode)
+                            .SendMessageAsync($"BlockCount:{node.NodeAddress}:{blockchain.Chain.Count}");
 
-                if (!isRemoteBlockchainValid)
-                {
-                    Logger.Log($"Remote blockchain from node {remoteNode} is invalid.");
-                    continue;
-                }
-
-                Logger.Log($"Synchronizing with node {remoteNode}...");
-                // Fetch and add missing blocks
-                for (var i = currentBlockCount; i < remoteBlockCount; i++)
-                {
-                    var blockResponse = await SocketManager.GetInstance(remoteNode).SendMessageAsync($"GetBlock/{i}");
-                    var block = Block.FromBase64(blockResponse);
-
-                    if (block != null)
+                    if (!int.TryParse(blockchainSizeResponse, out var remoteBlockCount))
                     {
-                        blockchain.AddBlock(block, true, false, i);
-                        Logger.Log($"Block {i} added.");
+                        Logger.Log($"Invalid blockchain size response from node {remoteNode}.");
+                        continue;
                     }
-                }
 
-                SaveBlockChain(blockchain, node);
+                    if (currentBlockCount >= remoteBlockCount)
+                    {
+                        if (Config.Default.Debug)
+                            Logger.Log($"Local blockchain is up-to-date compared to node {remoteNode}.");
+                        continue;
+                    }
+
+                    // Validate the remote blockchain
+                    var isRemoteBlockchainValid =
+                        await SocketManager.GetInstance(remoteNode).SendMessageAsync("ValidateChain") == "ok";
+
+                    if (!isRemoteBlockchainValid)
+                    {
+                        Logger.Log($"Remote blockchain from node {remoteNode} is invalid.");
+                        continue;
+                    }
+
+                    Logger.Log($"Synchronizing with node {remoteNode}...");
+                    // Fetch and add missing blocks
+                    for (var i = currentBlockCount; i < remoteBlockCount; i++)
+                    {
+                        var blockResponse = await SocketManager.GetInstance(remoteNode).SendMessageAsync($"GetBlock/{i}");
+                        var block = Block.FromBase64(blockResponse);
+
+                        if (block != null)
+                        {
+                            blockchain.AddBlock(block, true, false, i);
+                            Logger.Log($"Block {i} added.");
+                        }
+                    }
+                    SaveBlockChain(blockchain, node);
+                }
+                else
+                    RemoveNodeIP(remoteNode);
             }
         }
         catch (Exception ex)
@@ -317,7 +385,7 @@ public class Node
 
             if (response.Contains("ok") && !CurrentNodeIPs.Contains(serverAddress))
             {
-                CurrentNodeIPs.Add(serverAddress);
+                AddNodeIP(serverAddress); 
                 Logger.Log($"{serverAddress} added to node servers");
             }
 
@@ -346,11 +414,12 @@ public class Node
         {
             var response = await SocketManager.GetInstance(serverAddress).SendMessageAsync("Nodes");
 
-            if (response == "ERROR: Timeout" || string.IsNullOrEmpty(response))
+            if (response == "ERROR: Timeout" )
             {
                 Logger.Log($"ERROR: Timeout from server {serverAddress}");
+                RemoveNodeIP(serverAddress);
                 return ret;
-            }
+            } 
 
             if (string.IsNullOrEmpty(response))
             {
@@ -379,22 +448,57 @@ public class Node
     /// </summary>
     /// <param name="serverAddress">The address of the server to send the heartbeat to.</param>
     /// <returns>A Task representing the asynchronous operation.</returns>
-    public async Task SendHeartbeatAsync(string serverAddress)
+    private static readonly ConcurrentDictionary<string, DateTime> LastResponseTimes = new();
+    private const int TimeoutSeconds = 60;
+
+    public async Task<bool> SendHeartbeatAsync(string serverAddress)
     {
         try
         {
             var response = await SocketManager.GetInstance(serverAddress).SendMessageAsync($"Heartbeat:{NodeAddress}");
+
             if (Config.Default.Debug)
             {
                 Logger.Log($"Heartbeat sent to {serverAddress}");
                 Logger.Log($"Response from server {serverAddress}: {response}");
             }
+
+            if (!string.IsNullOrEmpty(response))
+            {
+                // Update the last response time
+                LastResponseTimes[serverAddress] = DateTime.UtcNow;
+            }
+            else
+            {
+                Logger.Log($"No response received from {serverAddress}");
+            }
+
+            // Check if the node is considered dead
+            if (LastResponseTimes.TryGetValue(serverAddress, out var lastResponseTime))
+            {
+                var elapsed = DateTime.UtcNow - lastResponseTime;
+                if (elapsed.TotalSeconds > TimeoutSeconds)
+                {
+                    Logger.Log($"Node {serverAddress} is considered dead (last response {elapsed.TotalSeconds} seconds ago).");
+                    return false;
+                }
+            }
+            else
+            {
+                // No response recorded yet, consider the node dead
+                Logger.Log($"Node {serverAddress} has no recorded responses and is considered dead.");
+                return false;
+            }
+
+            return true; // Node is alive
         }
         catch (Exception ex)
         {
             Logger.Log($"ERROR: sending heartbeat to {serverAddress} failed: {ex.Message}");
+            return false; // Node is considered dead due to exception
         }
     }
+
 
 
     /// <summary>
@@ -402,7 +506,7 @@ public class Node
     /// </summary>
     /// <param name="staticServers">List of static server addresses for discovery.</param>
     /// <returns>A list of valid server addresses discovered during the process.</returns>
-    public List<string> DiscoverServers(List<string> staticServers)
+    public List<string> GetStaticServers(List<string> staticServers)
     {
         try
         {

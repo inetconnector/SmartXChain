@@ -40,8 +40,7 @@ public class SocketManager : IDisposable
         _processingTask.Wait();
 
         // Remove this instance from the dictionary
-        var keyToRemove = _instances.FirstOrDefault(kv => kv.Value == this).Key;
-        if (keyToRemove != null) _instances.TryRemove(keyToRemove, out _);
+        RemoveInstance(_serverAddress);
 
         Logger.Log("SocketManager disposed.");
     }
@@ -54,6 +53,25 @@ public class SocketManager : IDisposable
     public static SocketManager GetInstance(string serverAddress)
     {
         return _instances.GetOrAdd(serverAddress, addr => new SocketManager(addr));
+    }
+
+    /// <summary>
+    ///     Removes the instance associated with a specific server address from the shared instance dictionary.
+    /// </summary>
+    /// <param name="serverAddress">The server address for the instance to be removed.</param>
+    public static void RemoveInstance(string serverAddress)
+    {
+        if (_instances.TryRemove(serverAddress, out var instance))
+        {
+            instance.Dispose();
+            if (Config.Default.Debug) 
+                Logger.Log($"SocketManager instance for '{serverAddress}' removed.");
+        }
+        else
+        {
+            if (Config.Default.Debug)
+                Logger.Log($"No SocketManager instance found for '{serverAddress}' to remove.");
+        }
     }
 
     /// <summary>
@@ -94,8 +112,8 @@ public class SocketManager : IDisposable
                         var content = new StringContent(message, Encoding.UTF8, "application/json");
                         if (Config.Default.Debug)
                         {
-                            Logger.Log($"Sending queued message to server: {message}"); 
-                        } 
+                            Logger.Log($"Sending queued message to server: {message}");
+                        }
 
                         // Send message to the server's REST endpoint
                         var response = httpClient.PostAsync("/api/" + message.Split(':')[0], content).Result;

@@ -24,11 +24,6 @@ public partial class BlockchainServer
     private const int HeartbeatTimeoutSeconds = 30; // Maximum time before a node is considered inactive
     private readonly List<string> _peerServers = new(); // Addresses of other peer registration servers
 
-    /// <summary>
-    ///     Concurrent dictionary storing registered nodes and their last heartbeat timestamp.
-    /// </summary>
-    private readonly ConcurrentDictionary<string, DateTime> _registeredNodes = new();
-
     private readonly string _serverAddressExtern; // External address of this server
     private readonly string _serverAddressIntern; // Internal address of this server
     private int _blockCount;
@@ -152,11 +147,14 @@ public partial class BlockchainServer
         endpoints.MapPost("/api/Nodes", async context =>
         {
             var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-            var result = HandleNodes(message);
-            await context.Response.WriteAsync(result);
+            if (message.Contains("."))
+            {
+                var result = HandleNodes(message);
+                await context.Response.WriteAsync(result);
 
-            if (Config.Default.Debug && result.Length > 0)
-                Logger.Log($"Nodes: {result}");
+                if (Config.Default.Debug && result.Length > 0)
+                    Logger.Log($"Nodes: {result}");
+            } 
         });
 
         endpoints.MapPost("/api/PushServers", async context =>
@@ -165,13 +163,9 @@ public partial class BlockchainServer
             Logger.Log($"PushServers: {message}");
             var serverAdded = false;
             foreach (var server in message.Split(','))
-                if (server.StartsWith("http://") && !_registeredNodes.ContainsKey(server))
+                if (server.StartsWith("http://") && !Node.CurrentNodeIPs.Contains(server))
                 {
-                    _registeredNodes.TryAdd(server, DateTime.UtcNow);
-
-                    if (!Node.CurrentNodeIPs.Contains(server))
-                        Node.CurrentNodeIPs.Add(server);
-
+                    Node.AddNodeIP(server); 
                     serverAdded = true;
                 }
 
@@ -225,13 +219,10 @@ public partial class BlockchainServer
                 {
                     var remoteBlockCount = Convert.ToInt64(sp.ToArray().Last());
                     var remoteServer = sp[1] + ":" + sp[2] + ":" + sp[3];
-                    if (remoteBlockCount < _blockCount)
-                        if (NetworkUtils.IsValidServer(remoteServer))
-                            lock (Node.DiscoveredServers)
-                            {
-                                if (!Node.DiscoveredServers.Contains(remoteServer))
-                                    Node.DiscoveredServers.Add(remoteServer);
-                            }
+                    if (remoteBlockCount < _blockCount && NetworkUtils.IsValidServer(remoteServer))
+                    {
+                        Node.AddNodeIP(remoteServer);
+                    } 
                 }
             }
 
@@ -274,13 +265,8 @@ public partial class BlockchainServer
                 {
                     var remoteBlockCount = Convert.ToInt64(sp.ToArray().Last());
                     var remoteServer = sp[1] + ":" + sp[2] + ":" + sp[3];
-                    if (remoteBlockCount < _blockCount)
-                        if (NetworkUtils.IsValidServer(remoteServer))
-                            lock (Node.DiscoveredServers)
-                            {
-                                if (!Node.DiscoveredServers.Contains(remoteServer))
-                                    Node.DiscoveredServers.Add(remoteServer);
-                            }
+                    if (remoteBlockCount < _blockCount && NetworkUtils.IsValidServer(remoteServer)) 
+                        Node.AddNodeIP(remoteServer);
                 }
             }
 
@@ -580,10 +566,9 @@ public partial class BlockchainServer
             Logger.Log($"ValidateSignature failed. Node not registered: {nodeAddress} Signature: {signature}");
             return "";
         }
-
-
+         
         // Register the node
-        _registeredNodes[nodeAddress] = DateTime.UtcNow;
+        Node.AddNodeIP(nodeAddress); 
         Logger.Log($"Node registered: {nodeAddress}");
 
         return "ok";
@@ -597,9 +582,10 @@ public partial class BlockchainServer
     private string HandleNodes(string message)
     {
         RemoveInactiveNodes();
-        if (_registeredNodes.Keys.Count > 0)
+        
+        if (Node.CurrentNodeIPs.Count > 0)
         {
-            var nodes = string.Join(",", _registeredNodes.Keys.Where(node => !string.IsNullOrWhiteSpace(node)));
+            var nodes = string.Join(",", Node.CurrentNodeIPs.Where(node => !string.IsNullOrWhiteSpace(node)));
             return nodes.TrimEnd(',');
         }
 
@@ -682,17 +668,11 @@ public partial class BlockchainServer
             Logger.Log("Invalid node address in heartbeat received.");
             return;
         }
-
-        var now = DateTime.UtcNow;
-        _registeredNodes[nodeAddress] = now;
-        if (!Node.CurrentNodeIPs.Contains(nodeAddress))
-            lock (Node.CurrentNodeIPs)
-            {
-                Node.CurrentNodeIPs.Add(nodeAddress);
-            }
+         
+        Node.AddNodeIP(nodeAddress);  
 
         if (Config.Default.Debug)
-            Logger.Log($"Heartbeat {nodeAddress} - {now} (HandleHeartbeat)");
+            Logger.Log($"Heartbeat {nodeAddress} - {DateTime.Now} (HandleHeartbeat)");
 
         GC.Collect();
         GC.WaitForPendingFinalizers();
@@ -707,7 +687,7 @@ public partial class BlockchainServer
         var now = DateTime.UtcNow;
 
         // Identify nodes that have exceeded the heartbeat timeout
-        var inactiveNodes = _registeredNodes
+        var inactiveNodes = Node.CurrentNodeIP_LastActive
             .Where(kvp => (now - kvp.Value).TotalSeconds > HeartbeatTimeoutSeconds)
             .Select(kvp => kvp.Key)
             .ToList();
@@ -715,12 +695,7 @@ public partial class BlockchainServer
         // Remove inactive nodes from the registry
         foreach (var node in inactiveNodes)
         {
-            _registeredNodes.TryRemove(node, out _);
-
-            // Remove from CurrentNodeIPs
-            var updatedNodeIPs = new ConcurrentBag<string>(Node.CurrentNodeIPs.Where(ip => ip != node));
-            Node.CurrentNodeIPs = updatedNodeIPs;
-
+            Node.RemoveNodeIP(node);  
             Logger.Log($"Node removed: {node} (Inactive)");
         }
     }
@@ -766,7 +741,9 @@ public partial class BlockchainServer
 
                         foreach (var node in responseBody.Split(','))
                             if (node.Contains("http"))
-                                _registeredNodes.TryAdd(node, DateTime.UtcNow);
+                            {
+                                Node.AddNodeIP(node); 
+                            }
                     }
                     else
                     {

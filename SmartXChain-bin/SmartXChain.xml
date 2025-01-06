@@ -793,11 +793,6 @@
                 and synchronizing with peers.
             </summary>
         </member>
-        <member name="F:SmartXChain.Server.BlockchainServer._registeredNodes">
-            <summary>
-                Concurrent dictionary storing registered nodes and their last heartbeat timestamp.
-            </summary>
-        </member>
         <member name="M:SmartXChain.Server.BlockchainServer.#ctor(System.String,System.String)">
             <summary>
                 Initializes a new instance of the BlockchainServer class with specified external and internal IP addresses.
@@ -1049,17 +1044,6 @@
             </summary>
             <returns>A short GUID string without dashes or braces, in uppercase.</returns>
         </member>
-        <member name="T:SmartXChain.Utils.Logger">
-            <summary>
-                Provides a utility for logging messages to the console with formatting and filtering capabilities.
-            </summary>
-        </member>
-        <member name="M:SmartXChain.Utils.Logger.Log(System.String,System.Boolean)">
-            <summary>
-                Logs a message to the console with a timestamp, excluding specific messages based on predefined filters.
-            </summary>
-            <param name="message">The message to log. Defaults to an empty string.</param>
-        </member>
         <member name="T:SmartXChain.Utils.NetworkUtils">
             <summary>
                 Provides utility methods for network-related operations such as IP validation and retrieval.
@@ -1153,6 +1137,12 @@
             <param name="serverAddress">The server address for the instance.</param>
             <returns>A <see cref="T:SmartXChain.Utils.SocketManager" /> instance associated with the server address.</returns>
         </member>
+        <member name="M:SmartXChain.Utils.SocketManager.RemoveInstance(System.String)">
+            <summary>
+                Removes the instance associated with a specific server address from the shared instance dictionary.
+            </summary>
+            <param name="serverAddress">The server address for the instance to be removed.</param>
+        </member>
         <member name="M:SmartXChain.Utils.SocketManager.SendMessageAsync(System.String)">
             <summary>
                 Adds a message to the processing queue and waits asynchronously for the response.
@@ -1183,6 +1173,11 @@
                 A list of IP addresses for nodes currently known to the system.
             </summary>
         </member>
+        <member name="P:SmartXChain.Validators.Node.CurrentNodeIP_LastActive">
+            <summary>
+            A dictionary of IP addresses for nodes with las activity currently known to the system.
+            </summary>
+        </member>
         <member name="P:SmartXChain.Validators.Node.ChainId">
             <summary>
                 Gets the blockchain chain identifier associated with this node.
@@ -1204,6 +1199,17 @@
             </summary>
             <param name="localRegistrationServer">Specifies whether to use the local registration server.</param>
             <returns>A Task resolving to the initialized <see cref="T:SmartXChain.Validators.Node" />.</returns>
+        </member>
+        <member name="M:SmartXChain.Validators.Node.RemoveNodeIP(System.String)">
+            <summary>
+            Removes a node from CurrentNodeIPs and CurrentNodeIP_LastActive
+            </summary>
+            <param name="ip"></param>
+        </member>
+        <member name="M:SmartXChain.Validators.Node.AddNodeIP(System.String)">
+            <summary> and updates CurrentNodeIP_LastActive
+            </summary>
+            <param name="server"></param>
         </member>
         <member name="M:SmartXChain.Validators.Node.UpdateBlockchainWithMissingBlocks(SmartXChain.BlockchainCore.Blockchain,SmartXChain.Validators.Node)">
             <summary>
@@ -1243,19 +1249,31 @@
             <param name="serverAddress">The address of the server to query for registered nodes.</param>
             <returns>A list of node addresses retrieved from the server.</returns>
         </member>
-        <member name="M:SmartXChain.Validators.Node.SendHeartbeatAsync(System.String)">
+        <member name="F:SmartXChain.Validators.Node.LastResponseTimes">
             <summary>
                 Sends a heartbeat signal to a specific server to notify it that the node is active.
             </summary>
             <param name="serverAddress">The address of the server to send the heartbeat to.</param>
             <returns>A Task representing the asynchronous operation.</returns>
         </member>
-        <member name="M:SmartXChain.Validators.Node.DiscoverServers(System.Collections.Generic.List{System.String})">
+        <member name="M:SmartXChain.Validators.Node.GetStaticServers(System.Collections.Generic.List{System.String})">
             <summary>
                 Discovers servers by performing DNS resolution and validation on a list of static servers.
             </summary>
             <param name="staticServers">List of static server addresses for discovery.</param>
             <returns>A list of valid server addresses discovered during the process.</returns>
+        </member>
+        <member name="T:Logger">
+            <summary>
+            Logger class
+            </summary>
+        </member>
+        <member name="M:Logger.Log(System.String,System.Boolean)">
+            <summary>
+                Logs a message to the console with a timestamp, excluding specific messages based on predefined filters.
+            </summary>
+            <param name="message">The message to log. Defaults to an empty string.</param>
+            <param name="trim">Trims output to 110 chars</param>
         </member>
     </members>
 </doc>

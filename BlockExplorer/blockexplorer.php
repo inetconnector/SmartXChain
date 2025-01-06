@@ -32,18 +32,17 @@ if (isset($_GET['action'])) {
             $blockCount = intval($blockCount);
             $startBlock = max(1, $blockCount - 9);
 
-            $blocks = [];
-            for ($i = $startBlock; $i <= $blockCount; $i++) {
-                $blockData = fetchApi("/GetBlock/$i");
-                if ($blockData) {
-                    $blocks[] = [
-                        "index" => $i,
-                        "timestamp" => $blockData['Timestamp'] ?? '',
-                        "hash" => $blockData['Hash'] ?? ''
-                    ];
-                }
-            }
-
+$blocks = [];
+for ($i = $blockCount; $i >= $startBlock; $i--) {
+    $blockData = fetchApi("/GetBlock/$i");
+    if ($blockData) {
+        $blocks[] = [
+            "index" => $i,
+            "timestamp" => $blockData['Timestamp'] ?? '',
+            "hash" => $blockData['Hash'] ?? ''
+        ];
+    }
+}
             echo json_encode($blocks);
             break;
 

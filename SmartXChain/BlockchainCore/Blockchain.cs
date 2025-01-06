@@ -424,7 +424,7 @@ public class Blockchain
             if (result == "ok")
                 await WriteContractStateToBlockchain(contract, updatedSerializedState);
 
-            Console.WriteLine($@"Smart Contract {contractName} Result: {result}");
+            Logger.Log($@"Smart Contract {contractName} Result: {result}");
             return (result, updatedSerializedState);
         }
         catch (Exception ex)
