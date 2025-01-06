@@ -423,7 +423,8 @@ public class Node
 
             if (string.IsNullOrEmpty(response))
             {
-                Logger.Log($"No new nodes received from {serverAddress}");
+                if (Config.Default.Debug) 
+                    Logger.Log($"No new nodes received from {serverAddress}");
                 return ret;
             }
 

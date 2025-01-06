@@ -73,7 +73,21 @@ for ($i = $blockCount; $i >= $startBlock; $i--) {
 
             echo json_encode(["code" => $contractCode]);
             break;
+case 'get-user-transactions':
+    $username = $_GET['user'] ?? '';
+    if (!$username) {
+        echo json_encode(["error" => "User parameter is missing."]);
+        exit;
+    }
 
+    $transactions = fetchApi("/GetUserTransactions/" . urlencode($username));
+    if (!$transactions) {
+        echo json_encode(["error" => "Failed to fetch user transactions."]);
+        exit;
+    }
+
+    echo json_encode($transactions);
+    break;
         default:
             echo json_encode(["error" => "Invalid action."]);
     }

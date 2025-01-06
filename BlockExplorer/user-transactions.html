@@ -1,0 +1,47 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Transactions</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <header>
+        <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
+            <img src="smartxchain.webp" alt="SmartXChain Logo" style="height: 100px; width: auto;">
+            <h1>SmartXChain User Transactions</h1>
+        </div>
+        <div id="controls">
+            <select id="network-switch">
+                <option value="mainnet">MainNet</option>
+                <option value="testnet">TestNet</option>
+            </select>
+            <select id="language-switch">
+                <option value="en">English</option>
+                <option value="de">Deutsch</option>
+            </select>
+		 <br><br>
+            <form id="transaction-query-form">
+                <label for="username">Enter User Name:</label>
+                <input type="text" id="username" name="username" required>
+                <button type="submit">Get Transactions</button>        	 
+			<button onclick="window.location.href='index.html'"><<</button>
+             </form>
+
+        </div>
+    </header>
+    <main>
+        <section>
+            <h2>Query User Transactions</h2>
+        </section>
+        <section id="transactions-display">
+            <h3>Transactions</h3>
+            <div id="transactions-list"></div>
+        </section>
+    </main>
+    <script src="app.js"></script>
+</body>
+</html>

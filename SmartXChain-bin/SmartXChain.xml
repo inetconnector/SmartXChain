@@ -322,6 +322,15 @@
             <param name="contractName">The name of the contract to find.</param>
             <returns>The contract code if found, otherwise null.</returns>
         </member>
+        <member name="M:SmartXChain.BlockchainCore.BlockchainStorage.GetUserTransactions(System.String,System.String,System.String)">
+            <summary>
+            Retrieves all transactions for a given user from the blockchain database as a JSON string.
+            </summary>
+            <param name="user">The user whose transactions are being queried (either sender or recipient).</param>
+            <param name="blockchainPath">The path to the blockchain's storage directory.</param>
+            <param name="chainId">The identifier of the blockchain chain.</param>
+            <returns>A JSON string containing all transactions for the specified user, or an error message if the operation fails.</returns>
+        </member>
         <member name="M:SmartXChain.BlockchainCore.BlockchainStorage.GetContractNames(System.String,System.String,System.String,System.Int32)">
             <summary>
             Get contract names from database

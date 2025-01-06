@@ -247,6 +247,75 @@ public static class BlockchainStorage
         }
     }
 
+    /// <summary>
+    /// Retrieves all transactions for a given user from the blockchain database as a JSON string.
+    /// </summary>
+    /// <param name="user">The user whose transactions are being queried (either sender or recipient).</param>
+    /// <param name="blockchainPath">The path to the blockchain's storage directory.</param>
+    /// <param name="chainId">The identifier of the blockchain chain.</param>
+    /// <returns>A JSON string containing all transactions for the specified user, or an error message if the operation fails.</returns>
+
+    public static string GetUserTransactions(string user, string blockchainPath, string chainId)
+    { 
+        var databasePath = Path.Combine(blockchainPath, chainId + ".db");
+        var transactions = new List<Dictionary<string, object>>();
+
+        try
+        { 
+            if (!File.Exists(databasePath))
+            {
+                Logger.Log($"ERROR: Database not found at {databasePath}");
+                return JsonConvert.SerializeObject(new { error = "Database not found" });
+            }
+             
+            using (var connection = new SQLiteConnection($"Data Source={databasePath};Version=3;"))
+            {
+                connection.Open();
+                 
+                var selectTransactionsQuery = @"
+                SELECT Id, BlockHash, Sender, Recipient, Amount, Timestamp, Data
+                FROM Transactions
+                WHERE Sender = @User OR Recipient = @User;
+            ";
+
+                using (var command = new SQLiteCommand(selectTransactionsQuery, connection))
+                { 
+                    command.Parameters.AddWithValue("@User", user);
+                     
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            // Create a dictionary for each transaction
+                            var transaction = new Dictionary<string, object>
+                        {
+                            { "Id", reader["Id"] },
+                            { "BlockHash", reader["BlockHash"] },
+                            { "Sender", reader["Sender"] },
+                            { "Recipient", reader["Recipient"] },
+                            { "Amount", Convert.ToDouble(reader["Amount"] ?? 0) },
+                            { "Timestamp", reader["Timestamp"] },
+                            { "Data", reader["Data"] }
+                        };
+
+                            transactions.Add(transaction);
+                        }
+                    }
+                }
+            }
+
+            if (transactions.Count == 0)
+                return "";
+
+            return JsonConvert.SerializeObject(transactions);
+        }
+        catch (Exception ex)
+        { 
+            Logger.Log($"ERROR: Could not retrieve transactions for user {user}: {ex.Message}");
+        }
+
+        return "";
+    } 
 
     /// <summary>
     /// Get contract names from database
@@ -351,8 +420,5 @@ public static class BlockchainStorage
             Logger.Log($"ERROR: Failed to parse SmartContracts JSON: {ex.Message}");
             return Enumerable.Empty<string>();
         }
-    }
-
-
-
+    } 
 }

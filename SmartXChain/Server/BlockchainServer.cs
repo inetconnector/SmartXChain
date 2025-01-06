@@ -301,6 +301,7 @@ public partial class BlockchainServer
             }
         });
 
+
         endpoints.MapGet("/api/GetBlock/{block:int}", async context =>
         {
             var blockIndexStr = (string)context.Request.RouteValues["block"];
@@ -326,6 +327,35 @@ public partial class BlockchainServer
             context.Response.ContentType = "application/json";
             await context.Response.WriteAsync(block.ToString());
         });
+
+        endpoints.MapGet("/api/GetUserTransactions/{user}", async context =>
+        {
+            var user = context.Request.RouteValues["user"] as string;
+
+            if (string.IsNullOrEmpty(user))
+            {
+                context.Response.StatusCode = 400; // Bad Request
+                await context.Response.WriteAsync("ERROR: user name cannot be null or empty.");
+                return;
+            }
+
+            var userTransactions =
+                BlockchainStorage.GetUserTransactions(user, Config.Default.BlockchainPath, Config.Default.ChainId);
+
+            if (string.IsNullOrEmpty(userTransactions))
+            {
+                context.Response.StatusCode = 404; // Not Found
+                await context.Response.WriteAsync($"ERROR: No transactions for {user} found.");
+                return;
+            }
+
+            if (Config.Default.Debug)
+                Logger.Log($"Sent transactions for user {user}");
+
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsync(userTransactions);
+        });
+
         endpoints.MapGet("/api/GetContractCode/{contract}", async context =>
         {
             var contractName = context.Request.RouteValues["contract"] as string;
@@ -343,7 +373,7 @@ public partial class BlockchainServer
             if (string.IsNullOrEmpty(contractCode))
             {
                 context.Response.StatusCode = 404; // Not Found
-                await context.Response.WriteAsync("ERROR: Contract code not found.");
+                await context.Response.WriteAsync($"ERROR: Contract code for  {contractName} not found.");
                 return;
             }
 
