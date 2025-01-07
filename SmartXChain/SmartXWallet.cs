@@ -23,7 +23,7 @@ public class SmartXWallet
     /// <returns>
     ///     A tuple containing the list of wallet addresses, the private key, and the mnemonic phrase.
     /// </returns>
-    public static (List<string>, Key, string) GenerateWallet()
+    public static string GenerateWallet()
     {
         Key privateKey = null;
         Mnemonic mnemonic = null;
@@ -84,8 +84,7 @@ public class SmartXWallet
         Config.Default.SetProperty(Config.ConfigKey.WalletPrivateKey, privateKey.ToString(Network.Main));
 
         Logger.Log("New miner address generated and saved.");
-
-        return (WalletAddresses, privateKey, mnemonic.ToString());
+        return WalletAddresses[0];
     }
 
     public static bool DeleteWallet()

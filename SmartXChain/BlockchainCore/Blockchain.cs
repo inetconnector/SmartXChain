@@ -103,7 +103,10 @@ public class Blockchain
     /// </summary>
     private Block CreateGenesisBlock()
     {
-        return new Block(new List<Transaction>(), "0");
+        var genesisBlock= new Block([], "0");  
+        genesisBlock.Approves.Add(genesisBlock.CalculateHash());
+         
+        return genesisBlock;
     }
 
     /// <summary>

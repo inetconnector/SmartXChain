@@ -127,6 +127,14 @@ public class Block
             .ToArray();
     }
 
+
+    /// <summary>
+    ///     List<Transactions> which have approved the Transaction. Used by Tangle.cs
+    /// </summary>
+    [JsonInclude]
+
+    public List<string> Approves { get; private set; } = new();
+
     /// <summary>
     ///     Serializes the block into a compressed byte array.
     /// </summary>

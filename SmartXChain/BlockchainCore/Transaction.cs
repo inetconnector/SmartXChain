@@ -33,6 +33,7 @@ public class Transaction
         Name = "SmartXchain";
         Symbol = "SXC";
         Decimals = 18;
+        ID = Guid.NewGuid();
         TotalSupply = initialSupply;
         TransactionType = TransactionTypes.NotDefined;
 
@@ -42,6 +43,12 @@ public class Transaction
         Version = "1.0.0";
         Timestamp = DateTime.UtcNow;
     }
+
+    /// <summary>
+    /// Transaction unique ID
+    /// </summary>
+    [JsonInclude] 
+    public Guid ID { get; private set; }
 
     /// <summary>
     ///     Holds the allowances for transactions between accounts.
@@ -135,6 +142,8 @@ public class Transaction
     [JsonInclude]
     internal uint Decimals { get; private set; }
 
+
+
     /// <summary>
     ///     The total supply of the blockchain's currency.
     ///     Initially set to 1,000,000,000.
@@ -178,6 +187,7 @@ public class Transaction
             RecalculateGas();
         }
     }
+
 
     /// <summary>
     ///     Recalculates the gas required for the transaction based on its properties.
@@ -413,13 +423,14 @@ public class Transaction
         Logger.Log($"[Transaction] {message}");
     }
 
+
     /// <summary>
     ///     Computes the hash of the transaction for integrity verification.
     /// </summary>
     public string CalculateHash()
     {
         using var sha256 = SHA256.Create();
-        var rawData = $"{Sender}{Recipient}{Data}{Info}{Amount}{Name}{Version}";
+        var rawData = $"{ID}{Sender}{Recipient}{Data}{Info}{Amount}{Name}{Version}";
         var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(rawData));
         return BitConverter.ToString(bytes).Replace("-", "").ToLower();
     }
