@@ -22,6 +22,17 @@
           }
         }
       },
+      "EmbedIO/3.5.2": {
+        "dependencies": {
+          "Unosquare.Swan.Lite": "3.1.0"
+        },
+        "runtime": {
+          "lib/netstandard2.0/EmbedIO.dll": {
+            "assemblyVersion": "3.5.2.0",
+            "fileVersion": "3.5.2.0"
+          }
+        }
+      },
       "Microsoft.CodeAnalysis.Analyzers/3.3.4": {},
       "Microsoft.CodeAnalysis.Common/4.12.0": {
         "dependencies": {
@@ -246,7 +257,6 @@
         }
       },
       "Microsoft.CSharp/4.7.0": {},
-      "Microsoft.Extensions.ApiDescription.Server/6.0.5": {},
       "Microsoft.Extensions.Configuration/9.0.0": {
         "dependencies": {
           "Microsoft.Extensions.Configuration.Abstractions": "9.0.0",
@@ -611,14 +621,6 @@
           }
         }
       },
-      "Microsoft.OpenApi/1.6.22": {
-        "runtime": {
-          "lib/netstandard2.0/Microsoft.OpenApi.dll": {
-            "assemblyVersion": "1.6.22.0",
-            "fileVersion": "1.6.22.0"
-          }
-        }
-      },
       "NBitcoin/7.0.46": {
         "dependencies": {
           "Microsoft.Extensions.Logging.Abstractions": "9.0.0",
@@ -925,44 +927,6 @@
           }
         }
       },
-      "Swashbuckle.AspNetCore/7.2.0": {
-        "dependencies": {
-          "Microsoft.Extensions.ApiDescription.Server": "6.0.5",
-          "Swashbuckle.AspNetCore.Swagger": "7.2.0",
-          "Swashbuckle.AspNetCore.SwaggerGen": "7.2.0",
-          "Swashbuckle.AspNetCore.SwaggerUI": "7.2.0"
-        }
-      },
-      "Swashbuckle.AspNetCore.Swagger/7.2.0": {
-        "dependencies": {
-          "Microsoft.OpenApi": "1.6.22"
-        },
-        "runtime": {
-          "lib/net8.0/Swashbuckle.AspNetCore.Swagger.dll": {
-            "assemblyVersion": "7.2.0.0",
-            "fileVersion": "7.2.0.956"
-          }
-        }
-      },
-      "Swashbuckle.AspNetCore.SwaggerGen/7.2.0": {
-        "dependencies": {
-          "Swashbuckle.AspNetCore.Swagger": "7.2.0"
-        },
-        "runtime": {
-          "lib/net8.0/Swashbuckle.AspNetCore.SwaggerGen.dll": {
-            "assemblyVersion": "7.2.0.0",
-            "fileVersion": "7.2.0.956"
-          }
-        }
-      },
-      "Swashbuckle.AspNetCore.SwaggerUI/7.2.0": {
-        "runtime": {
-          "lib/net8.0/Swashbuckle.AspNetCore.SwaggerUI.dll": {
-            "assemblyVersion": "7.2.0.0",
-            "fileVersion": "7.2.0.956"
-          }
-        }
-      },
       "System.Collections.Immutable/8.0.0": {},
       "System.Data.SQLite.Core/1.0.119": {
         "dependencies": {
@@ -1040,14 +1004,26 @@
           }
         }
       },
+      "System.ValueTuple/4.5.0": {},
+      "Unosquare.Swan.Lite/3.1.0": {
+        "dependencies": {
+          "System.ValueTuple": "4.5.0"
+        },
+        "runtime": {
+          "lib/netstandard2.0/Swan.Lite.dll": {
+            "assemblyVersion": "3.1.0.0",
+            "fileVersion": "3.1.0.0"
+          }
+        }
+      },
       "SmartXChain/1.0.0": {
         "dependencies": {
+          "EmbedIO": "3.5.2",
           "Microsoft.CodeAnalysis.CSharp": "4.12.0",
           "Microsoft.CodeAnalysis.CSharp.Scripting": "4.12.0",
           "Microsoft.Extensions.Hosting": "9.0.0",
           "NBitcoin": "7.0.46",
           "Nethereum.Web3": "4.27.1",
-          "Swashbuckle.AspNetCore": "7.2.0",
           "System.Data.SQLite.Core": "1.0.119"
         },
         "runtime": {
@@ -1071,6 +1047,13 @@
       "sha512": "sha512-cdCbVBXLqt+q6nF02MjY3NBAN024UfxLzvSgklidWG384h6Rqz5PCcyo55hqQbe7JS8w1+XJ5x5bSNaj07eqQw==",
       "path": "adraffy.ensnormalize/0.1.5",
       "hashPath": "adraffy.ensnormalize.0.1.5.nupkg.sha512"
+    },
+    "EmbedIO/3.5.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-YU4j+3XvuO8/VPkNf7KWOF1TpMhnyVhXnPsG1mvnDhTJ9D5BZOFXVDvCpE/SkQ1AJ0Aa+dXOVSW3ntgmLL7aJg==",
+      "path": "embedio/3.5.2",
+      "hashPath": "embedio.3.5.2.nupkg.sha512"
     },
     "Microsoft.CodeAnalysis.Analyzers/3.3.4": {
       "type": "package",
@@ -1113,13 +1096,6 @@
       "sha512": "sha512-pTj+D3uJWyN3My70i2Hqo+OXixq3Os2D1nJ2x92FFo6sk8fYS1m1WLNTs0Dc1uPaViH0YvEEwvzddQ7y4rhXmA==",
       "path": "microsoft.csharp/4.7.0",
       "hashPath": "microsoft.csharp.4.7.0.nupkg.sha512"
-    },
-    "Microsoft.Extensions.ApiDescription.Server/6.0.5": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-Ckb5EDBUNJdFWyajfXzUIMRkhf52fHZOQuuZg/oiu8y7zDCVwD0iHhew6MnThjHmevanpxL3f5ci2TtHQEN6bw==",
-      "path": "microsoft.extensions.apidescription.server/6.0.5",
-      "hashPath": "microsoft.extensions.apidescription.server.6.0.5.nupkg.sha512"
     },
     "Microsoft.Extensions.Configuration/9.0.0": {
       "type": "package",
@@ -1310,13 +1286,6 @@
       "path": "microsoft.extensions.primitives/9.0.0",
       "hashPath": "microsoft.extensions.primitives.9.0.0.nupkg.sha512"
     },
-    "Microsoft.OpenApi/1.6.22": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-aBvunmrdu/x+4CaA/UP1Jx4xWGwk4kymhoIRnn2Vp+zi5/KOPQJ9EkSXHRUr01WcGKtYl3Au7XfkPJbU1G2sjQ==",
-      "path": "microsoft.openapi/1.6.22",
-      "hashPath": "microsoft.openapi.1.6.22.nupkg.sha512"
-    },
     "NBitcoin/7.0.46": {
       "type": "package",
       "serviceable": true,
@@ -1471,34 +1440,6 @@
       "path": "stub.system.data.sqlite.core.netstandard/1.0.119",
       "hashPath": "stub.system.data.sqlite.core.netstandard.1.0.119.nupkg.sha512"
     },
-    "Swashbuckle.AspNetCore/7.2.0": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-vJv19UpWm6OOgnS9QLDnWARNVasXUfj8SFvlG7UVALm4nBnfwRnEky7C0veSDqMUmBeMPC6Ec3d6G1ts/J04Uw==",
-      "path": "swashbuckle.aspnetcore/7.2.0",
-      "hashPath": "swashbuckle.aspnetcore.7.2.0.nupkg.sha512"
-    },
-    "Swashbuckle.AspNetCore.Swagger/7.2.0": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-y27fNDfIh1vGhJjXYynLcZjl7DLOW1bSO2MDsY9wB4Zm1fdxpPsuBSiR4U+0acWlAqLmnuOPKr/OeOgwRUkBlw==",
-      "path": "swashbuckle.aspnetcore.swagger/7.2.0",
-      "hashPath": "swashbuckle.aspnetcore.swagger.7.2.0.nupkg.sha512"
-    },
-    "Swashbuckle.AspNetCore.SwaggerGen/7.2.0": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-pMrTxGVuXM7t4wqft5CNNU8A0++Yw5kTLmYhB6tbEcyBfO8xEF/Y8pkJhO6BZ/2MYONrRYoQTfPFJqu8fOf5WQ==",
-      "path": "swashbuckle.aspnetcore.swaggergen/7.2.0",
-      "hashPath": "swashbuckle.aspnetcore.swaggergen.7.2.0.nupkg.sha512"
-    },
-    "Swashbuckle.AspNetCore.SwaggerUI/7.2.0": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-hgrXeKzyp5OGN8qVvL7A+vhmU7mDJTfGpiMBRL66IcfLOyna8UTLtn3cC3CghamXpRDufcc9ciklTszUGEQK0w==",
-      "path": "swashbuckle.aspnetcore.swaggerui/7.2.0",
-      "hashPath": "swashbuckle.aspnetcore.swaggerui.7.2.0.nupkg.sha512"
-    },
     "System.Collections.Immutable/8.0.0": {
       "type": "package",
       "serviceable": true,
@@ -1554,6 +1495,20 @@
       "sha512": "sha512-js7+qAu/9mQvnhA4EfGMZNEzXtJCDxgkgj8ohuxq/Qxv+R56G+ljefhiJHOxTNiw54q8vmABCWUwkMulNdlZ4A==",
       "path": "system.text.json/9.0.0",
       "hashPath": "system.text.json.9.0.0.nupkg.sha512"
+    },
+    "System.ValueTuple/4.5.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-okurQJO6NRE/apDIP23ajJ0hpiNmJ+f0BwOlB/cSqTLQlw5upkf+5+96+iG2Jw40G1fCVCyPz/FhIABUjMR+RQ==",
+      "path": "system.valuetuple/4.5.0",
+      "hashPath": "system.valuetuple.4.5.0.nupkg.sha512"
+    },
+    "Unosquare.Swan.Lite/3.1.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-X3s5QE/KMj3WAPFqFve7St+Ds10BB50u8kW8PmKIn7FVkn7yEXe9Yxr2htt1WV85DRqfFR0MN/BUNHkGHtL4OQ==",
+      "path": "unosquare.swan.lite/3.1.0",
+      "hashPath": "unosquare.swan.lite.3.1.0.nupkg.sha512"
     },
     "SmartXChain/1.0.0": {
       "type": "project",

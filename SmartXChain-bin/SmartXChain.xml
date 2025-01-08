@@ -33,6 +33,7 @@
             </summary>
             <returns>An array of strings containing discovery server addresses.</returns>
         </member>
+        <!-- Badly formed XML comment ignored for member "P:SmartXChain.BlockchainCore.Block.Approves" -->
         <member name="M:SmartXChain.BlockchainCore.Block.GetBytes">
             <summary>
                 Serializes the block into a compressed byte array.
@@ -493,6 +494,11 @@
             <param name="filePath">The path to the compressed file.</param>
             <returns>The deserialized <see cref="T:SmartXChain.BlockchainCore.Block" /> object.</returns>
         </member>
+        <member name="P:SmartXChain.BlockchainCore.Transaction.ID">
+            <summary>
+            Transaction unique ID
+            </summary>
+        </member>
         <member name="P:SmartXChain.BlockchainCore.Transaction.Allowances">
             <summary>
                 Holds the allowances for transactions between accounts.
@@ -802,6 +808,142 @@
                 and synchronizing with peers.
             </summary>
         </member>
+        <member name="T:SmartXChain.Server.BlockchainServer.ApiController">
+            <summary>
+                WebApiController for REST Services
+            </summary>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.Register">
+            <summary>
+                Handles the registration of a node in the blockchain network.
+                Validates the node's address and signature and adds it to the registered nodes.
+            </summary>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.HandleRegistration(System.String)">
+            <summary>
+                Handles the registration logic by validating the format, address, and signature of the node.
+            </summary>
+            <param name="message">The registration message containing node address and signature.</param>
+            <returns>"ok" if successful, or an error message if registration fails.</returns>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.ValidateSignature(System.String,System.String)">
+            <summary>
+                Validates a node's signature using HMACSHA256 with the server's secret key.
+            </summary>
+            <param name="nodeAddress">The node address being validated.</param>
+            <param name="signature">The provided signature to validate.</param>
+            <returns>True if the signature is valid; otherwise, false.</returns>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.Nodes">
+            <summary>
+                Handles requests for the list of nodes in the network.
+            </summary>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.HandleNodes(System.String)">
+            <summary>
+                Retrieves a list of active nodes, removing any that are inactive based on heartbeat timestamps.
+            </summary>
+            <param name="message">A dummy message for compatibility (not used).</param>
+            <returns>A comma-separated list of active node addresses.</returns>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.RemoveInactiveNodes">
+            <summary>
+                Removes inactive nodes that have exceeded the heartbeat timeout from the registry.
+            </summary>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.HandleHeartbeat(System.String)">
+            <summary>
+                Handles heartbeat messages from nodes to update their last active timestamp.
+            </summary>
+            <param name="message">The heartbeat message containing the node address.</param>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.PushServers">
+            <summary>
+                Handles the addition of new servers to the network.
+            </summary>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.Vote">
+            <summary>
+                Processes a vote message, validating its block and returning a response if successful.
+            </summary>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.HandleVote(System.String)">
+            <summary>
+                Processes a vote message and validates the block data.
+            </summary>
+            <param name="message">The vote message containing block data in Base64 format.</param>
+            <returns>"ok" with miner address if the vote is valid, or an error message otherwise.</returns>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.VerifyCode">
+            <summary>
+                Verifies code integrity or specific blockchain-related operations.
+            </summary>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.Heartbeat">
+            <summary>
+                Handles heartbeat pings from nodes in the network.
+            </summary>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.BlockCount">
+            <summary>
+                Provides the current block count in the blockchain.
+            </summary>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.ValidateChain">
+            <summary>
+                Validates the integrity of the blockchain.
+            </summary>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.GetChain">
+            <summary>
+                Retrieves the entire blockchain in Base64 format.
+            </summary>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.GetBlockCount">
+            <summary>
+                Retrieves the current block count using an HTTP GET request.
+            </summary>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.GetBlockData(System.String)">
+            <summary>
+                Retrieves specific block data by block number.
+            </summary>
+            <param name="block">The block number to retrieve.</param>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.GetBlock(System.String)">
+            <summary>
+                Retrieves a block's details using an HTTP GET request by block number.
+            </summary>
+            <param name="blockString">The block number as a string.</param>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.GetUserTransactions(System.String)">
+            <summary>
+                Retrieves all transactions for a specific user.
+            </summary>
+            <param name="user">The user's name or identifier.</param>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.GetContractCode(System.String)">
+            <summary>
+                Retrieves the code for a specific smart contract.
+            </summary>
+            <param name="contract">The name of the contract to retrieve.</param>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.GetContractNames(System.String)">
+            <summary>
+                Retrieves contract names that match the provided search string.
+            </summary>
+            <param name="search">The search term to filter contract names.</param>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.PushChain">
+            <summary>
+                Pushes a new blockchain to the server. Replaces the existing blockchain if the incoming chain is valid and longer.
+            </summary>
+        </member>
+        <member name="M:SmartXChain.Server.BlockchainServer.ApiController.NewBlock">
+            <summary>
+                Processes a new block received by the server and adds it to the blockchain if valid.
+            </summary>
+        </member>
         <member name="M:SmartXChain.Server.BlockchainServer.#ctor(System.String,System.String)">
             <summary>
                 Initializes a new instance of the BlockchainServer class with specified external and internal IP addresses.
@@ -810,11 +952,6 @@
         <member name="P:SmartXChain.Server.BlockchainServer.Startup">
             <summary>
                 Represents the startup state of the blockchain node.
-            </summary>
-        </member>
-        <member name="M:SmartXChain.Server.BlockchainServer.StartMainServer">
-            <summary>
-                Starts the main server and configures routing for API endpoints.
             </summary>
         </member>
         <member name="M:SmartXChain.Server.BlockchainServer.StartServerAsync(System.Boolean)">

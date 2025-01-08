@@ -2,15 +2,12 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using EmbedIO;
+using EmbedIO.WebApi;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Contracts;
 using SmartXChain.Utils;
+using Swan.Logging;
 using Node = SmartXChain.Validators.Node;
 
 namespace SmartXChain.Server;
@@ -38,6 +35,28 @@ public partial class BlockchainServer
 
         Logger.Log($"Starting server at {_serverAddressIntern}/{_serverAddressExtern}...");
     }
+    private WebServer _server;
+
+    public void StartMainServer()
+    {
+        // Initialisiere den Webserver mit EmbedIO 
+        _server = new WebServer(o => o
+                .WithUrlPrefix($"http://*:{Config.Default.Port}/") 
+                .WithMode(HttpListenerMode.EmbedIO))
+                .WithLocalSessionManager()
+                .WithWebApi("/api", m => m.WithController<ApiController>());
+
+        // Starte den Server asynchron
+        _server.RunAsync();
+        Console.WriteLine($"Server started at {NetworkUtils.IP}");
+        _server.StateChanged += (s, e) => $"WebServer New State - {e.NewState}".Info();
+    }
+
+    public void StopServer()
+    {
+        _server?.Dispose();
+        Console.WriteLine("Server stopped.");
+    }
 
     /// <summary>
     ///     Represents the startup state of the blockchain node.
@@ -45,438 +64,11 @@ public partial class BlockchainServer
     internal static NodeStartupResult Startup { get; private set; }
 
     /// <summary>
-    ///     Starts the main server and configures routing for API endpoints.
-    /// </summary>
-    //private void StartMainServer()
-    //{
-    //    var swagger = "/swagger/v1/swagger.json";
-    //    var host = Host.CreateDefaultBuilder()
-    //        .ConfigureWebHostDefaults(webBuilder =>
-    //        {
-    //            webBuilder.UseKestrel()
-    //                .UseUrls($"http://0.0.0.0:{Config.Default.Port}")  
-    //                //.UseUrls($"http://127.0.0.1:{Config.Default.Port}")  
-    //                .Configure(app =>
-    //                {  
-    //                    // Enable Swagger
-    //                    app.UseSwagger();
-    //                    app.UseSwaggerUI(c =>
-    //                    {
-    //                        c.SwaggerEndpoint(swagger, "Blockchain API V1");
-    //                        c.RoutePrefix = string.Empty; // Makes Swagger UI available at the root
-    //                    });
-
-    //                    // Routing for Endpoints
-    //                    app.UseRouting();
-    //                    app.UseEndpoints(RestEndpoints);
-
-    //                });
-    //        })
-    //        .ConfigureLogging(logging =>
-    //        {
-    //            logging.ClearProviders(); 
-    //            //logging.AddConsole(); // Logs to the console
-    //        }) 
-    //        .ConfigureServices(services =>
-    //        {
-    //            // Register Swagger generator
-    //            services.AddSwaggerGen(options =>
-    //            {
-    //                var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    //                var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-    //                options.IncludeXmlComments(xmlPath);
-
-    //                options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
-    //                {
-    //                    Title = "SmartX Blockchain API",
-    //                    Version = "v1",
-    //                    Description = "API documentation for the blockchain server.",
-    //                });
-    //                // Optional: Add comments from XML file for methods (if generated)
-    //                // var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    //                // var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-    //                // options.IncludeXmlComments(xmlPath);
-    //            });
-    //        })
-    //        .Build();
-
-    //    var url = $"http://{NetworkUtils.IP}:{Config.Default.Port}";
-    //    Logger.Log($"API active at: {url}");
-    //    Logger.Log($"               {url}{swagger}");
-
-    //    host.Run();
-    //}
-    private void StartMainServer()
-    {
-        var host = Host.CreateDefaultBuilder()
-            .ConfigureWebHostDefaults(webBuilder =>
-            {
-                webBuilder.UseKestrel()
-                    .UseUrls($"http://0.0.0.0:{Config.Default.Port}")
-                    .Configure(app =>
-                    {
-                        // Routing for Endpoints
-                        app.UseRouting();
-                        app.UseEndpoints(endpoints => { RestEndpoints(endpoints); });
-                    });
-            })
-            .ConfigureLogging(logging =>
-            {
-                logging.ClearProviders();
-                //logging.AddConsole(options =>
-                //{
-                //    options.LogToStandardErrorThreshold = LogLevel.Warning;
-                //});
-            })
-            .Build();
-
-        host.Run();
-    }
-
-    private void RestEndpoints(IEndpointRouteBuilder endpoints)
-    {
-        // Define REST-Endpoints
-        endpoints.MapPost("/api/Register", async context =>
-        {
-            var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-            Logger.Log($"Register: {message}");
-            var result = HandleRegistration(message);
-            await context.Response.WriteAsync(result);
-        });
-
-        endpoints.MapPost("/api/Nodes", async context =>
-        {
-            var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-            if (message.Contains("."))
-            {
-                var result = HandleNodes(message);
-                await context.Response.WriteAsync(result);
-
-                if (Config.Default.Debug && result.Length > 0)
-                    Logger.Log($"Nodes: {result}");
-            } 
-        });
-
-        endpoints.MapPost("/api/PushServers", async context =>
-        {
-            var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-            Logger.Log($"PushServers: {message}");
-            var serverAdded = false;
-            foreach (var server in message.Split(','))
-                if (server.StartsWith("http://") && !Node.CurrentNodeIPs.Contains(server))
-                {
-                    Node.AddNodeIP(server); 
-                    serverAdded = true;
-                }
-
-            if (serverAdded)
-                await context.Response.WriteAsync("ok");
-            else
-                await context.Response.WriteAsync("");
-        });
-
-        endpoints.MapPost("/api/Vote", async context =>
-        {
-            var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-            Logger.Log($"Vote: {message}");
-            var result = HandleVote(message);
-            Logger.Log($"Vote Result: {result}");
-            await context.Response.WriteAsync(result);
-        });
-
-        endpoints.MapPost("/api/VerifyCode", async context =>
-        {
-            var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-            Logger.Log($"VerifyCode: {message}");
-            var result = HandleVerifyCode(message);
-            Logger.Log($"VerifyCode Result: {result}");
-            await context.Response.WriteAsync(result);
-        });
-
-        endpoints.MapPost("/api/Heartbeat", async context =>
-        {
-            var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-            if (Config.Default.Debug)
-                Logger.Log($"Heartbeat: {message}");
-            HandleHeartbeat(message);
-            await context.Response.WriteAsync("ok");
-        });
-
-        endpoints.MapPost("/api/BlockCount", async context =>
-        {
-            if (Startup.Blockchain != null && _blockCount != Startup.Blockchain.Chain.Count)
-            {
-                _blockCount = Startup.Blockchain.Chain.Count;
-                if (Config.Default.Debug)
-                    Logger.Log($"BlockCount: {Startup.Blockchain.Chain.Count}");
-            }
-
-            var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-            if (message.Contains(':'))
-            {
-                var sp = message.Split(':');
-                if (sp.Length == 5)
-                {
-                    var remoteBlockCount = Convert.ToInt64(sp.ToArray().Last());
-                    var remoteServer = sp[1] + ":" + sp[2] + ":" + sp[3];
-                    if (remoteBlockCount < _blockCount && NetworkUtils.IsValidServer(remoteServer))
-                    {
-                        Node.AddNodeIP(remoteServer);
-                    } 
-                }
-            }
-
-            await context.Response.WriteAsync(_blockCount.ToString());
-        });
-
-        endpoints.MapPost("/api/ValidateChain", async context =>
-        {
-            var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-            var isvalid = Startup.Blockchain.IsValid();
-            if (Config.Default.Debug)
-                Logger.Log($"ValidateChain: {isvalid}");
-            if (isvalid)
-                await context.Response.WriteAsync("ok");
-            else
-                await context.Response.WriteAsync("");
-        });
-
-        endpoints.MapPost("/api/GetChain", async context =>
-        {
-            var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-            if (Config.Default.Debug)
-                Logger.Log($"GetChain: {message}");
-            await context.Response.WriteAsync(Startup.Blockchain.ToBase64());
-        });
-        endpoints.MapGet("/api/GetBlockCount", async context =>
-        {
-            if (Startup.Blockchain != null && _blockCount != Startup.Blockchain.Chain.Count)
-            {
-                _blockCount = Startup.Blockchain.Chain.Count;
-                if (Config.Default.Debug)
-                    Logger.Log($"GetBlockCount: {Startup.Blockchain.Chain.Count}");
-            }
-
-            var message = await new StreamReader(context.Request.Body).ReadToEndAsync();
-            if (message.Contains(':'))
-            {
-                var sp = message.Split(':');
-                if (sp.Length == 5)
-                {
-                    var remoteBlockCount = Convert.ToInt64(sp.ToArray().Last());
-                    var remoteServer = sp[1] + ":" + sp[2] + ":" + sp[3];
-                    if (remoteBlockCount < _blockCount && NetworkUtils.IsValidServer(remoteServer)) 
-                        Node.AddNodeIP(remoteServer);
-                }
-            }
-
-            await context.Response.WriteAsync(_blockCount.ToString());
-        });
-        endpoints.MapPost("/api/GetBlockData/{block:int}", async context =>
-        {
-            var blockIndexStr = (string)context.Request.RouteValues["block"];
-            if (!int.TryParse(blockIndexStr, out var blockIndex))
-            {
-                context.Response.StatusCode = 400; // Bad Request
-                await context.Response.WriteAsync("ERROR: Invalid block index.");
-                return;
-            }
-
-            if (Startup.Blockchain != null && (blockIndex < 0 || blockIndex >= Startup.Blockchain.Chain.Count))
-            {
-                context.Response.StatusCode = 404; // Not Found
-                await context.Response.WriteAsync($"ERROR: Block {blockIndex} not found.");
-                return;
-            }
-
-            if (Config.Default.Debug)
-                Logger.Log(
-                    $"Sent block {blockIndex} {Startup.Blockchain.Chain[blockIndex].Hash} parent:{Startup.Blockchain.Chain[blockIndex].PreviousHash}");
-            if (Startup.Blockchain != null)
-            {
-                var block = Startup.Blockchain.Chain[blockIndex].ToBase64();
-
-                context.Response.ContentType = "application/json";
-                await context.Response.WriteAsync(block);
-            }
-        });
-
-
-        endpoints.MapGet("/api/GetBlock/{block:int}", async context =>
-        {
-            var blockIndexStr = (string)context.Request.RouteValues["block"];
-            if (!int.TryParse(blockIndexStr, out var blockIndex))
-            {
-                context.Response.StatusCode = 400; // Bad Request
-                await context.Response.WriteAsync("ERROR: Invalid block index.");
-                return;
-            }
-
-            if (blockIndex < 0 || blockIndex >= Startup.Blockchain.Chain.Count)
-            {
-                context.Response.StatusCode = 404; // Not Found
-                await context.Response.WriteAsync($"ERROR: Block {blockIndex} not found.");
-                return;
-            }
-
-            if (Config.Default.Debug)
-                Logger.Log(
-                    $"Sent block {blockIndex} {Startup.Blockchain.Chain[blockIndex].Hash} parent:{Startup.Blockchain.Chain[blockIndex].PreviousHash}");
-            var block = Startup.Blockchain.Chain[blockIndex];
-
-            context.Response.ContentType = "application/json";
-            await context.Response.WriteAsync(block.ToString());
-        });
-
-        endpoints.MapGet("/api/GetUserTransactions/{user}", async context =>
-        {
-            var user = context.Request.RouteValues["user"] as string;
-
-            if (string.IsNullOrEmpty(user))
-            {
-                context.Response.StatusCode = 400; // Bad Request
-                await context.Response.WriteAsync("ERROR: user name cannot be null or empty.");
-                return;
-            }
-
-            var userTransactions =
-                BlockchainStorage.GetUserTransactions(user, Config.Default.BlockchainPath, Config.Default.ChainId);
-
-            if (string.IsNullOrEmpty(userTransactions))
-            {
-                context.Response.StatusCode = 404; // Not Found
-                await context.Response.WriteAsync($"ERROR: No transactions for {user} found.");
-                return;
-            }
-
-            if (Config.Default.Debug)
-                Logger.Log($"Sent transactions for user {user}");
-
-            context.Response.ContentType = "application/json";
-            await context.Response.WriteAsync(userTransactions);
-        });
-
-        endpoints.MapGet("/api/GetContractCode/{contract}", async context =>
-        {
-            var contractName = context.Request.RouteValues["contract"] as string;
-
-            if (string.IsNullOrEmpty(contractName))
-            {
-                context.Response.StatusCode = 400; // Bad Request
-                await context.Response.WriteAsync("ERROR: Contract name cannot be null or empty.");
-                return;
-            }
-
-            var contractCode =
-                BlockchainStorage.GetContractCode(contractName, Config.Default.BlockchainPath, Config.Default.ChainId);
-
-            if (string.IsNullOrEmpty(contractCode))
-            {
-                context.Response.StatusCode = 404; // Not Found
-                await context.Response.WriteAsync($"ERROR: Contract code for  {contractName} not found.");
-                return;
-            }
-
-            if (Config.Default.Debug)
-                Logger.Log($"Sent contract code for {contractName}");
-
-            context.Response.ContentType = "application/json";
-            await context.Response.WriteAsync(contractCode);
-        });
-
-        endpoints.MapGet("/api/GetContractNames/{search?}/{max:int?}", async context =>
-        {
-            var search = context.Request.RouteValues["search"] as string;
-             
-            int maxResults = 50;
-            if (context.Request.RouteValues.TryGetValue("max", out var maxRouteValue) &&
-                int.TryParse(maxRouteValue?.ToString(), out var parsedMaxResults))
-            {
-                maxResults = parsedMaxResults;
-            } 
-
-            if (maxResults < 1 || maxResults > 50)
-            {
-                context.Response.StatusCode = 400; // Bad Request
-                await context.Response.WriteAsync("ERROR: The maximum number of results must be between 1 and 50.");
-                return;
-            }
-
-            var contractNames = BlockchainStorage.GetContractNames(
-                Config.Default.BlockchainPath,
-                Config.Default.ChainId,
-                search,
-                maxResults);
-
-            if (Config.Default.Debug)
-                Logger.Log(
-                    $"Sent {contractNames.Count} contract names for filter '{search}' with max results {maxResults}");
-
-            context.Response.ContentType = "application/json";
-            await context.Response.WriteAsync(JsonSerializer.Serialize(contractNames));
-        });
-
-        endpoints.MapPost("/api/PushChain", async context =>
-        {
-            try
-            {
-                var serializedChain = await new StreamReader(context.Request.Body).ReadToEndAsync();
-                Logger.Log($"PushChain: {serializedChain}");
-                var incomingChain = Blockchain.FromBase64(serializedChain);
-                if (Startup.Blockchain != null && Startup.Blockchain.SmartContracts.Count == 0)
-                {
-                    lock (Startup.Blockchain.Chain)
-                    {
-                        if (incomingChain != null &&
-                            incomingChain.Chain.Count > Startup.Blockchain.Chain.Count &&
-                            incomingChain.IsValid())
-                        {
-                            Startup.Blockchain = incomingChain;
-                            Node.SaveBlockChain(incomingChain, Startup.Node);
-                        }
-                    }
-
-                    await context.Response.WriteAsync("ok");
-                    return;
-                }
-            }
-            catch (Exception e)
-            {
-                Logger.Log($"ERROR: {e.Message}\n{e.StackTrace}");
-            }
-
-            await context.Response.WriteAsync("");
-        });
-
-        endpoints.MapPost("/api/NewBlock", async context =>
-        {
-            var serializedBlock = await new StreamReader(context.Request.Body).ReadToEndAsync();
-            if (Config.Default.Debug)
-                Logger.Log($"NewBlock: {serializedBlock}");
-            Block newBlock = null;
-            try
-            {
-                newBlock = Block.FromBase64(serializedBlock);
-            }
-            catch (Exception e)
-            {
-                Logger.Log($"ERROR: {e.Message}\n{e.StackTrace}");
-            }
-
-            if (newBlock != null && Startup.Blockchain != null && Startup.Blockchain.AddBlock(newBlock, true, false))
-                await context.Response.WriteAsync("ok");
-            else
-                await context.Response.WriteAsync("");
-        });
-    }
-
-
-    /// <summary>
     ///     Starts the server asynchronously.
     /// </summary>
-    public static async Task<(BlockchainServer?, NodeStartupResult?)> StartServerAsync(bool loadExisting = true)
+    public static async Task<(BlockchainServer?, BlockchainServer.NodeStartupResult?)> StartServerAsync(bool loadExisting = true)
     {
-        NodeStartupResult? result = null;
+        BlockchainServer.NodeStartupResult? result = null;
 
         // Initialize and start the node
         await Task.Run(async () => { result = await StartNode(Config.Default.MinerAddress); });
@@ -660,7 +252,7 @@ public partial class BlockchainServer
     /// </summary>
     /// <param name="message">The verification message containing compressed Base64 code.</param>
     /// <returns>"ok" if the code is safe, or an error message if validation fails.</returns>
-    private string HandleVerifyCode(string message)
+    private static string HandleVerifyCode(string message)
     {
         const string prefix = "VerifyCode:";
         if (!message.StartsWith(prefix))
