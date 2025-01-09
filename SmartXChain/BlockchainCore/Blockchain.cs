@@ -53,10 +53,7 @@ public class Blockchain
                     foreach (var block in Chain)
                         lock (block)
                         {
-                            foreach (var kvp in block.SmartContracts)
-                            {
-                                contracts.Add(kvp.Key, kvp.Value);
-                            }
+                            foreach (var kvp in block.SmartContracts) contracts.Add(kvp.Key, kvp.Value);
                         }
                 }
 
@@ -103,9 +100,9 @@ public class Blockchain
     /// </summary>
     private Block CreateGenesisBlock()
     {
-        var genesisBlock= new Block([], "0");  
+        var genesisBlock = new Block([], "0");
         genesisBlock.Approves.Add(genesisBlock.CalculateHash());
-         
+
         return genesisBlock;
     }
 
@@ -583,7 +580,7 @@ public class Blockchain
         Logger.Log($"ERROR: SmartContract '{contractName}' not found in blockchain transactions.");
         return null;
     }
-     
+
 
     /// <summary>
     ///     Mines all pending transactions and adds them to the blockchain.
@@ -633,7 +630,7 @@ public class Blockchain
                     if (AddBlock(block, false))
                     {
                         Broadcast(block);
-                        if (PendingTransactions != null) 
+                        if (PendingTransactions != null)
                             PendingTransactions.Clear();
                     }
 
@@ -791,7 +788,7 @@ public class Blockchain
     /// <param name="showTransactions">If true, prints the transactions within each block.</param>
     public void PrintAllBlocksAndTransactions(int fromBlock = 0, int toBlock = -1, bool showTransactions = true)
     {
-        if (Chain==null)
+        if (Chain == null)
             return;
 
         if (toBlock == -1 || toBlock >= Chain.Count) toBlock = Chain.Count - 1;
@@ -911,7 +908,7 @@ public class Blockchain
 
                 if (root.TryGetProperty("Balances", out var balancesJson))
                 {
-                    var balances = JsonSerializer.Deserialize<Dictionary<string, Decimal>>(balancesJson.GetRawText());
+                    var balances = JsonSerializer.Deserialize<Dictionary<string, decimal>>(balancesJson.GetRawText());
                     if (balances != null)
                         foreach (var balance in balances)
                             Balances[balance.Key] = balance.Value;

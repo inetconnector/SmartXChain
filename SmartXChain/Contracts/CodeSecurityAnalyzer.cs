@@ -1,8 +1,7 @@
-﻿using Microsoft.CodeAnalysis.CSharp;
+﻿using System.Text.RegularExpressions;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SmartXChain.BlockchainCore;
-using SmartXChain.Utils;
-using System.Text.RegularExpressions;
 
 namespace SmartXChain.Contracts;
 
@@ -78,6 +77,7 @@ public class CodeSecurityAnalyzer
     };
 
     private static string _safeContractCode = "";
+
     public static bool IsCodeSafe(string code, ref string message)
     {
         // Preprocess the code to remove comments
@@ -101,7 +101,7 @@ public class CodeSecurityAnalyzer
             }
 
             var usingRegex = new Regex(@"^using\s+[^;]+;", RegexOptions.Multiline);
-            string code1WithoutUsings = usingRegex.Replace(contractBaseContent, "").Trim();
+            var code1WithoutUsings = usingRegex.Replace(contractBaseContent, "").Trim();
 
             _safeContractCode = code1WithoutUsings;
         }
@@ -254,9 +254,12 @@ public class CodeSecurityAnalyzer
     private static string RemoveComments(string code)
     {
         var noSingleLineComments = Regex.Replace(code, @"//.*", ""); // Remove single-line comments
-        var noMultiLineComments = Regex.Replace(noSingleLineComments, @"/\*.*?\*/", "", RegexOptions.Singleline); // Remove multi-line comments
+        var noMultiLineComments =
+            Regex.Replace(noSingleLineComments, @"/\*.*?\*/", "",
+                RegexOptions.Singleline); // Remove multi-line comments
         return noMultiLineComments;
     }
+
     public static bool AreCommandsSafe(string[] codeCommands, ref List<string> messages)
     {
         messages = new List<string>();

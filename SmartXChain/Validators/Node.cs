@@ -1,6 +1,5 @@
 ﻿using System.Collections.Concurrent;
 using System.Net;
-using System.Net.Sockets;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Server;
 using SmartXChain.Utils;
@@ -11,7 +10,17 @@ namespace SmartXChain.Validators;
 ///     Represents a blockchain node responsible for server discovery, registration, and synchronization.
 /// </summary>
 public class Node
-{  
+{
+    private const int TimeoutSeconds = 60;
+
+
+    /// <summary>
+    ///     Sends a heartbeat signal to a specific server to notify it that the node is active.
+    /// </summary>
+    /// <param name="serverAddress">The address of the server to send the heartbeat to.</param>
+    /// <returns>A Task representing the asynchronous operation.</returns>
+    private static readonly ConcurrentDictionary<string, DateTime> LastResponseTimes = new();
+
     /// <summary>
     ///     Initializes a new instance of the <see cref="Node" /> class.
     /// </summary>
@@ -29,9 +38,9 @@ public class Node
     public static ConcurrentBag<string> CurrentNodeIPs { get; set; } = new();
 
     /// <summary>
-    /// A dictionary of IP addresses for nodes with las activity currently known to the system.
+    ///     A dictionary of IP addresses for nodes with las activity currently known to the system.
     /// </summary>
-    public static Dictionary<string,DateTime> CurrentNodeIP_LastActive { get; set; } = new();
+    public static Dictionary<string, DateTime> CurrentNodeIP_LastActive { get; set; } = new();
 
     /// <summary>
     ///     Gets the blockchain chain identifier associated with this node.
@@ -71,10 +80,9 @@ public class Node
 
         var ipList = new List<string>();
         foreach (var staticIP in node.GetStaticServers(peers))
-        {
             if (!ipList.Contains(staticIP))
                 ipList.Add(staticIP);
-        } 
+
 
         // Retry server discovery if no active servers are found
         if (ipList.Count == 0)
@@ -84,10 +92,8 @@ public class Node
             {
                 await Task.Delay(5000);
                 foreach (var staticIP in node.GetStaticServers(peers))
-                {
                     if (!ipList.Contains(staticIP))
                         ipList.Add(staticIP);
-                }
             }
         }
 
@@ -164,12 +170,12 @@ public class Node
                                     Logger.Log($"Error sending GetChain request to {server}: {ex.Message}");
                                 }
                             }
-
                         }
                         else
+                        {
                             RemoveNodeIP(server);
-
-                     }
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -186,7 +192,7 @@ public class Node
             while (true)
             {
                 try
-                { 
+                {
                     foreach (var server in CurrentNodeIPs)
                     {
                         var nodeIPList = await node.GetRegisteredNodesAsync(server);
@@ -208,8 +214,43 @@ public class Node
         return node;
     }
 
+    private static string ResolveUrlToIp(string url)
+    {
+        try
+        {
+            var uri = new Uri(url);
+
+            var addresses = Dns.GetHostAddresses(uri.Host);
+
+            if (addresses.Length > 0) return uri.Scheme + "://" + addresses[0] + ":" + uri.Port;
+        }
+        catch (Exception ex)
+        {
+        }
+
+        return url;
+    }
+
+    private List<string> GetStaticServers(List<string> urls)
+    {
+        var resolvedUrls = new List<string>();
+
+        foreach (var url in urls)
+            try
+            {
+                var resolvedUrl = ResolveUrlToIp(url);
+                if (!string.IsNullOrEmpty(resolvedUrl)) resolvedUrls.Add(resolvedUrl);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log("ERROR: server discovery failed: " + ex.Message);
+            }
+
+        return resolvedUrls;
+    }
+
     /// <summary>
-    /// Removes a node from CurrentNodeIPs and CurrentNodeIP_LastActive
+    ///     Removes a node from CurrentNodeIPs and CurrentNodeIP_LastActive
     /// </summary>
     /// <param name="ip"></param>
     public static void RemoveNodeIP(string ip)
@@ -219,40 +260,33 @@ public class Node
             var tempList = new List<string>();
 
             while (CurrentNodeIPs.TryTake(out var currentIp))
-            {
                 if (!currentIp.Equals(ip, StringComparison.OrdinalIgnoreCase))
-                {
                     tempList.Add(currentIp);
-                }
                 else
-                {
                     Logger.Log($"Node removed {ip}...");
-                }
-            }
-            foreach (var remainingIp in tempList)
-            {
-                CurrentNodeIPs.Add(remainingIp);
-            }
+            foreach (var remainingIp in tempList) CurrentNodeIPs.Add(remainingIp);
 
             lock (CurrentNodeIP_LastActive)
             {
                 if (CurrentNodeIP_LastActive.ContainsKey(ip))
                     CurrentNodeIP_LastActive.Remove(ip);
             }
+
             SocketManager.RemoveInstance(ip);
-        } 
+        }
     }
 
-    /// <summary> and updates CurrentNodeIP_LastActive
+    /// <summary>
+    ///     and updates CurrentNodeIP_LastActive
     /// </summary>
     /// <param name="server"></param>
     public static void AddNodeIP(string server)
     {
-        Node.CurrentNodeIP_LastActive.TryAdd(server, DateTime.UtcNow);
-        Node.CurrentNodeIP_LastActive[server] = DateTime.UtcNow;
+        CurrentNodeIP_LastActive.TryAdd(server, DateTime.UtcNow);
+        CurrentNodeIP_LastActive[server] = DateTime.UtcNow;
 
-        if (!Node.CurrentNodeIPs.Contains(server))
-            Node.CurrentNodeIPs.Add(server);
+        if (!CurrentNodeIPs.Contains(server))
+            CurrentNodeIPs.Add(server);
     }
 
 
@@ -276,7 +310,6 @@ public class Node
                 var alive = await node.SendHeartbeatAsync(remoteNode);
                 if (alive)
                 {
-
                     if (remoteNode.Contains(NetworkUtils.IP))
                         continue;
 
@@ -315,7 +348,8 @@ public class Node
                     // Fetch and add missing blocks
                     for (var i = currentBlockCount; i < remoteBlockCount; i++)
                     {
-                        var blockResponse = await SocketManager.GetInstance(remoteNode).SendMessageAsync($"GetBlock/{i}");
+                        var blockResponse =
+                            await SocketManager.GetInstance(remoteNode).SendMessageAsync($"GetBlock/{i}");
                         var block = Block.FromBase64(blockResponse);
 
                         if (block != null)
@@ -324,10 +358,13 @@ public class Node
                             Logger.Log($"Block {i} added.");
                         }
                     }
+
                     SaveBlockChain(blockchain, node);
                 }
                 else
+                {
                     RemoveNodeIP(remoteNode);
+                }
             }
         }
         catch (Exception ex)
@@ -368,7 +405,8 @@ public class Node
     public async Task RegisterWithDiscoveryAsync(List<string> discoveryServers)
     {
         Logger.Log($"Registering with {discoveryServers.Count} discovery servers...");
-        foreach (var serverAddress in discoveryServers) await RegisterWithServerAsync(serverAddress);
+        foreach (var serverAddress in discoveryServers)
+            await RegisterWithServerAsync(serverAddress);
     }
 
     /// <summary>
@@ -385,7 +423,7 @@ public class Node
 
             if (response.Contains("ok") && !CurrentNodeIPs.Contains(serverAddress))
             {
-                AddNodeIP(serverAddress); 
+                AddNodeIP(serverAddress);
                 Logger.Log($"{serverAddress} added to node servers");
             }
 
@@ -414,16 +452,16 @@ public class Node
         {
             var response = await SocketManager.GetInstance(serverAddress).SendMessageAsync("Nodes");
 
-            if (response == "ERROR: Timeout" )
+            if (response == "ERROR: Timeout")
             {
                 Logger.Log($"ERROR: Timeout from server {serverAddress}");
                 RemoveNodeIP(serverAddress);
                 return ret;
-            } 
+            }
 
             if (string.IsNullOrEmpty(response))
             {
-                if (Config.Default.Debug) 
+                if (Config.Default.Debug)
                     Logger.Log($"No new nodes received from {serverAddress}");
                 return ret;
             }
@@ -443,15 +481,6 @@ public class Node
         return ret;
     }
 
-
-    /// <summary>
-    ///     Sends a heartbeat signal to a specific server to notify it that the node is active.
-    /// </summary>
-    /// <param name="serverAddress">The address of the server to send the heartbeat to.</param>
-    /// <returns>A Task representing the asynchronous operation.</returns>
-    private static readonly ConcurrentDictionary<string, DateTime> LastResponseTimes = new();
-    private const int TimeoutSeconds = 60;
-
     public async Task<bool> SendHeartbeatAsync(string serverAddress)
     {
         try
@@ -465,14 +494,10 @@ public class Node
             }
 
             if (!string.IsNullOrEmpty(response))
-            {
                 // Update the last response time
                 LastResponseTimes[serverAddress] = DateTime.UtcNow;
-            }
             else
-            {
                 Logger.Log($"No response received from {serverAddress}");
-            }
 
             // Check if the node is considered dead
             if (LastResponseTimes.TryGetValue(serverAddress, out var lastResponseTime))
@@ -480,7 +505,8 @@ public class Node
                 var elapsed = DateTime.UtcNow - lastResponseTime;
                 if (elapsed.TotalSeconds > TimeoutSeconds)
                 {
-                    Logger.Log($"Node {serverAddress} is considered dead (last response {elapsed.TotalSeconds} seconds ago).");
+                    Logger.Log(
+                        $"Node {serverAddress} is considered dead (last response {elapsed.TotalSeconds} seconds ago).");
                     return false;
                 }
             }
@@ -498,60 +524,5 @@ public class Node
             Logger.Log($"ERROR: sending heartbeat to {serverAddress} failed: {ex.Message}");
             return false; // Node is considered dead due to exception
         }
-    }
-
-
-
-    /// <summary>
-    ///     Discovers servers by performing DNS resolution and validation on a list of static servers.
-    /// </summary>
-    /// <param name="staticServers">List of static server addresses for discovery.</param>
-    /// <returns>A list of valid server addresses discovered during the process.</returns>
-    public List<string> GetStaticServers(List<string> staticServers)
-    {
-        try
-        {
-            foreach (var server in staticServers)
-            {
-                if (!server.StartsWith("http://"))
-                    continue;
-
-                var serverAddress = server.Replace("http://", "").Trim();
-                var parts = serverAddress.Split(':');
-
-                if (parts.Length != 2)
-                {
-                    Logger.Log("ERROR: Invalid server address format: " + server);
-                    continue;
-                }
-
-                var host = parts[0];
-                var port = parts[1];
-
-                try
-                {
-                    var ipAddresses = Dns.GetHostAddresses(host)
-                        .Where(ip => ip.AddressFamily == AddressFamily.InterNetwork) // Only IPv4 addresses
-                        .Select(ip => $"http://{ip}:{port}")
-                        .ToList();
-
-                    if (ipAddresses.Any())
-                    {
-                        Logger.Log("DNS discovery successful: " + string.Join(", ", ipAddresses));
-                        return ipAddresses;
-                    }
-                }
-                catch (Exception dnsEx)
-                {
-                    Logger.Log($"ERROR: DNS resolution failed for {host}: {dnsEx.Message}");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.Log("ERROR: server discovery failed: " + ex.Message);
-        }
-
-        return staticServers;
     }
 }

@@ -1,6 +1,6 @@
+using System.Text.RegularExpressions;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Utils;
-using System.Text.RegularExpressions;
 
 namespace SmartXChain.Contracts;
 
@@ -122,26 +122,27 @@ public class SmartContract
             var baseClassCode = Serializer.DeserializeFromBase64<string>(baseClassCodeSerialized);
 
             var usingRegex = new Regex(@"^using\s+[^;]+;", RegexOptions.Multiline);
-            string baseClassCodeWithoutUsings = usingRegex.Replace(baseClassCode, "").Trim();
+            var baseClassCodeWithoutUsings = usingRegex.Replace(baseClassCode, "").Trim();
 
             if (!contractCode.Contains(baseClassCodeWithoutUsings))
             {
                 var newcode = Merge(contractCode, baseClassCode);
                 contractCode = newcode;
-            } 
-        }       
-      
+            }
+        }
+
         return contractCode;
     }
 
     /// <summary>
-    /// Checks if the class Contract is available in the chain, and deploys it if not.
+    ///     Checks if the class Contract is available in the chain, and deploys it if not.
     /// </summary>
     /// <param name="blockchain">The blockchain instance.</param>
     /// <param name="contractCode">The code of the contract.</param>
     /// <param name="ownerAddress">The address of the contract owner.</param>
     /// <returns>The updated contract code.</returns>
-    private static async Task<string> CheckContractBase(Blockchain? blockchain, string contractCode, string ownerAddress)
+    private static async Task<string> CheckContractBase(Blockchain? blockchain, string contractCode,
+        string ownerAddress)
     {
         if (blockchain == null)
         {
@@ -150,14 +151,14 @@ public class SmartContract
         }
 
         var baseClassName = ExtractInherit(contractCode);
-        if (baseClassName != "Contract" )
+        if (baseClassName != "Contract")
             return contractCode;
 
         if (blockchain.SmartContracts.TryGetValue(baseClassName, out var existingContract))
         {
             var baseClassCodeSerialized = existingContract.SerializedContractCode;
             var baseClassCode = Serializer.DeserializeFromBase64<string>(baseClassCodeSerialized);
-             
+
             return Merge(contractCode, baseClassCode);
         }
 
@@ -175,7 +176,8 @@ public class SmartContract
             return contractCode;
         }
 
-        var newContract = new SmartContract(ownerAddress, Serializer.SerializeToBase64(contractBaseContent), baseClassName);
+        var newContract =
+            new SmartContract(ownerAddress, Serializer.SerializeToBase64(contractBaseContent), baseClassName);
         var addedSuccessfully = await blockchain.AddSmartContract(blockchain, newContract);
 
         if (!addedSuccessfully)
@@ -203,11 +205,11 @@ public class SmartContract
         usings1.UnionWith(usings2);
 
         // Combine the unique using statements into a string
-        string mergedUsings = string.Join("\n", usings1);
+        var mergedUsings = string.Join("\n", usings1);
 
         // Remove using statements from the original code snippets
-        string code1WithoutUsings = usingRegex.Replace(code1, "").Trim();
-        string code2WithoutUsings = usingRegex.Replace(code2, "").Trim();
+        var code1WithoutUsings = usingRegex.Replace(code1, "").Trim();
+        var code2WithoutUsings = usingRegex.Replace(code2, "").Trim();
 
         // Combine the usings and the code snippets
         return mergedUsings + "\n\n" + code2WithoutUsings + "\n\n" + code1WithoutUsings;
@@ -222,16 +224,13 @@ public class SmartContract
         var match = inheritRegex.Match(contractCode);
 
         // If a match is found, return the group containing the base class name
-        if (match.Success)
-        {
-            return match.Groups[1].Value;
-        }
+        if (match.Success) return match.Groups[1].Value;
 
         // If no inheritance is found, return an appropriate message or empty string
-        Logger.Log($"ERROR: No inheritance found in contract code");
+        Logger.Log("ERROR: No inheritance found in contract code");
         return "";
     }
-     
+
     public override string ToString()
     {
         return $"Name: {Name} Owner {Owner}";

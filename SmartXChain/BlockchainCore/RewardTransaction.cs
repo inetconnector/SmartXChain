@@ -25,7 +25,7 @@ public class RewardTransaction : Transaction
         Sender = sender;
         Recipient = recipient;
         TransactionType = validator ? TransactionTypes.ValidatorReward : TransactionTypes.MinerReward;
- 
+
         // Rewards are only distributed if the balance count is below 50,000
         // and the sender is the system address.
         if (Balances.Count < 50000 && Sender == Blockchain.SystemAddress)
@@ -44,13 +44,11 @@ public class RewardTransaction : Transaction
             var foundersReward = 10_000_000;
             if (Balances[Blockchain.SystemAddress] > TotalSupply - 10 * foundersReward)
                 reward = foundersReward;
-            
-            if (Balances[Blockchain.SystemAddress]-reward>0)
-            {
+
+            if (Balances[Blockchain.SystemAddress] - reward > 0)
                 // Perform the transfer and update the reward property
                 if (Transfer(chain, Blockchain.SystemAddress, recipient, reward))
                     Reward = reward;
-            } 
         }
     }
 

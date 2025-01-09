@@ -1402,13 +1402,6 @@
             <param name="serverAddress">The address of the server to send the heartbeat to.</param>
             <returns>A Task representing the asynchronous operation.</returns>
         </member>
-        <member name="M:SmartXChain.Validators.Node.GetStaticServers(System.Collections.Generic.List{System.String})">
-            <summary>
-                Discovers servers by performing DNS resolution and validation on a list of static servers.
-            </summary>
-            <param name="staticServers">List of static server addresses for discovery.</param>
-            <returns>A list of valid server addresses discovered during the process.</returns>
-        </member>
         <member name="T:Logger">
             <summary>
             Logger class

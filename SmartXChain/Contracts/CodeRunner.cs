@@ -28,7 +28,7 @@ using System.IO;
     public static ScriptOptions ScriptOptions = ScriptOptions.Default
         .AddReferences(AppDomain.CurrentDomain.GetAssemblies().Where(a => !a.IsDynamic))
         .AddImports("System", "System.Linq", "System.Collections.Generic", "System.Text");
-     
+
     /// <summary>
     ///     Executes a C# script asynchronously with the provided inputs and state.
     /// </summary>
@@ -40,7 +40,7 @@ using System.IO;
     public async Task<(string, string)> RunScriptAsync(string code, string[] inputs, string currentState,
         CancellationToken ct)
     {
-        var message = ""; 
+        var message = "";
         if (!CodeSecurityAnalyzer.IsCodeSafe(code, ref message))
             return ($"The code contains forbidden constructs and was not executed. Details: {message}", currentState);
 

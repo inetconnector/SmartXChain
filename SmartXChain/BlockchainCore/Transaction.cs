@@ -45,9 +45,9 @@ public class Transaction
     }
 
     /// <summary>
-    /// Transaction unique ID
+    ///     Transaction unique ID
     /// </summary>
-    [JsonInclude] 
+    [JsonInclude]
     public Guid ID { get; private set; }
 
     /// <summary>
@@ -141,7 +141,6 @@ public class Transaction
     /// </summary>
     [JsonInclude]
     internal uint Decimals { get; private set; }
-
 
 
     /// <summary>
@@ -318,7 +317,7 @@ public class Transaction
         var message = "";
         if (!IsAuthenticated(sender, privateKey))
         {
-            message = $"Transfer failed: Unauthorized action by '{sender}'."; 
+            message = $"Transfer failed: Unauthorized action by '{sender}'.";
             Log(message);
             return (false, message);
         }
@@ -328,9 +327,9 @@ public class Transaction
 
         if (!Balances.ContainsKey(sender) || Balances[sender] < amount)
         {
-            message = $"Transfer failed: Insufficient balance in account '{sender}'."; 
+            message = $"Transfer failed: Insufficient balance in account '{sender}'.";
             Log(message);
-            return (false,message);
+            return (false, message);
         }
 
         var transferTransaction = new Transaction
@@ -436,8 +435,8 @@ public class Transaction
     }
 
     /// <summary>
-    /// Converts the transaction details into a JSON string format.
-    /// Excludes empty properties from the output.
+    ///     Converts the transaction details into a JSON string format.
+    ///     Excludes empty properties from the output.
     /// </summary>
     public override string ToString()
     {
@@ -447,10 +446,7 @@ public class Transaction
         // Helper function to add non-empty properties to the dictionary
         void AddProperty<T>(string key, T value, Func<T, bool> isEmpty)
         {
-            if (!isEmpty(value))
-            {
-                transactionDetails[key] = value;
-            }
+            if (!isEmpty(value)) transactionDetails[key] = value;
         }
 
         // Add non-empty properties
@@ -472,6 +468,4 @@ public class Transaction
             WriteIndented = true // Pretty print the JSON
         });
     }
-
-
 }

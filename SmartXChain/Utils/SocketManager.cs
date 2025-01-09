@@ -64,7 +64,7 @@ public class SocketManager : IDisposable
         if (_instances.TryRemove(serverAddress, out var instance))
         {
             instance.Dispose();
-            if (Config.Default.Debug) 
+            if (Config.Default.Debug)
                 Logger.Log($"SocketManager instance for '{serverAddress}' removed.");
         }
         else
@@ -110,10 +110,7 @@ public class SocketManager : IDisposable
                     try
                     {
                         var content = new StringContent(message, Encoding.UTF8, "application/json");
-                        if (Config.Default.Debug)
-                        {
-                            Logger.Log($"Sending queued message to server: {message}");
-                        }
+                        if (Config.Default.Debug) Logger.Log($"Sending queued message to server: {message}");
 
                         // Send message to the server's REST endpoint
                         var response = httpClient.PostAsync("/api/" + message.Split(':')[0], content).Result;

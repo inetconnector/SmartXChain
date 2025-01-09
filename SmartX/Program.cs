@@ -35,6 +35,12 @@ internal class Program
         {
             Config.ChainName = "SmartXChain_Testnet";
             Logger.Log($"ChainName has been set to '{Config.ChainName}'.");
+
+            var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "SmartXChain_Testnet");
+
+            if (Directory.Exists(appDir))
+                Directory.Delete(appDir, true);
         }
 
         // Initialize application and start the blockchain server
@@ -58,8 +64,22 @@ internal class Program
             Config.Default.ReloadConfig();
         }
 
+        //create server keys
         if (string.IsNullOrEmpty(Config.Default.ServerPublicKey))
             Config.Default.GenerateServerKeys();
+
+        //create webserver certificate
+        var name = Config.ChainName;
+        var certManager = new CertificateManager(name,
+            Config.AppDirectory(),
+            name + ".pfx",
+            name);
+
+        var certPath = certManager.GenerateCertificate();
+        if (!certManager.IsCertificateInstalled()) certManager.InstallCertificate(certPath);
+
+        //assign certificate for https
+        //BlockchainServer.WebserverCertificate = certManager.GetCertificate();
     }
 
     private static async Task RunConsoleMenuAsync(BlockchainServer.NodeStartupResult? startup)
@@ -134,19 +154,20 @@ internal class Program
         var recipient = Console.ReadLine();
 
         Logger.Log("Enter SCX amount (i.e. 0.01)");
-        decimal amount = Convert.ToDecimal(Console.ReadLine());
+        var amount = Convert.ToDecimal(Console.ReadLine());
 
         Logger.Log("Enter info");
         var info = Console.ReadLine();
 
-        if (amount>0)
+        if (amount > 0)
         {
             Logger.Log($"Ready to send {amount} to {recipient} ? (y/n)");
             if (Console.ReadLine() == "y")
             {
-                var success = await PerformNativeTransfer(startup.Blockchain, walletAddresses[0], recipient, amount, info, PrivateKey);
+                var success = await PerformNativeTransfer(startup.Blockchain, walletAddresses[0], recipient, amount,
+                    info, PrivateKey);
                 Logger.Log("Success: " + success);
-            } 
+            }
         }
     }
 
@@ -255,26 +276,26 @@ internal class Program
         await GoldCoinExample(walletAddresses[0], walletAddresses, SmartXWallet.LoadWalletAdresses(),
             node.Blockchain);
 
-        await PerformNativeTransfer(node.Blockchain, 
-            walletAddresses[0], 
+        await PerformNativeTransfer(node.Blockchain,
+            walletAddresses[0],
             walletAddresses[1],
             (decimal)0.01,
             "49.83278, 9.88167",
-            PrivateKey );
+            PrivateKey);
     }
 
-    private static async Task<bool> PerformNativeTransfer(Blockchain? chain, 
-                                                    string sender, 
-                                                    string recipient, 
-                                                    decimal amount,
-                                                    string data,
-                                                    string privateKey)
+    private static async Task<bool> PerformNativeTransfer(Blockchain? chain,
+        string sender,
+        string recipient,
+        decimal amount,
+        string data,
+        string privateKey)
     {
         // Perform native token transfer
         var transaction = new Transaction();
-        
+
         transaction.RegisterUser(sender, privateKey);
-        var (transferred,message) = await transaction.Transfer(
+        var (transferred, message) = await transaction.Transfer(
             chain,
             sender,
             recipient,
@@ -484,7 +505,8 @@ internal class Program
         result = await ExecuteSmartContract(blockchain, contract, inputs);
     }
 
-    private static async Task ERC20ExtendedExample(string ownerAddress, List<string> walletAddresses, Blockchain? blockchain)
+    private static async Task ERC20ExtendedExample(string ownerAddress, List<string> walletAddresses,
+        Blockchain? blockchain)
     {
         // Deploy and interact with an ERC20 token contract
         var contractFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Examples", "ERC20Extended.cs");
@@ -576,7 +598,7 @@ internal class Program
         var notifyBurn = "https://www.netregservice.com/smartx/rpc_collector.php";
 
         string[] rpcHandlerCode =
-        {            
+        {
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
             "",
             "// Register User",

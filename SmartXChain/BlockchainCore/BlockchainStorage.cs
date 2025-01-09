@@ -144,7 +144,7 @@ public static class BlockchainStorage
     }
 
     /// <summary>
-    /// Gets code of a deployed contract
+    ///     Gets code of a deployed contract
     /// </summary>
     /// <param name="contractName"></param>
     /// <param name="blockchainPath"></param>
@@ -184,7 +184,8 @@ public static class BlockchainStorage
                 using (var command = new SQLiteCommand(selectContractQuery, connection))
                 {
                     // Add parameter for contract name search
-                    command.Parameters.AddWithValue("@ContractName", $"%\"{contractName}\":%"); // Search for the contract key in JSON format
+                    command.Parameters.AddWithValue("@ContractName",
+                        $"%\"{contractName}\":%"); // Search for the contract key in JSON format
 
                     // Execute the query
                     using (var reader = command.ExecuteReader())
@@ -197,10 +198,7 @@ public static class BlockchainStorage
                             {
                                 // Deserialize JSON and find the contract code
                                 var contractCode = ExtractContractCode(smartContractsJson, contractName);
-                                if (contractCode != null)
-                                {
-                                    return contractCode;
-                                }
+                                if (contractCode != null) return contractCode;
                             }
                         }
                     }
@@ -218,7 +216,7 @@ public static class BlockchainStorage
     }
 
     /// <summary>
-    /// Extracts the contract code from the JSON data if the specified contract name exists.
+    ///     Extracts the contract code from the JSON data if the specified contract name exists.
     /// </summary>
     /// <param name="smartContractsJson">JSON string containing smart contracts data.</param>
     /// <param name="contractName">The name of the contract to find.</param>
@@ -248,30 +246,29 @@ public static class BlockchainStorage
     }
 
     /// <summary>
-    /// Retrieves all transactions for a given user from the blockchain database as a JSON string.
+    ///     Retrieves all transactions for a given user from the blockchain database as a JSON string.
     /// </summary>
     /// <param name="user">The user whose transactions are being queried (either sender or recipient).</param>
     /// <param name="blockchainPath">The path to the blockchain's storage directory.</param>
     /// <param name="chainId">The identifier of the blockchain chain.</param>
     /// <returns>A JSON string containing all transactions for the specified user, or an error message if the operation fails.</returns>
-
     public static string GetUserTransactions(string user, string blockchainPath, string chainId)
-    { 
+    {
         var databasePath = Path.Combine(blockchainPath, chainId + ".db");
         var transactions = new List<Dictionary<string, object>>();
 
         try
-        { 
+        {
             if (!File.Exists(databasePath))
             {
                 Logger.Log($"ERROR: Database not found at {databasePath}");
                 return JsonConvert.SerializeObject(new { error = "Database not found" });
             }
-             
+
             using (var connection = new SQLiteConnection($"Data Source={databasePath};Version=3;"))
             {
                 connection.Open();
-                 
+
                 var selectTransactionsQuery = @"
                 SELECT Id, BlockHash, Sender, Recipient, Amount, Timestamp, Data
                 FROM Transactions
@@ -279,24 +276,24 @@ public static class BlockchainStorage
             ";
 
                 using (var command = new SQLiteCommand(selectTransactionsQuery, connection))
-                { 
+                {
                     command.Parameters.AddWithValue("@User", user);
-                     
+
                     using (var reader = command.ExecuteReader())
                     {
                         while (reader.Read())
                         {
                             // Create a dictionary for each transaction
                             var transaction = new Dictionary<string, object>
-                        {
-                            { "Id", reader["Id"] },
-                            { "BlockHash", reader["BlockHash"] },
-                            { "Sender", reader["Sender"] },
-                            { "Recipient", reader["Recipient"] },
-                            { "Amount", Convert.ToDouble(reader["Amount"] ?? 0) },
-                            { "Timestamp", reader["Timestamp"] },
-                            { "Data", reader["Data"] }
-                        };
+                            {
+                                { "Id", reader["Id"] },
+                                { "BlockHash", reader["BlockHash"] },
+                                { "Sender", reader["Sender"] },
+                                { "Recipient", reader["Recipient"] },
+                                { "Amount", Convert.ToDouble(reader["Amount"] ?? 0) },
+                                { "Timestamp", reader["Timestamp"] },
+                                { "Data", reader["Data"] }
+                            };
 
                             transactions.Add(transaction);
                         }
@@ -310,22 +307,23 @@ public static class BlockchainStorage
             return JsonConvert.SerializeObject(transactions);
         }
         catch (Exception ex)
-        { 
+        {
             Logger.Log($"ERROR: Could not retrieve transactions for user {user}: {ex.Message}");
         }
 
         return "";
-    } 
+    }
 
     /// <summary>
-    /// Get contract names from database
+    ///     Get contract names from database
     /// </summary>
     /// <param name="blockchainPath"></param>
     /// <param name="chainId"></param>
     /// <param name="nameFilter"></param>
     /// <param name="maxResults"></param>
     /// <returns></returns>
-    public static List<string> GetContractNames(string blockchainPath, string chainId, string? nameFilter = null, int maxResults = 1)
+    public static List<string> GetContractNames(string blockchainPath, string chainId, string? nameFilter = null,
+        int maxResults = 1)
     {
         // Construct the database file path
         var databasePath = Path.Combine(blockchainPath, chainId + ".db");
@@ -356,7 +354,8 @@ public static class BlockchainStorage
                 using (var command = new SQLiteCommand(selectContractsQuery, connection))
                 {
                     // Add parameters securely
-                    command.Parameters.AddWithValue("@NameFilter", nameFilter != null ? $"%{nameFilter}%" : (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@NameFilter",
+                        nameFilter != null ? $"%{nameFilter}%" : DBNull.Value);
                     command.Parameters.AddWithValue("@MaxResults", maxResults);
 
                     // Execute the query
@@ -367,16 +366,11 @@ public static class BlockchainStorage
                             var smartContractsJson = reader["SmartContracts"]?.ToString();
 
                             if (!string.IsNullOrEmpty(smartContractsJson))
-                            {
                                 // Parse JSON data and extract contract names
                                 contractNames.AddRange(ParseSmartContracts(smartContractsJson, nameFilter));
-                            }
 
                             // Check if the maximum number of results has been reached
-                            if (contractNames.Count >= maxResults)
-                            {
-                                break;
-                            }
+                            if (contractNames.Count >= maxResults) break;
                         }
                     }
                 }
@@ -394,8 +388,8 @@ public static class BlockchainStorage
     }
 
     /// <summary>
-    /// Helper method to parse SmartContracts JSON and extract contract names
-    /// matching the provided name filter.
+    ///     Helper method to parse SmartContracts JSON and extract contract names
+    ///     matching the provided name filter.
     /// </summary>
     /// <param name="smartContractsJson">JSON data of SmartContracts.</param>
     /// <param name="nameFilter">Filter to apply to the contract names (keys).</param>
@@ -420,5 +414,5 @@ public static class BlockchainStorage
             Logger.Log($"ERROR: Failed to parse SmartContracts JSON: {ex.Message}");
             return Enumerable.Empty<string>();
         }
-    } 
+    }
 }

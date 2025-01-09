@@ -35,11 +35,8 @@ public class Tangle
         {
             Console.WriteLine($"ID: {tx.CalculateHash()}");
             Console.WriteLine($"Bestätigt: {string.Join(", ", tx.Approves)}");
-            foreach (var transaction in tx.Transactions)
-            {
-                Console.WriteLine($"Data: {transaction.ToString()}");
-            }
-       
+            foreach (var transaction in tx.Transactions) Console.WriteLine($"Data: {transaction}");
+
             Console.WriteLine();
         }
     }

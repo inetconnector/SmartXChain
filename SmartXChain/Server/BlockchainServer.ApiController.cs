@@ -260,7 +260,9 @@ public partial class BlockchainServer
         [Route(HttpVerbs.Post, "/BlockCount")]
         public async Task BlockCount()
         {
-            if (Startup.Blockchain != null && _blockCount != Startup.Blockchain.Chain.Count)
+            if (Startup.Blockchain != null &&
+                Startup.Blockchain.Chain != null &&
+                _blockCount != Startup.Blockchain.Chain.Count)
             {
                 _blockCount = Startup.Blockchain.Chain.Count;
                 if (Config.Default.Debug)
@@ -312,7 +314,8 @@ public partial class BlockchainServer
         [Route(HttpVerbs.Get, "/GetBlockCount")]
         public async Task GetBlockCount()
         {
-            if (Startup.Blockchain != null && _blockCount != Startup.Blockchain.Chain.Count)
+            if (Startup.Blockchain != null &&
+                Startup.Blockchain.Chain != null)
             {
                 _blockCount = Startup.Blockchain.Chain.Count;
                 if (Config.Default.Debug)

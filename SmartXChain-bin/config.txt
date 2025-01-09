@@ -7,5 +7,5 @@ Debug=false
 [Miner]
 
 [Peers]
-http://netregservice.com:5555
-http://k5mfq628y54zjuxw.myfritz.net:5555
+https://netregservice.com:5555
+https://k5mfq628y54zjuxw.myfritz.net:5555

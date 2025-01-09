@@ -8,7 +8,7 @@ using SmartXChain.Utils;
 namespace SmartXChain.BlockchainCore;
 
 public class Block
-{ 
+{
     public Block(List<Transaction> transactions, string previousHash)
     {
         if (Timestamp == DateTime.MinValue)
@@ -16,7 +16,7 @@ public class Block
 
         Transactions = transactions;
         PreviousHash = previousHash;
-        Hash = CalculateHash(); 
+        Hash = CalculateHash();
     }
 
     [JsonInclude] public DateTime Timestamp { get; } = DateTime.MinValue;
@@ -26,7 +26,7 @@ public class Block
     [JsonInclude] public int Nonce { get; private set; }
 
     /// <summary>
-    /// Get a dictionary of SmartContract from the block
+    ///     Get a dictionary of SmartContract from the block
     /// </summary>
     [JsonInclude]
     public Dictionary<string, SmartContract?> SmartContracts
@@ -64,6 +64,13 @@ public class Block
     }
 
     [JsonIgnore] public string Base64Encoded => Convert.ToBase64String(GetBytes());
+
+
+    /// <summary>
+    ///     List<Transactions> which have approved the Transaction. Used by Tangle.cs
+    /// </summary>
+    [JsonInclude]
+    public List<string> Approves { get; private set; } = new();
 
     /// <summary>
     ///     Validates the timestamp of the block to prevent spamming or delays.
@@ -127,14 +134,6 @@ public class Block
             .ToArray();
     }
 
-
-    /// <summary>
-    ///     List<Transactions> which have approved the Transaction. Used by Tangle.cs
-    /// </summary>
-    [JsonInclude]
-
-    public List<string> Approves { get; private set; } = new();
-
     /// <summary>
     ///     Serializes the block into a compressed byte array.
     /// </summary>
@@ -193,7 +192,7 @@ public class Block
     }
 
     /// <summary>
-    /// Returns a JSON representation of the block, excluding empty properties.
+    ///     Returns a JSON representation of the block, excluding empty properties.
     /// </summary>
     /// <returns>A JSON string containing all block properties.</returns>
     public override string ToString()
@@ -217,5 +216,4 @@ public class Block
 
         return JsonSerializer.Serialize(blockDetails, options);
     }
-
 }

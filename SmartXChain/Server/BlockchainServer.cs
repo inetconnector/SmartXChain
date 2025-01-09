@@ -1,5 +1,7 @@
 ﻿using System.Collections.Concurrent;
+using System.Net;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using EmbedIO;
@@ -24,6 +26,7 @@ public partial class BlockchainServer
     private readonly string _serverAddressExtern; // External address of this server
     private readonly string _serverAddressIntern; // Internal address of this server
     private int _blockCount;
+    private WebServer _server;
 
     /// <summary>
     ///     Initializes a new instance of the BlockchainServer class with specified external and internal IP addresses.
@@ -32,25 +35,48 @@ public partial class BlockchainServer
     {
         _serverAddressExtern = $"http://{externIP}:{Config.Default.Port}";
         _serverAddressIntern = $"http://{internIP}:{Config.Default.Port}";
-
         Logger.Log($"Starting server at {_serverAddressIntern}/{_serverAddressExtern}...");
     }
-    private WebServer _server;
+
+    public static X509Certificate2 WebserverCertificate { get; set; } = null;
+
+    /// <summary>
+    ///     Represents the startup state of the blockchain node.
+    /// </summary>
+    internal static NodeStartupResult Startup { get; private set; }
 
     public void StartMainServer()
     {
-        // Initialisiere den Webserver mit EmbedIO 
-        _server = new WebServer(o => o
-                .WithUrlPrefix($"http://*:{Config.Default.Port}/") 
-                .WithMode(HttpListenerMode.EmbedIO))
-                .WithLocalSessionManager()
-                .WithWebApi("/api", m => m.WithController<ApiController>());
+        _server = new WebServer(Configure).WithCors()
+            .WithLocalSessionManager()
+            .WithWebApi("/api", m => m.WithController<ApiController>());
 
-        // Starte den Server asynchron
         _server.RunAsync();
         Console.WriteLine($"Server started at {NetworkUtils.IP}");
         _server.StateChanged += (s, e) => $"WebServer New State - {e.NewState}".Info();
     }
+
+    private void Configure(WebServerOptions o)
+    {
+        // Force the application to use TLS 1.2
+        ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+
+        if (WebserverCertificate != null)
+        {
+            // HTTPS configuration
+            o.WithAutoLoadCertificate(true);
+            o.WithCertificate(WebserverCertificate);
+            o.WithMode(HttpListenerMode.EmbedIO);
+            o.WithUrlPrefix($"https://*:{Config.Default.Port}/");
+        }
+        else
+        {
+            // HTTP configuration
+            o.WithMode(HttpListenerMode.EmbedIO);
+            o.WithUrlPrefix($"http://*:{Config.Default.Port}/");
+        }
+    }
+
 
     public void StopServer()
     {
@@ -59,16 +85,11 @@ public partial class BlockchainServer
     }
 
     /// <summary>
-    ///     Represents the startup state of the blockchain node.
-    /// </summary>
-    internal static NodeStartupResult Startup { get; private set; }
-
-    /// <summary>
     ///     Starts the server asynchronously.
     /// </summary>
-    public static async Task<(BlockchainServer?, BlockchainServer.NodeStartupResult?)> StartServerAsync(bool loadExisting = true)
+    public static async Task<(BlockchainServer?, NodeStartupResult?)> StartServerAsync(bool loadExisting = true)
     {
-        BlockchainServer.NodeStartupResult? result = null;
+        NodeStartupResult? result = null;
 
         // Initialize and start the node
         await Task.Run(async () => { result = await StartNode(Config.Default.MinerAddress); });
@@ -188,9 +209,9 @@ public partial class BlockchainServer
             Logger.Log($"ValidateSignature failed. Node not registered: {nodeAddress} Signature: {signature}");
             return "";
         }
-         
+
         // Register the node
-        Node.AddNodeIP(nodeAddress); 
+        Node.AddNodeIP(nodeAddress);
         Logger.Log($"Node registered: {nodeAddress}");
 
         return "ok";
@@ -204,7 +225,7 @@ public partial class BlockchainServer
     private string HandleNodes(string message)
     {
         RemoveInactiveNodes();
-        
+
         if (Node.CurrentNodeIPs.Count > 0)
         {
             var nodes = string.Join(",", Node.CurrentNodeIPs.Where(node => !string.IsNullOrWhiteSpace(node)));
@@ -290,8 +311,8 @@ public partial class BlockchainServer
             Logger.Log("Invalid node address in heartbeat received.");
             return;
         }
-         
-        Node.AddNodeIP(nodeAddress);  
+
+        Node.AddNodeIP(nodeAddress);
 
         if (Config.Default.Debug)
             Logger.Log($"Heartbeat {nodeAddress} - {DateTime.Now} (HandleHeartbeat)");
@@ -317,7 +338,7 @@ public partial class BlockchainServer
         // Remove inactive nodes from the registry
         foreach (var node in inactiveNodes)
         {
-            Node.RemoveNodeIP(node);  
+            Node.RemoveNodeIP(node);
             Logger.Log($"Node removed: {node} (Inactive)");
         }
     }
@@ -363,9 +384,7 @@ public partial class BlockchainServer
 
                         foreach (var node in responseBody.Split(','))
                             if (node.Contains("http"))
-                            {
-                                Node.AddNodeIP(node); 
-                            }
+                                Node.AddNodeIP(node);
                     }
                     else
                     {

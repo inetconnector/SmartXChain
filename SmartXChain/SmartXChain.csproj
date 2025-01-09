@@ -30,7 +30,7 @@
 
 	<ItemGroup>
 		<Compile Update="Contracts\Contract.cs">
-		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</Compile>
 		<Compile Update="Properties\Resources.Designer.cs">
 			<DesignTime>True</DesignTime>
@@ -48,7 +48,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Folder Include="Resources\" />
+		<Folder Include="Resources\" />
 	</ItemGroup>
 
 </Project>
