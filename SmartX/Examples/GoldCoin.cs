@@ -153,21 +153,21 @@ public class GoldCoin : ERC20Extended
         try
         {
             var apiUrl = "https://www.goldapi.io/api/XAU/USD";
-            using (var client = new HttpClient())
-            {
-                client.DefaultRequestHeaders.Add("x-access-token", "goldapi-43irpsm4vsl288-io");
-                var response = await client.GetStringAsync(apiUrl);
-                var json = JsonDocument.Parse(response);
+            using var client = new HttpClient();
 
-                if (json.RootElement.TryGetProperty("price", out var priceElement) && priceElement.GetDecimal() > 0)
-                {
-                    var newGoldPrice = priceElement.GetDecimal();
-                    await UpdateGoldPriceAsync(newGoldPrice, ownerPrivateKey);
-                }
-                else
-                {
-                    Log("Failed to fetch or parse gold price from API.");
-                }
+
+            client.DefaultRequestHeaders.Add("x-access-token", "goldapi-43irpsm4vsl288-io");
+            var response = await client.GetStringAsync(apiUrl);
+            var json = JsonDocument.Parse(response);
+
+            if (json.RootElement.TryGetProperty("price", out var priceElement) && priceElement.GetDecimal() > 0)
+            {
+                var newGoldPrice = priceElement.GetDecimal();
+                await UpdateGoldPriceAsync(newGoldPrice, ownerPrivateKey);
+            }
+            else
+            {
+                Log("Failed to fetch or parse gold price from API.");
             }
         }
         catch (Exception ex)
