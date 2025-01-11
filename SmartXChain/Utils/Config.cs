@@ -21,7 +21,8 @@ public class Config
         PublicKey,
         PrivateKey,
         SecurityProtocol,
-        SSLCertificate
+        SSLCertificate,
+        MaxParallelConnections
     }
 
     private static readonly Lazy<Config> _defaultInstance = new(() =>
@@ -66,6 +67,7 @@ public class Config
     public string ChainId { get; private set; }
     public string MinerAddress { get; private set; }
     public string Mnemonic { get; private set; }
+    public int MaxParallelConnections { get; private set; }
     public string WalletPrivateKey { get; private set; }
     public List<string> Peers { get; } 
     public string URL { get; private set; }
@@ -125,6 +127,7 @@ public class Config
         BlockchainPath = "";
         SSLCertificate = "";
         SecurityProtocol = "";
+        MaxParallelConnections = 10;
         URL = "";
 
         LoadConfig(configFilePath);
@@ -254,6 +257,7 @@ public class Config
             ConfigKey.Debug => "Config",
             ConfigKey.URL => "Config",
             ConfigKey.SecurityProtocol => "Config",
+            ConfigKey.MaxParallelConnections => "Config",
 
             ConfigKey.MinerAddress => "Miner",
             ConfigKey.Mnemonic => "Miner",
@@ -357,6 +361,8 @@ public class Config
                             URL = value;
                         if (key.Equals("SecurityProtocol", StringComparison.OrdinalIgnoreCase))
                             SecurityProtocol = value;
+                        if (key.Equals("MaxParallelConnections", StringComparison.OrdinalIgnoreCase))
+                            MaxParallelConnections = Convert.ToInt16(value);
                         break;
 
                     case "[Miner]":

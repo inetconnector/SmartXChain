@@ -33,52 +33,13 @@ public partial class BlockchainServer
                     }
                 }
 
-            Logger.Log($"Static peers discovered: {string.Join(", ", validPeers)}");
+            Logger.Log($"Static peers discovered: {string.Join(", ", validPeers.Count)}");
         }
         catch (Exception ex)
         {
             Logger.Log($"Error processing static peers: {ex.Message}");
         }
     }
-
-    /// <summary>
-    ///     Removes inactive nodes that have exceeded the heartbeat timeout from the registry.
-    /// </summary>
-    private void RemoveInactiveNodes()
-    {
-        var now = DateTime.UtcNow;
-
-        // Identify nodes that have exceeded the heartbeat timeout
-        var inactiveNodes = Node.CurrentNodeIP_LastActive
-            .Where(kvp => (now - kvp.Value).TotalSeconds > HeartbeatTimeoutSeconds)
-            .Select(kvp => kvp.Key)
-            .ToList();
-
-        // Remove inactive nodes from the registry
-        foreach (var node in inactiveNodes)
-        {
-            Node.RemoveNodeIP(node);
-            Logger.Log($"Node removed: {node} (Inactive)");
-        }
-    }
-
-    /// <summary>
-    ///     Validates a node's signature using HMACSHA256 with the server's secret key.
-    /// </summary>
-    /// <param name="nodeAddress">The node address being validated.</param>
-    /// <param name="signature">The provided signature to validate.</param>
-    /// <returns>True if the signature is valid; otherwise, false.</returns>
-    private bool ValidateSignature(string nodeAddress, string signature)
-    {
-        using (var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(Config.Default.ChainId)))
-        {
-            var computedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(nodeAddress));
-            var computedSignature = Convert.ToBase64String(computedHash);
-
-            return computedSignature == signature;
-        }
-    }
-
     /// <summary>
     ///     Continuously synchronizes with peer servers to update the list of active nodes.
     /// </summary>
@@ -87,21 +48,16 @@ public partial class BlockchainServer
         while (true)
         {
             foreach (var peer in _peerServers)
+            {
                 try
                 {
-                    if (Config.Default.SecurityProtocol == "Tls11")
-                        ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls11;
-                    else if (Config.Default.SecurityProtocol == "Tls12")
-                        ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls13;
-                    else if (Config.Default.SecurityProtocol == "Tls13")
-                        ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls13;
-
                     // Initialize HTTP client for communication with the peer
                     using var client = new HttpClient();
                     client.BaseAddress = new Uri(peer);
                     if (Config.Default.SSL)
                         client.DefaultRequestHeaders.Authorization =
-                        new AuthenticationHeaderValue("Bearer", BearerToken.GetToken());
+                            new AuthenticationHeaderValue("Bearer", BearerToken.GetToken());
+
                     // Send an empty request to the /api/GetNodes endpoint
                     var content = new StringContent(JsonSerializer.Serialize(""), Encoding.UTF8, "application/json");
                     var response = await client.PostAsync("/api/Nodes", content);
@@ -123,8 +79,9 @@ public partial class BlockchainServer
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogException(ex, $"ERROR: synchronizing with peer {peer} failed"); 
+                    Logger.LogException(ex, $"ERROR: synchronizing with peer {peer} failed");
                 }
+            }
 
             // Wait for 20 seconds before the next synchronization cycle
             await Task.Delay(20000);
@@ -139,12 +96,15 @@ public partial class BlockchainServer
     /// <param name="message">The message content to be sent to the peers.</param>
     internal static async void BroadcastToPeers(ConcurrentBag<string> serversList, string command, string message)
     {
-        foreach (var peer in serversList)
+        var semaphore = new SemaphoreSlim(Config.Default.MaxParallelConnections);
+
+        var tasks = serversList.Select(async peer =>
         {
             if (peer.Contains(Config.Default.URL))
-                continue;
+                return;
 
-            await Task.Run(async () =>
+            await semaphore.WaitAsync();
+            try
             {
                 var url = "";
                 try
@@ -153,10 +113,10 @@ public partial class BlockchainServer
                     using var client = new HttpClient { BaseAddress = new Uri(peer) };
                     if (Config.Default.SSL)
                         client.DefaultRequestHeaders.Authorization =
-                        new AuthenticationHeaderValue("Bearer", BearerToken.GetToken());
+                            new AuthenticationHeaderValue("Bearer", BearerToken.GetToken());
 
                     // Prepare the message content to send to the specified API endpoint
-                    var content = new StringContent(message); 
+                    var content = new StringContent(message);
                     url = $"/api/{command}";
 
                     // Log the broadcast request details
@@ -167,7 +127,7 @@ public partial class BlockchainServer
                     // If the response is successful, log the response content
                     if (response.IsSuccessStatusCode)
                     {
-                        var responseString = response.Content.ReadAsStringAsync().Result;
+                        var responseString = await response.Content.ReadAsStringAsync();
                         if (Config.Default.Debug)
                             Logger.Log($"BroadcastToPeers response: {responseString}");
                     }
@@ -182,7 +142,14 @@ public partial class BlockchainServer
                 {
                     Logger.LogException(ex, $"ERROR: BroadcastToPeers {url} failed");
                 }
-            });
-        }
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        });
+
+        await Task.WhenAll(tasks);
     }
+
 }

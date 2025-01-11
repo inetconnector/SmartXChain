@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using EmbedIO;
@@ -225,6 +226,23 @@ public partial class BlockchainServer
     }
 
     /// <summary>
+    ///     Validates a node's signature using HMACSHA256 with the server's secret key.
+    /// </summary>
+    /// <param name="nodeAddress">The node address being validated.</param>
+    /// <param name="signature">The provided signature to validate.</param>
+    /// <returns>True if the signature is valid; otherwise, false.</returns>
+    private bool ValidateSignature(string nodeAddress, string signature)
+    {
+        using (var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(Config.Default.ChainId)))
+        {
+            var computedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(nodeAddress));
+            var computedSignature = Convert.ToBase64String(computedHash);
+
+            return computedSignature == signature;
+        }
+    }
+
+    /// <summary>
     ///     Retrieves a list of active nodes, removing any that are inactive based on heartbeat timestamps.
     /// </summary>
     /// <param name="message">A dummy message for compatibility (not used).</param>
@@ -240,6 +258,27 @@ public partial class BlockchainServer
         }
 
         return "";
+    }
+
+    /// <summary>
+    ///     Removes inactive nodes that have exceeded the heartbeat timeout from the registry.
+    /// </summary>
+    private void RemoveInactiveNodes()
+    {
+        var now = DateTime.UtcNow;
+
+        // Identify nodes that have exceeded the heartbeat timeout
+        var inactiveNodes = Node.CurrentNodeIP_LastActive
+            .Where(kvp => (now - kvp.Value).TotalSeconds > HeartbeatTimeoutSeconds)
+            .Select(kvp => kvp.Key)
+            .ToList();
+
+        // Remove inactive nodes from the registry
+        foreach (var node in inactiveNodes)
+        {
+            Node.RemoveNodeIP(node);
+            Logger.Log($"Node removed: {node} (Inactive)");
+        }
     }
 
     /// <summary>
