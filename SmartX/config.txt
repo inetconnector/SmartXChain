@@ -1,11 +1,10 @@
 [Config]
 ChainId = {3683DDE3-C2D3-4565-8E1C-50C8E0E2AAC2}
-Port=5555 
-IP=auto
-Debug=false
+URL=http://k5mfq628y54zjuxw.myfritz.net:5555
+Debug=false 
+SecurityProtocol = Tls12
 
 [Miner]
 
-[Peers]
-https://netregservice.com:5555
-https://k5mfq628y54zjuxw.myfritz.net:5555
+[Peers] 
+http://netregservice.com:5555

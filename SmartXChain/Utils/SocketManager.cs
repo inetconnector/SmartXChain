@@ -1,4 +1,6 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
+using System.Net.Http.Headers;
 using System.Text;
 
 namespace SmartXChain.Utils;
@@ -85,7 +87,7 @@ public class SocketManager : IDisposable
         _messageQueue.Add((message, tcs));
 
         // Apply a timeout for the processing task
-        Task.Delay(5000).ContinueWith(_ =>
+        Task.Delay(2000).ContinueWith(_ =>
         {
             if (!tcs.Task.IsCompleted) tcs.TrySetResult("ERROR: Timeout");
         });
@@ -101,19 +103,29 @@ public class SocketManager : IDisposable
     {
         try
         {
-            using var httpClient = new HttpClient { BaseAddress = new Uri(_serverAddress) };
-            Logger.Log($"HTTP client initialized with server: {_serverAddress}");
+            using var client = new HttpClient { BaseAddress = new Uri(_serverAddress) };
+            if (Config.Default.SSL)
+            {
+                var token = new AuthenticationHeaderValue("Bearer", BearerToken.GetToken());
+                client.DefaultRequestHeaders.Authorization = token;
+            }
+           
+            Logger.Log($"Connecting to server: {_serverAddress}");
 
             foreach (var (message, tcs) in _messageQueue.GetConsumingEnumerable(cancellationToken))
                 lock (_sendLock)
                 {
+                    var url = "";
                     try
                     {
                         var content = new StringContent(message, Encoding.UTF8, "application/json");
-                        if (Config.Default.Debug) Logger.Log($"Sending queued message to server: {message}");
+                        if (Config.Default.Debug) 
+                            Logger.Log($"Sending queued message to server: {message}");
+
+                        url = "/api/" + message.Split(':')[0];
 
                         // Send message to the server's REST endpoint
-                        var response = httpClient.PostAsync("/api/" + message.Split(':')[0], content).Result;
+                        var response = client.PostAsync(url, content).Result;
 
                         if (response.IsSuccessStatusCode)
                         {
@@ -131,8 +143,7 @@ public class SocketManager : IDisposable
                     }
                     catch (Exception ex)
                     {
-                        // Handle exceptions during message processing
-                        Logger.Log($"Error processing message: {ex.Message}");
+                        Logger.LogException(ex, $"ERROR: send failed: {url}");
                         tcs.TrySetException(ex);
                     }
                 }
@@ -143,7 +154,7 @@ public class SocketManager : IDisposable
         }
         catch (Exception ex)
         {
-            Logger.Log($"Critical error in ProcessQueue: {ex.Message}");
+            Logger.LogException(ex, $"ERROR: Critical error in ProcessQueue"); 
         }
     }
 }

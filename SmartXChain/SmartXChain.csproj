@@ -19,12 +19,13 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="EmbedIO" Version="3.5.2" />
+		<PackageReference Include="EmbedIO.BearerToken" Version="3.4.2" />
+		<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.3.0" />
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.12.0" />
-		<PackageReference Include="NBitcoin" Version="7.0.46" />
-		<PackageReference Include="Nethereum.Web3" Version="4.27.1" />
+		<PackageReference Include="NBitcoin" Version="7.0.48" />
+		<PackageReference Include="Nethereum.Web3" Version="4.28.0" />
 		<PackageReference Include="System.Data.SQLite.Core" Version="1.0.119" />
 	</ItemGroup>
 
@@ -49,6 +50,12 @@
 
 	<ItemGroup>
 		<Folder Include="Resources\" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Update="wwwroot\index.html">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
 	</ItemGroup>
 
 </Project>

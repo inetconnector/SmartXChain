@@ -1,10 +1,8 @@
-﻿using System.Collections.Concurrent;
-using System.Net;
-using System.Security.Cryptography;
+﻿using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
-using System.Text.Json;
 using EmbedIO;
+using EmbedIO.BearerToken;
 using EmbedIO.WebApi;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Contracts;
@@ -23,21 +21,19 @@ public partial class BlockchainServer
     private const int HeartbeatTimeoutSeconds = 30; // Maximum time before a node is considered inactive
     private readonly List<string> _peerServers = new(); // Addresses of other peer registration servers
 
-    private readonly string _serverAddressExtern; // External address of this server
-    private readonly string _serverAddressIntern; // Internal address of this server
-    private int _blockCount;
     private WebServer _server;
 
     /// <summary>
     ///     Initializes a new instance of the BlockchainServer class with specified external and internal IP addresses.
     /// </summary>
-    public BlockchainServer(string externIP, string internIP)
+    public BlockchainServer(string url)
     {
-        _serverAddressExtern = $"http://{externIP}:{Config.Default.Port}";
-        _serverAddressIntern = $"http://{internIP}:{Config.Default.Port}";
-        Logger.Log($"Starting server at {_serverAddressIntern}/{_serverAddressExtern}...");
+        Logger.Log($"Starting server at {Config.Default.URL}...");
     }
 
+    /// <summary>
+    ///     Gets the webserver certificate
+    /// </summary>
     public static X509Certificate2 WebserverCertificate { get; set; } = null;
 
     /// <summary>
@@ -47,33 +43,74 @@ public partial class BlockchainServer
 
     public void StartMainServer()
     {
-        _server = new WebServer(Configure).WithCors()
-            .WithLocalSessionManager()
-            .WithWebApi("/api", m => m.WithController<ApiController>());
-
+        var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        var str = Path.Combine(Config.AppDirectory(), "wwwroot");
+        FileSystem.CopyDirectory(Path.Combine(baseDirectory, "wwwroot"), str);
+        var path = Path.Combine(str, "index.html");
+        File.WriteAllText(path, ReplaceBody(File.ReadAllText(path)));
+        
+        if (!Config.Default.SSL)
+        {
+            _server = (WebServer)new WebServer(Configure).WithCors()
+                .WithLocalSessionManager()
+                .WithWebApi("/api", m => m.WithController<ApiController>())
+                .WithStaticFolder("/", str, true);
+        }
+        else
+        {
+            _server = (WebServer)new WebServer(Configure).WithCors()
+                .WithBearerToken("/api", Crypt.AssemblyFingerprint.Substring(0, 40), new BasicAuthorizationServerProvider())
+                .WithLocalSessionManager()
+                .WithWebApi("/api", m => m.WithController<ApiController>())
+                .WithStaticFolder("/", str, true);
+        }
         _server.RunAsync();
-        Console.WriteLine($"Server started at {NetworkUtils.IP}");
+
+        Console.WriteLine($"Server started at {Config.Default.URL}");
         _server.StateChanged += (s, e) => $"WebServer New State - {e.NewState}".Info();
     }
 
-    private void Configure(WebServerOptions o)
+    private string ReplaceBody(string html)
     {
-        // Force the application to use TLS 1.2
-        ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+        var stringBuilder = new StringBuilder();
 
-        if (WebserverCertificate != null)
-        {
+        stringBuilder.AppendLine($"Chain-ID: {Config.Default.ChainId}<br>");
+        stringBuilder.AppendLine($"Miner: {Config.Default.MinerAddress}");
+
+        return html.Replace("@body", stringBuilder.ToString());
+    }
+
+    private void Configure(WebServerOptions o)
+    { 
+        var port = Config.Default.URL.Split(':')[2];
+
+        o.WithMode(HttpListenerMode.EmbedIO);
+
+        if (Config.Default.SSL && WebserverCertificate != null)
+        {       
+            // Force the application to use TLS 1.2
+            if (Config.Default.SecurityProtocol == "Tls11")
+            {
+                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls11;
+            }
+            else if (Config.Default.SecurityProtocol == "Tls12")
+            {
+                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls13;
+            }
+            else if (Config.Default.SecurityProtocol == "Tls13")
+            {
+                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls13;
+            }
+
             // HTTPS configuration
             o.WithAutoLoadCertificate(true);
             o.WithCertificate(WebserverCertificate);
-            o.WithMode(HttpListenerMode.EmbedIO);
-            o.WithUrlPrefix($"https://*:{Config.Default.Port}/");
+            o.WithUrlPrefix($"https://*:{port}/");
         }
         else
         {
             // HTTP configuration
-            o.WithMode(HttpListenerMode.EmbedIO);
-            o.WithUrlPrefix($"http://*:{Config.Default.Port}/");
+            o.WithUrlPrefix($"http://*:{port}/");
         }
     }
 
@@ -104,11 +141,11 @@ public partial class BlockchainServer
         {
             try
             {
-                server = new BlockchainServer(NetworkUtils.IP, NetworkUtils.GetLocalIP());
+                server = new BlockchainServer(Config.Default.URL);
                 server.Start();
 
                 Logger.Log(
-                    $"Server node for blockchain '{Config.Default.ChainId}' started at {NetworkUtils.IP}");
+                    $"Server node for blockchain '{Config.Default.ChainId}' started at {Config.Default.URL}");
             }
             catch (Exception ex)
             {
@@ -145,36 +182,6 @@ public partial class BlockchainServer
     }
 
     /// <summary>
-    ///     Discovers peers from the configuration and registers them in the peer server list,
-    ///     excluding the current server addresses.
-    /// </summary>
-    private void DiscoverAndRegisterWithPeers()
-    {
-        var validPeers = new List<string>();
-
-        try
-        {
-            foreach (var peer in Config.Default.Peers)
-                if (!string.IsNullOrEmpty(peer) && peer.StartsWith("http://"))
-                {
-                    if (peer == _serverAddressExtern) continue;
-                    if (peer == _serverAddressIntern) continue;
-                    if (!_peerServers.Contains(peer))
-                    {
-                        _peerServers.Add(peer);
-                        validPeers.Add(peer);
-                    }
-                }
-
-            Logger.Log($"Static peers discovered: {string.Join(", ", validPeers)}");
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"Error processing static peers: {ex.Message}");
-        }
-    }
-
-    /// <summary>
     ///     Removes the fingerprint identifier from a message string.
     /// </summary>
     /// <param name="message">The input message containing a fingerprint.</param>
@@ -200,7 +207,7 @@ public partial class BlockchainServer
         var addressSignatureParts = remainingParts.Split('|');
         if (addressSignatureParts.Length != 2) return "Invalid registration format";
 
-        var nodeAddress = addressSignatureParts[0]; // Node address (e.g., "http://127.0.0.1")
+        var nodeAddress = addressSignatureParts[0]; // Node address
         var signature = addressSignatureParts[1]; // Signature for validation
 
         // Security check using signature validation
@@ -319,139 +326,5 @@ public partial class BlockchainServer
 
         GC.Collect();
         GC.WaitForPendingFinalizers();
-    }
-
-
-    /// <summary>
-    ///     Removes inactive nodes that have exceeded the heartbeat timeout from the registry.
-    /// </summary>
-    private void RemoveInactiveNodes()
-    {
-        var now = DateTime.UtcNow;
-
-        // Identify nodes that have exceeded the heartbeat timeout
-        var inactiveNodes = Node.CurrentNodeIP_LastActive
-            .Where(kvp => (now - kvp.Value).TotalSeconds > HeartbeatTimeoutSeconds)
-            .Select(kvp => kvp.Key)
-            .ToList();
-
-        // Remove inactive nodes from the registry
-        foreach (var node in inactiveNodes)
-        {
-            Node.RemoveNodeIP(node);
-            Logger.Log($"Node removed: {node} (Inactive)");
-        }
-    }
-
-    /// <summary>
-    ///     Validates a node's signature using HMACSHA256 with the server's secret key.
-    /// </summary>
-    /// <param name="nodeAddress">The node address being validated.</param>
-    /// <param name="signature">The provided signature to validate.</param>
-    /// <returns>True if the signature is valid; otherwise, false.</returns>
-    private bool ValidateSignature(string nodeAddress, string signature)
-    {
-        using (var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(Config.Default.ChainId)))
-        {
-            var computedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(nodeAddress));
-            var computedSignature = Convert.ToBase64String(computedHash);
-
-            return computedSignature == signature;
-        }
-    }
-
-    /// <summary>
-    ///     Continuously synchronizes with peer servers to update the list of active nodes.
-    /// </summary>
-    private async void SynchronizeWithPeers()
-    {
-        while (true)
-        {
-            foreach (var peer in _peerServers)
-                try
-                {
-                    // Initialize HTTP client for communication with the peer
-                    using var httpClient = new HttpClient { BaseAddress = new Uri(peer) };
-
-                    // Send an empty request to the /api/GetNodes endpoint
-                    var content = new StringContent(JsonSerializer.Serialize(""), Encoding.UTF8, "application/json");
-                    var response = await httpClient.PostAsync("/api/Nodes", content);
-
-                    // If the response is successful, update the list of registered nodes
-                    if (response.IsSuccessStatusCode)
-                    {
-                        var responseBody = await response.Content.ReadAsStringAsync();
-
-                        foreach (var node in responseBody.Split(','))
-                            if (node.Contains("http"))
-                                Node.AddNodeIP(node);
-                    }
-                    else
-                    {
-                        // Log any error with the response from the peer
-                        Logger.Log($"Error synchronizing with peer {peer}: {response.StatusCode}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    // Log exceptions that occur during the synchronization process
-                    Logger.Log($"Error synchronizing with peer {peer}: {ex.Message}");
-                }
-
-            // Wait for 20 seconds before the next synchronization cycle
-            await Task.Delay(20000);
-        }
-    }
-
-    /// <summary>
-    ///     Broadcasts a message to a list of peer servers, targeting a specific API endpoint command.
-    /// </summary>
-    /// <param name="serversList">List of peer server URLs to send the message to.</param>
-    /// <param name="command">The API command to invoke on each peer server.</param>
-    /// <param name="message">The message content to be sent to the peers.</param>
-    internal static async void BroadcastToPeers(ConcurrentBag<string> serversList, string command, string message)
-    {
-        foreach (var peer in serversList)
-        {
-            if (peer.Contains(NetworkUtils.IP))
-                continue;
-
-            await Task.Run(async () =>
-            {
-                try
-                {
-                    // Initialize HTTP client for communication with the peer
-                    using var httpClient = new HttpClient { BaseAddress = new Uri(peer) };
-
-                    // Prepare the message content to send to the specified API endpoint
-                    var content = new StringContent(message);
-                    var url = $"/api/{command}";
-
-                    // Log the broadcast request details
-                    if (Config.Default.Debug)
-                        Logger.Log($"BroadcastToPeers async: {url}\n{content}");
-                    var response = await httpClient.PostAsync(url, content);
-
-                    // If the response is successful, log the response content
-                    if (response.IsSuccessStatusCode)
-                    {
-                        var responseString = response.Content.ReadAsStringAsync().Result;
-                        if (Config.Default.Debug)
-                            Logger.Log($"BroadcastToPeers response: {responseString}");
-                    }
-                    else
-                    {
-                        // Log an error message if the response status indicates failure
-                        var error = $"ERROR: BroadcastToPeers {response.StatusCode} - {response.ReasonPhrase}";
-                        Logger.Log(error);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    // Log exceptions that occur during the broadcasting process
-                    Logger.Log($"Error sending to peer {peer}: {ex.Message}");
-                }
-            });
-        }
     }
 }

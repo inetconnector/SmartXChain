@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using SmartXChain;
@@ -55,8 +56,7 @@ internal class Program
     {
         Logger.Log("Application start");
 
-        // Retrieve public IP and ensure wallet and keys are set up
-        await NetworkUtils.GetPublicIPAsync();
+        // ensure wallet and keys are set up
 
         if (string.IsNullOrEmpty(Config.Default.MinerAddress))
         {
@@ -65,21 +65,37 @@ internal class Program
         }
 
         //create server keys
-        if (string.IsNullOrEmpty(Config.Default.ServerPublicKey))
+        if (string.IsNullOrEmpty(Config.Default.PublicKey))
             Config.Default.GenerateServerKeys();
 
-        //create webserver certificate
-        var name = Config.ChainName;
-        var certManager = new CertificateManager(name,
-            Config.AppDirectory(),
-            name + ".pfx",
-            name);
+        SetWebserverCertificate();
+    }
 
-        var certPath = certManager.GenerateCertificate();
-        if (!certManager.IsCertificateInstalled()) certManager.InstallCertificate(certPath);
+    private static void SetWebserverCertificate()
+    {
+        if (Config.Default.URL.ToLower().StartsWith("https"))
+        {
+            if (!String.IsNullOrEmpty(Config.Default.SSLCertificate) && File.Exists(Config.Default.SSLCertificate))
+            {
+                //assign certificate for https
+                BlockchainServer.WebserverCertificate = CertificateManager.GetCertificate(Config.Default.SSLCertificate);
+            }
+            else
+            {                
+                //create webserver certificate
+                var name = Config.ChainName;
+                var certManager = new CertificateManager(name,
+                    Config.AppDirectory(),
+                    name + ".pfx",
+                    name);
 
-        //assign certificate for https
-        //BlockchainServer.WebserverCertificate = certManager.GetCertificate();
+                var certPath = certManager.GenerateCertificate(Config.Default.URL);
+                if (!certManager.IsCertificateInstalled()) certManager.InstallCertificate(certPath);
+
+                //assign certificate for https
+                BlockchainServer.WebserverCertificate = certManager.GetCertificate(); 
+            }
+        } 
     }
 
     private static async Task RunConsoleMenuAsync(BlockchainServer.NodeStartupResult? startup)

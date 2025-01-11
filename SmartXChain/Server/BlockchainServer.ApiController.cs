@@ -173,7 +173,7 @@ public partial class BlockchainServer
             var serverAdded = false;
 
             foreach (var server in message.Split(','))
-                if (server.StartsWith("http://") && !Node.CurrentNodeIPs.Contains(server))
+                if (server.StartsWith("https://") && !Node.CurrentNodeIPs.Contains(server))
                 {
                     Node.AddNodeIP(server);
                     serverAdded = true;

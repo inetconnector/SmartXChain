@@ -311,9 +311,9 @@ public class Blockchain
 
         var selectionSize = Math.Max(1, Node.CurrentNodeIPs.Count / 2); // min 50% of the nodes
         var selectedValidators = Node.CurrentNodeIPs
-            .Where(ip => !NetworkUtils.IP.Contains(ip)) // IPs filtern, die in NetworkUtils.IP enthalten sind
-            .OrderBy(_ => Guid.NewGuid()) // Zufällige Reihenfolge
-            .Take(selectionSize) // N erste Knoten auswählen
+            .Where(ip => !Config.Default.URL.Contains(ip)) // not own server
+            .OrderBy(_ => Guid.NewGuid()) //random order
+            .Take(selectionSize) // get nodes
             .ToList();
 
         Logger.Log($"Selected {selectionSize} validators from {Node.CurrentNodeIPs.Count} available nodes.");
@@ -324,7 +324,7 @@ public class Blockchain
 
         foreach (var validator in selectedValidators)
         {
-            if (validator.Contains(NetworkUtils.IP))
+            if (validator.Contains(Config.Default.URL))
                 continue;
             voteTasks.Add(SendVoteRequestAsync(validator, block));
         }
@@ -702,7 +702,7 @@ public class Blockchain
                 var voteTasks = new List<Task<bool>>();
 
                 foreach (var validator in Node.CurrentNodeIPs)
-                    if (!NetworkUtils.IP.Contains(validator))
+                    if (!Config.Default.URL.Contains(validator))
                         voteTasks.Add(SendCodeForVerificationAsync(validator, contract));
 
                 var results = await Task.WhenAll(voteTasks);

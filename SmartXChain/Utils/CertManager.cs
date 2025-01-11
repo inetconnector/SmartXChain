@@ -22,6 +22,7 @@ public class CertificateManager
 
     public X509Certificate2 GetCertificate()
     {
+
         var certPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), appDirectory,
             certificateFileName);
 
@@ -30,13 +31,21 @@ public class CertificateManager
         return new X509Certificate2(certPath, certificatePassword);
     }
 
+    public static X509Certificate2 GetCertificate(string certPath, string password="")
+    { 
+        if (!File.Exists(certPath)) throw new FileNotFoundException("Certificate file not found", certPath);
 
-    public string GenerateCertificate()
+        return string.IsNullOrEmpty(password) ? new X509Certificate2(certPath) : 
+            new X509Certificate2(certPath, password);
+    }
+
+
+    public string GenerateCertificate(string domainName, string country="DE")
     {
         var certPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), appDirectory,
             certificateFileName);
         if (File.Exists(certPath)) return certPath;
-        var validSubjectName = $"CN={subjectName}, O={subjectName}, C=DE";
+        var validSubjectName = $"CN={domainName}, O={subjectName}, C={country.ToUpper()}";
         var ecdsa = ECDsa.Create();
         var req = new CertificateRequest(validSubjectName, ecdsa, HashAlgorithmName.SHA256);
         var cert = req.CreateSelfSigned(DateTimeOffset.Now, DateTimeOffset.Now.AddYears(10));
@@ -49,7 +58,8 @@ public class CertificateManager
 
     public bool IsCertificateInstalled()
     {
-        var store = new X509Store(StoreName.My, StoreLocation.LocalMachine);
+        //var store = new X509Store(StoreName.My, StoreLocation.LocalMachine);
+        var store = new X509Store(StoreName.Root, StoreLocation.LocalMachine);
         store.Open(OpenFlags.ReadOnly);
         try
         {
@@ -67,10 +77,11 @@ public class CertificateManager
 
     public void InstallCertificate(string certPath)
     {
+        //own certs
         var arguments = $"-f -p \"{certificatePassword}\" -importpfx \"{certPath}\"";
+ 
         RunAsAdmin("certutil.exe", arguments);
-    }
-
+    } 
     private void RunAsAdmin(string fileName, string arguments)
     {
         var processInfo = new ProcessStartInfo

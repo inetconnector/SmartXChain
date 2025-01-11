@@ -62,14 +62,11 @@ public class Node
     /// </summary>
     /// <param name="localRegistrationServer">Specifies whether to use the local registration server.</param>
     /// <returns>A Task resolving to the initialized <see cref="Node" />.</returns>
-    internal static async Task<Node> Start(bool localRegistrationServer = false)
-    {
-        // Determine the node's IP address
-        var ip = NetworkUtils.IP;
-        if (string.IsNullOrEmpty(ip)) ip = NetworkUtils.GetLocalIP();
-        if (localRegistrationServer) ip = "127.0.0.1";
+    internal static async Task<Node> Start()
+    { 
+        var nodeAddress = Config.Default.URL;
+        Logger.Log($"Starting node at {nodeAddress}...");
 
-        var nodeAddress = $"http://{ip}:{Config.Default.Port}";
         var chainId = Config.Default.ChainId;
 
         var node = new Node(nodeAddress, chainId);
@@ -99,7 +96,8 @@ public class Node
 
         // Filter out the local node's own IP address
         ipList = ipList
-            .Where(ip => !ip.Contains(NetworkUtils.IP) && !ip.Contains(NetworkUtils.GetLocalIP())).ToList();
+            .Where(ip => !ip.Contains(Config.Default.URL) && 
+                         !ip.Contains(Config.Default.URL)).ToList();
 
         // Register with a discovery server
         await node.RegisterWithDiscoveryAsync(ipList);
@@ -108,12 +106,12 @@ public class Node
         Task.Run(async () =>
         {
             while (true)
-            {
+            { 
                 try
                 {
                     foreach (var server in CurrentNodeIPs)
                     {
-                        var alive = await node.SendHeartbeatAsync(server);
+                        var alive = node != null && await node.SendHeartbeatAsync(server);
                         if (alive)
                         {
                             if (node != null && node.StartupResult != null)
@@ -126,7 +124,7 @@ public class Node
                             {
                                 try
                                 {
-                                    if (!server.Contains(NetworkUtils.IP))
+                                    if (!server.Contains(Config.Default.URL))
                                     {
                                         var response = await SocketManager.GetInstance(server)
                                             .SendMessageAsync("GetChain#" + node.NodeAddress);
@@ -310,7 +308,7 @@ public class Node
                 var alive = await node.SendHeartbeatAsync(remoteNode);
                 if (alive)
                 {
-                    if (remoteNode.Contains(NetworkUtils.IP))
+                    if (remoteNode.Contains(Config.Default.URL))
                         continue;
 
                     if (Config.Default.Debug)
@@ -445,7 +443,7 @@ public class Node
     public async Task<List<string>> GetRegisteredNodesAsync(string serverAddress)
     {
         var ret = new List<string>();
-        if (serverAddress.Contains(NetworkUtils.IP))
+        if (serverAddress.Contains(Config.Default.URL))
             return ret;
 
         try
@@ -481,6 +479,11 @@ public class Node
         return ret;
     }
 
+    /// <summary>
+    /// ^Sends heartbeat with own address
+    /// </summary>
+    /// <param name="serverAddress"></param>
+    /// <returns></returns>
     public async Task<bool> SendHeartbeatAsync(string serverAddress)
     {
         try

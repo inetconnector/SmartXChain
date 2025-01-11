@@ -45,7 +45,7 @@ public partial class BlockchainServer
         {
             Sender = Blockchain.SystemAddress,
             Recipient = Blockchain.SystemAddress,
-            Data = Convert.ToBase64String(Encoding.ASCII.GetBytes(NetworkUtils.IP)), // Store data as Base64 string
+            Data = Convert.ToBase64String(Encoding.ASCII.GetBytes(Config.Default.URL)), // Store data as Base64 string
             Info = "IP",
             Timestamp = DateTime.UtcNow,
             TransactionType = Transaction.TransactionTypes.Data

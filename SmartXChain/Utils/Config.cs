@@ -15,12 +15,13 @@ public class Config
         BlockchainPath,
         MinerAddress,
         Mnemonic,
-        WalletPrivateKey,
-        Port,
-        IP,
+        WalletPrivateKey, 
+        URL,
         Debug,
-        ServerPublicKey,
-        ServerPrivateKey
+        PublicKey,
+        PrivateKey,
+        SecurityProtocol,
+        SSLCertificate
     }
 
     private static readonly Lazy<Config> _defaultInstance = new(() =>
@@ -66,17 +67,16 @@ public class Config
     public string MinerAddress { get; private set; }
     public string Mnemonic { get; private set; }
     public string WalletPrivateKey { get; private set; }
-    public List<string> Peers { get; }
-    public int Port { get; private set; }
-    public string IP { get; private set; }
-
-    public bool Debug { get; private set; }
-
+    public List<string> Peers { get; } 
+    public string URL { get; private set; }
+    public string SecurityProtocol { get; private set; }
+    public bool Debug { get; private set; } 
     public string BlockchainPath { get; private set; }
-    public string ServerPublicKey { get; private set; }
-    public string ServerPrivateKey { get; private set; }
+    public bool SSL => SSLCertificate.Length > 0 && URL.StartsWith("https");
+    public string SSLCertificate { get; private set; }
+    public string PublicKey { get; private set; }
+    public string PrivateKey { get; private set; }
     public static Config Default => _defaultInstance.Value;
-
     public static string ChainName { get; set; } = "SmartXChain";
 
     /// <summary>
@@ -119,11 +119,13 @@ public class Config
         ChainId = null;
         MinerAddress = null;
         Mnemonic = null;
-        WalletPrivateKey = null;
-        Port = 0;
-        ServerPublicKey = null;
-        ServerPrivateKey = null;
+        WalletPrivateKey = null; 
+        PublicKey = null;
+        PrivateKey = null;
         BlockchainPath = "";
+        SSLCertificate = "";
+        SecurityProtocol = "";
+        URL = "";
 
         LoadConfig(configFilePath);
         Logger.Log("Configuration reloaded successfully.");
@@ -249,14 +251,18 @@ public class Config
         {
             ConfigKey.ChainId => "Config",
             ConfigKey.BlockchainPath => "Config",
+            ConfigKey.Debug => "Config",
+            ConfigKey.URL => "Config",
+            ConfigKey.SecurityProtocol => "Config",
+
             ConfigKey.MinerAddress => "Miner",
             ConfigKey.Mnemonic => "Miner",
-            ConfigKey.WalletPrivateKey => "Miner",
-            ConfigKey.Port => "Config",
-            ConfigKey.IP => "Config",
-            ConfigKey.Debug => "Config",
-            ConfigKey.ServerPublicKey => "Server",
-            ConfigKey.ServerPrivateKey => "Server",
+            ConfigKey.WalletPrivateKey => "Miner", 
+
+            ConfigKey.PublicKey => "Server",
+            ConfigKey.PrivateKey => "Server",
+            ConfigKey.SSLCertificate => "Server",
+
             _ => throw new ArgumentException("Invalid key", nameof(key))
         };
     }
@@ -278,8 +284,8 @@ public class Config
     public void GenerateServerKeys()
     {
         using var rsa = RSA.Create(2048);
-        ServerPublicKey = Convert.ToBase64String(rsa.ExportRSAPublicKey());
-        ServerPrivateKey = Convert.ToBase64String(rsa.ExportRSAPrivateKey());
+        PublicKey = Convert.ToBase64String(rsa.ExportRSAPublicKey());
+        PrivateKey = Convert.ToBase64String(rsa.ExportRSAPrivateKey());
 
         var filePath = Path.Combine(AppDirectory(), ConfigFileName());
 
@@ -293,8 +299,8 @@ public class Config
             for (var i = serverSectionIndex + 1; i < lines.Count; i++)
                 if (string.IsNullOrWhiteSpace(lines[i]) || lines[i].StartsWith("["))
                 {
-                    lines.Insert(i, $"ServerPublicKey={ServerPublicKey}");
-                    lines.Insert(i + 1, $"ServerPrivateKey={ServerPrivateKey}");
+                    lines.Insert(i, $"PublicKey={PublicKey}");
+                    lines.Insert(i + 1, $"PrivateKey={PrivateKey}");
                     break;
                 }
         }
@@ -302,8 +308,9 @@ public class Config
         {
             lines.Add("");
             lines.Add("[Server]");
-            lines.Add($"ServerPublicKey={ServerPublicKey}");
-            lines.Add($"ServerPrivateKey={ServerPrivateKey}");
+            lines.Add($"PublicKey={PublicKey}");
+            lines.Add($"PrivateKey={PrivateKey}");
+            lines.Add($"SSLCertificate={SSLCertificate}");
         }
 
         File.WriteAllLines(filePath, lines);
@@ -340,17 +347,18 @@ public class Config
                 {
                     case "[Config]":
                         if (key.Equals("BlockchainPath", StringComparison.OrdinalIgnoreCase))
-                            BlockchainPath = value;
-                        if (key.Equals("Port", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var port))
-                            Port = port;
-                        if (key.Equals("IP", StringComparison.OrdinalIgnoreCase))
-                            IP = value;
+                            BlockchainPath = value; 
                         if (key.Equals("Debug", StringComparison.OrdinalIgnoreCase) &&
                             bool.TryParse(value, out var debug))
                             Debug = debug;
                         if (key.Equals("ChainId", StringComparison.OrdinalIgnoreCase))
-                            ChainId = value;
+                            ChainId = value; 
+                        if (key.Equals("URL", StringComparison.OrdinalIgnoreCase))
+                            URL = value;
+                        if (key.Equals("SecurityProtocol", StringComparison.OrdinalIgnoreCase))
+                            SecurityProtocol = value;
                         break;
+
                     case "[Miner]":
                         if (key.Equals("MinerAddress", StringComparison.OrdinalIgnoreCase))
                             MinerAddress = value;
@@ -359,11 +367,14 @@ public class Config
                         if (key.Equals("WalletPrivateKey", StringComparison.OrdinalIgnoreCase))
                             WalletPrivateKey = value;
                         break;
+
                     case "[Server]":
-                        if (key.Equals("ServerPublicKey", StringComparison.OrdinalIgnoreCase))
-                            ServerPublicKey = value;
-                        if (key.Equals("ServerPrivateKey", StringComparison.OrdinalIgnoreCase))
-                            ServerPrivateKey = value;
+                        if (key.Equals("PublicKey", StringComparison.OrdinalIgnoreCase))
+                            PublicKey = value;
+                        if (key.Equals("PrivateKey", StringComparison.OrdinalIgnoreCase))
+                            PrivateKey = value;
+                        if (key.Equals("SSLCertificate", StringComparison.OrdinalIgnoreCase))
+                            SSLCertificate = value;
                         break;
                 }
             }
@@ -373,7 +384,7 @@ public class Config
                 if (Regex.IsMatch(peerValue, @"^https?://[\w\-.]+(:\d+)?$"))
                     Peers.Add(peerValue);
                 else
-                    Logger.Log($"Invalid Peer URL: {peerValue}");
+                    Logger.Log($"Invalid Peer URL: {peerValue}"); 
             }
         }
     }

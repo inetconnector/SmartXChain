@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Sockets;
 using System.Text.RegularExpressions;
 
@@ -25,73 +26,6 @@ public class NetworkUtils
             return false;
 
         return IPAddress.TryParse(ipString, out _);
-    }
-
-    /// <summary>
-    ///     Retrieves the local IPv4 address of the current machine.
-    /// </summary>
-    /// <returns>The local IPv4 address as a string.</returns>
-    /// <exception cref="Exception">Thrown if no IPv4 address is found.</exception>
-    public static string GetLocalIP()
-    {
-        var host = Dns.GetHostEntry(Dns.GetHostName());
-
-        foreach (var ip in host.AddressList)
-            if (ip.AddressFamily == AddressFamily.InterNetwork)
-                return ip.ToString();
-
-        throw new Exception("No IPv4 address found.");
-    }
-
-    /// <summary>
-    ///     Retrieves the public IP address of the current network using external IP services.
-    /// </summary>
-    /// <param name="customIpServices">An optional list of custom IP service URLs.</param>
-    /// <param name="debug">If true, logs debug messages during the operation.</param>
-    /// <returns>A Task that resolves to the public IP address as a string.</returns>
-    /// <exception cref="Exception">Thrown if unable to retrieve the public IP address.</exception>
-    public static async Task<string> GetPublicIPAsync(IEnumerable<string> customIpServices = null, bool debug = false)
-    {
-        // Default list of public IP services for fallback
-        var defaultIpServiceUrls = new[]
-        {
-            "https://api.ipify.org",
-            "https://checkip.amazonaws.com",
-            "https://ifconfig.me/ip",
-            "https://icanhazip.com"
-        };
-
-        // Combine custom services (if any) with the default list
-        var ipServiceUrls = customIpServices?.Any() ?? false
-            ? customIpServices.Concat(defaultIpServiceUrls)
-            : defaultIpServiceUrls;
-
-        foreach (var ipServiceUrl in ipServiceUrls)
-            try
-            {
-                using (var httpClient = new HttpClient())
-                {
-                    if (debug)
-                        Logger.Log($"Trying {ipServiceUrl}...");
-
-                    // Attempt to retrieve the IP address
-                    var publicIP = await httpClient.GetStringAsync(ipServiceUrl);
-
-                    // Trim to ensure no extra whitespace
-                    publicIP = publicIP.Trim();
-
-                    Logger.Log($"Public IP Address retrieved: {publicIP}");
-                    IP = publicIP;
-                    return publicIP;
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.Log($"Failed to retrieve IP from {ipServiceUrl}: {ex.Message}");
-            }
-
-        // If all services fail, throw an exception
-        throw new Exception("Unable to retrieve the public IP address. All services (custom and fallback) failed.");
     }
 
     /// <summary>

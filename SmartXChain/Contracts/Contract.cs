@@ -1,10 +1,13 @@
 ﻿using System.IO.Compression;
+using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using SmartXChain.Utils;
 using System.Threading.Tasks;
-
+using NBitcoin.Protocol;
+using System;
 public class Contract
 {
     private readonly Dictionary<string, string> _authenticatedUsers = new();
@@ -52,11 +55,20 @@ public class Contract
 
     private async Task SendEvent(string url, string data)
     {
-        using var client = new HttpClient();
-        var content = new StringContent(data, Encoding.UTF8, "application/json");
-        var response = await client.PostAsync(url, content);
+        try
+        {
+            using var client = new HttpClient();
+            if (Config.Default.SSL) 
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", BearerToken.GetToken());
+            var content = new StringContent(data, Encoding.UTF8, "application/json");
+            var response = await client.PostAsync(url, content);
 
-        Log($"Sent event to {url}, response: {response.StatusCode}");
+            Log($"Sent event to {url}, response: {response.StatusCode}");
+        }
+        catch (Exception ex)
+        { 
+            LogException(ex, $"Send failed: {url}");
+        } 
     }
 
     public bool RegisterUser(string address, string privateKey)
@@ -113,15 +125,20 @@ public class Contract
             return JsonSerializer.Deserialize<T>(json);
         }
     }
+
     public void Log(string message = "", bool trim = true)
     {
         Logger.Log($"[{Name}] " + message);
+    }
+    public void LogException(Exception ex, string message="" , bool trim = false)
+    {
+        Logger.LogException(ex, $"[{Name}] {message}"); 
     }
 }
 
 
 /// <summary>
-/// Logger class
+///     Logger class
 /// </summary>
 public class Logger
 {
@@ -137,12 +154,38 @@ public class Logger
         var formattedMessage = $"{timestamp} - {message}";
         if (message.ToLower().Contains("error"))
         {
-
         }
+
         // Print the message to the console, truncating if it exceeds 100 characters
         if (formattedMessage.Length > 110 && trim)
             Console.WriteLine(formattedMessage.Substring(0, 110) + "...");
         else
             Console.WriteLine(formattedMessage);
     }
+    /// <summary>
+    ///  Logs an error message to the console with a timestamp, excluding specific messages based on predefined filters.
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="ex"></param>
+    public static void LogException(Exception ex, string message)
+    {
+        var prefix = "[ERROR] ";
+        // Check if the message starts with "error" or "ERROR:" and modify accordingly
+        if (message.StartsWith("error:", StringComparison.OrdinalIgnoreCase) || message.StartsWith("ERROR:"))
+        {
+            message = prefix + message.Substring(message.IndexOf(":") + 1).Trim();
+        }
+
+        // Handle exceptions during message processing
+        Logger.Log($"{message}");
+        Logger.Log($"{prefix}{ex.Message}", false);
+
+        if (ex.InnerException != null)
+        {
+            Logger.Log($"{prefix}{ex.InnerException.Message}", false);
+            if (ex.InnerException.InnerException != null)
+                Logger.Log($"{prefix}{ex.InnerException.InnerException.Message}", false);
+        }
+    }
+
 }
