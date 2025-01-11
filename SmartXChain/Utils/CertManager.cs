@@ -22,7 +22,6 @@ public class CertificateManager
 
     public X509Certificate2 GetCertificate()
     {
-
         var certPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), appDirectory,
             certificateFileName);
 
@@ -31,16 +30,17 @@ public class CertificateManager
         return new X509Certificate2(certPath, certificatePassword);
     }
 
-    public static X509Certificate2 GetCertificate(string certPath, string password="")
-    { 
+    public static X509Certificate2 GetCertificate(string certPath, string password = "")
+    {
         if (!File.Exists(certPath)) throw new FileNotFoundException("Certificate file not found", certPath);
 
-        return string.IsNullOrEmpty(password) ? new X509Certificate2(certPath) : 
-            new X509Certificate2(certPath, password);
+        return string.IsNullOrEmpty(password)
+            ? new X509Certificate2(certPath)
+            : new X509Certificate2(certPath, password);
     }
 
 
-    public string GenerateCertificate(string domainName, string country="DE")
+    public string GenerateCertificate(string domainName, string country = "DE")
     {
         var certPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), appDirectory,
             certificateFileName);
@@ -79,9 +79,10 @@ public class CertificateManager
     {
         //own certs
         var arguments = $"-f -p \"{certificatePassword}\" -importpfx \"{certPath}\"";
- 
+
         RunAsAdmin("certutil.exe", arguments);
-    } 
+    }
+
     private void RunAsAdmin(string fileName, string arguments)
     {
         var processInfo = new ProcessStartInfo

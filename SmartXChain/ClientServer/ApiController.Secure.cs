@@ -1,5 +1,4 @@
-﻿using System.Reflection.Metadata;
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using EmbedIO;
@@ -17,14 +16,199 @@ namespace SmartXChain.Server;
 public partial class BlockchainServer
 {
     /// <summary>
-    /// for secured API calls with http 
+    ///     for secured API calls with http
     /// </summary>
     public partial class ApiController : WebApiController
     {
-        #region SECURED API CALLS
-         
         /// <summary>
-        /// Returns the public key of the server for secure key exchange.
+        ///     Sends a secure encrypted response back to the client.
+        /// </summary>
+        private async Task SendSecureResponse(string message, string aliceSharedKey)
+        {
+            if (!string.IsNullOrEmpty(aliceSharedKey))
+            {
+                var (encryptedMessage, iv, hmac) = SecurePeer.GetBob(aliceSharedKey)
+                    .EncryptAndSign(message);
+
+                var securePayload = new SecurePayload
+                {
+                    SharedKey = Convert.ToBase64String(SecurePeer.Bob.GetPublicKey()),
+                    EncryptedMessage = Convert.ToBase64String(encryptedMessage),
+                    IV = Convert.ToBase64String(iv),
+                    HMAC = Convert.ToBase64String(hmac)
+                };
+
+                var response = JsonSerializer.Serialize(securePayload);
+                await HttpContext.SendStringAsync(response, "application/json", Encoding.UTF8);
+            }
+            else
+            {
+                Logger.Log("Error: SendSecureResponse failed. sender SharedKey is null.");
+            }
+        }
+
+        /// <summary>
+        ///     Handles the registration logic by validating the format, address, and signature of the node.
+        /// </summary>
+        /// <param name="message">The registration message containing node address and signature.</param>
+        /// <returns>"ok" if successful, or an error message if registration fails.</returns>
+        private string HandleRegistration(string message)
+        {
+            var parts = message.Split(new[] { ':' }, 2);
+            if (parts.Length != 2 || parts[0] != "Register") return "Invalid registration format";
+
+            var remainingParts = parts[1];
+            var addressSignatureParts = remainingParts.Split('|');
+            if (addressSignatureParts.Length != 2) return "Invalid registration format";
+
+            var nodeAddress = addressSignatureParts[0];
+            var signature = addressSignatureParts[1];
+
+            if (!ValidateSignature(nodeAddress, signature))
+            {
+                Logger.Log($"ValidateSignature failed. Node not registered: {nodeAddress} Signature: {signature}");
+                return "";
+            }
+
+            Node.AddNodeIP(nodeAddress);
+            Logger.Log($"Node registered: {nodeAddress}");
+
+            return "ok";
+        }
+
+        /// <summary>
+        ///     Validates a node's signature using HMACSHA256 with the server's secret key.
+        /// </summary>
+        /// <param name="nodeAddress">The node address being validated.</param>
+        /// <param name="signature">The provided signature to validate.</param>
+        /// <returns>True if the signature is valid; otherwise, false.</returns>
+        private bool ValidateSignature(string nodeAddress, string signature)
+        {
+            using (var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(Config.Default.ChainId)))
+            {
+                var computedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(nodeAddress));
+                var computedSignature = Convert.ToBase64String(computedHash);
+
+                return computedSignature == signature;
+            }
+        }
+
+        /// <summary>
+        ///     Handles heartbeat messages from nodes to update their last active timestamp.
+        /// </summary>
+        /// <param name="message">The heartbeat message containing the node address.</param>
+        private void HandleHeartbeat(string message)
+        {
+            const string prefix = "Heartbeat:";
+            if (!message.StartsWith(prefix))
+            {
+                Logger.Log("Invalid Heartbeat message received.");
+                return;
+            }
+
+            var nodeAddress = message.Substring(prefix.Length);
+
+            if (!Uri.IsWellFormedUriString(nodeAddress, UriKind.Absolute))
+            {
+                Logger.Log("Invalid node address in heartbeat received.");
+                return;
+            }
+
+            Node.AddNodeIP(nodeAddress);
+
+            if (Config.Default.Debug)
+                Logger.Log($"Heartbeat {nodeAddress} - {DateTime.Now} (HandleHeartbeat)");
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+
+        /// <summary>
+        ///     Processes a vote message and validates the block data.
+        /// </summary>
+        /// <param name="message">The vote message containing block data in Base64 format.</param>
+        /// <returns>"ok" with miner address if the vote is valid, or an error message otherwise.</returns>
+        private string HandleVote(string message)
+        {
+            const string prefix = "Vote:";
+            if (!message.StartsWith(prefix))
+            {
+                Logger.Log("Invalid Vote message received.");
+                return "";
+            }
+
+            try
+            {
+                var base64 = message.Substring(prefix.Length);
+                var block = Block.FromBase64(base64);
+                if (block != null)
+                {
+                    var hash = block.Hash;
+                    var calculatedHash = block.CalculateHash();
+                    if (calculatedHash == hash) return "ok#" + Config.Default.MinerAddress;
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.Log($"Invalid Vote message received. {e.Message}");
+            }
+
+            return "";
+        }
+
+        /// <summary>
+        ///     Retrieves a list of active nodes, removing any that are inactive based on heartbeat timestamps.
+        /// </summary>
+        /// <param name="message">A dummy message for compatibility (not used).</param>
+        /// <returns>A comma-separated list of active node addresses.</returns>
+        private string HandleNodes(string message)
+        {
+            RemoveInactiveNodes();
+
+            if (Node.CurrentNodeIPs.Count > 0)
+            {
+                var nodes = string.Join(",", Node.CurrentNodeIPs.Where(node => !string.IsNullOrWhiteSpace(node)));
+                return nodes.TrimEnd(',');
+            }
+
+            return "";
+        }
+
+        /// <summary>
+        ///     Removes inactive nodes that have exceeded the heartbeat timeout from the registry.
+        /// </summary>
+        private void RemoveInactiveNodes()
+        {
+            var now = DateTime.UtcNow;
+
+            var inactiveNodes = Node.CurrentNodeIP_LastActive
+                .Where(kvp => (now - kvp.Value).TotalSeconds > HeartbeatTimeoutSeconds)
+                .Select(kvp => kvp.Key)
+                .ToList();
+
+            foreach (var node in inactiveNodes)
+            {
+                Node.RemoveNodeIP(node);
+                Logger.Log($"Node removed: {node} (Inactive)");
+            }
+        }
+
+
+        /// <summary>
+        ///     Payload structure for secure messages.
+        /// </summary>
+        internal class SecurePayload
+        {
+            public string SharedKey { get; set; }
+            public string EncryptedMessage { get; set; }
+            public string IV { get; set; }
+            public string HMAC { get; set; }
+        }
+
+        #region SECURED API CALLS
+
+        /// <summary>
+        ///     Returns the public key of the server for secure key exchange.
         /// </summary>
         /// <returns>The public key as a Base64-encoded string.</returns>
         [Route(HttpVerbs.Get, "/GetPublicKey")]
@@ -60,10 +244,10 @@ public partial class BlockchainServer
             var aliceSharedKey = "";
 
             try
-            {  
+            {
                 var encryptedPayload = await HttpContext.GetRequestBodyAsStringAsync();
                 Logger.Log($"Register: {encryptedPayload}");
-               
+
                 // Deserialize the payload and decrypt
                 var alicePayload = JsonSerializer.Deserialize<SecurePayload>(encryptedPayload);
 
@@ -79,7 +263,7 @@ public partial class BlockchainServer
                     );
 
                     var result = HandleRegistration(message);
-                      
+
                     await SendSecureResponse(result, aliceSharedKey);
                 }
                 else
@@ -104,8 +288,8 @@ public partial class BlockchainServer
             var aliceSharedKey = "";
 
             try
-            { 
-                var encryptedPayload = await HttpContext.GetRequestBodyAsStringAsync(); 
+            {
+                var encryptedPayload = await HttpContext.GetRequestBodyAsStringAsync();
                 var alicePayload = JsonSerializer.Deserialize<SecurePayload>(encryptedPayload);
                 if (alicePayload != null)
                 {
@@ -130,10 +314,10 @@ public partial class BlockchainServer
             }
             catch (Exception ex)
             {
-                Logger.LogException(ex, "Error processing nodes request."); 
+                Logger.LogException(ex, "Error processing nodes request.");
                 await SendSecureResponse("Error: Nodes request failed.", aliceSharedKey);
             }
-        } 
+        }
 
         /// <summary>
         ///     Handles heartbeat pings from nodes in the network securely.
@@ -149,10 +333,9 @@ public partial class BlockchainServer
                 var alicePayload = JsonSerializer.Deserialize<SecurePayload>(encryptedPayload);
                 if (alicePayload != null)
                 {
-
                     aliceSharedKey = alicePayload.SharedKey;
                     var bob = SecurePeer.GetBob(aliceSharedKey);
-                     
+
 
                     var message = bob.DecryptAndVerify(
                         Convert.FromBase64String(alicePayload.EncryptedMessage),
@@ -167,27 +350,27 @@ public partial class BlockchainServer
             }
             catch (Exception ex)
             {
-                Logger.LogException(ex, "Error processing heartbeat request."); 
+                Logger.LogException(ex, "Error processing heartbeat request.");
                 await SendSecureResponse("Error: Heartbeat failed.", aliceSharedKey);
             }
         }
-   
+
         /// <summary>
         ///     Processes a vote message, validating its block and returning a response if successful.
         /// </summary>
         [Route(HttpVerbs.Post, "/Vote")]
         public async Task Vote()
         {
-            var aliceSharedKey = ""; 
+            var aliceSharedKey = "";
 
             try
             {
                 var encryptedPayload = await HttpContext.GetRequestBodyAsStringAsync();
                 var alicePayload = JsonSerializer.Deserialize<SecurePayload>(encryptedPayload);
                 if (alicePayload != null)
-                { 
+                {
                     aliceSharedKey = alicePayload.SharedKey;
-                    var bob = SecurePeer.GetBob(aliceSharedKey); 
+                    var bob = SecurePeer.GetBob(aliceSharedKey);
 
                     var message = bob.DecryptAndVerify(
                         Convert.FromBase64String(alicePayload.EncryptedMessage),
@@ -201,10 +384,11 @@ public partial class BlockchainServer
             }
             catch (Exception ex)
             {
-                Logger.LogException(ex, "Error processing vote request."); 
+                Logger.LogException(ex, "Error processing vote request.");
                 await SendSecureResponse("Error: Vote failed.", aliceSharedKey);
             }
         }
+
         /// <summary>
         ///     Retrieves the entire blockchain in Base64 format.
         /// </summary>
@@ -235,16 +419,13 @@ public partial class BlockchainServer
                     {
                         var chainData = Startup.Blockchain.ToBase64();
 
-                        if (message != null)
-                        {
-                            await SendSecureResponse(chainData, aliceSharedKey);
-                        }
+                        if (message != null) await SendSecureResponse(chainData, aliceSharedKey);
                     }
                 }
             }
             catch (Exception ex)
             {
-                Logger.LogException(ex, "Error retrieving blockchain."); 
+                Logger.LogException(ex, "Error retrieving blockchain.");
                 await SendSecureResponse("Error: Could not retrieve blockchain.", aliceSharedKey);
             }
         }
@@ -292,13 +473,13 @@ public partial class BlockchainServer
             }
             catch (Exception ex)
             {
-                Logger.LogException(ex, "Error processing new block request."); 
+                Logger.LogException(ex, "Error processing new block request.");
                 await SendSecureResponse("Error: Could not process block.", aliceSharedKey);
             }
         }
 
         /// <summary>
-        ///     Pushes a new blockchain to the server securely. 
+        ///     Pushes a new blockchain to the server securely.
         ///     Replaces the existing blockchain if the incoming chain is valid and longer.
         /// </summary>
         [Route(HttpVerbs.Post, "/PushChain")]
@@ -590,13 +771,11 @@ public partial class BlockchainServer
                     // Process the decrypted message
                     var serverAdded = false;
                     foreach (var server in message.Split(','))
-                    {
                         if (server.StartsWith("http://") && !Node.CurrentNodeIPs.Contains(server))
                         {
                             Node.AddNodeIP(server);
                             serverAdded = true;
                         }
-                    }
 
                     // Create the encrypted response
                     var response = serverAdded ? "ok" : "";
@@ -612,10 +791,7 @@ public partial class BlockchainServer
                 Logger.LogException(ex, "Error: PushServers request failed.");
 
                 // Error handling: send an encrypted error message
-                if (bob != null)
-                {
-                    await SendSecureResponse("Error: PushServers request failed.", aliceSharedKey);
-                }
+                if (bob != null) await SendSecureResponse("Error: PushServers request failed.", aliceSharedKey);
             }
         }
 
@@ -673,191 +849,5 @@ public partial class BlockchainServer
         }
 
         #endregion
-
-
-        /// <summary>
-        ///     Sends a secure encrypted response back to the client.
-        /// </summary>
-        private async Task SendSecureResponse(string message, string aliceSharedKey)
-        {
-            if (!string.IsNullOrEmpty(aliceSharedKey))
-            {
-                var (encryptedMessage, iv, hmac) = SecurePeer.GetBob(aliceSharedKey)
-                    .EncryptAndSign(message);
-
-                var securePayload = new SecurePayload
-                {
-                    SharedKey = Convert.ToBase64String(SecurePeer.Bob.GetPublicKey()),
-                    EncryptedMessage = Convert.ToBase64String(encryptedMessage),
-                    IV = Convert.ToBase64String(iv),
-                    HMAC = Convert.ToBase64String(hmac)
-                };
-
-                var response = JsonSerializer.Serialize(securePayload);
-                await HttpContext.SendStringAsync(response, "application/json", Encoding.UTF8);
-            }
-            else
-            {
-                Logger.Log("Error: SendSecureResponse failed. sender SharedKey is null.");
-            }
-        }
-
-        /// <summary>
-        ///     Handles the registration logic by validating the format, address, and signature of the node.
-        /// </summary>
-        /// <param name="message">The registration message containing node address and signature.</param>
-        /// <returns>"ok" if successful, or an error message if registration fails.</returns>
-        private string HandleRegistration(string message)
-        {
-            var parts = message.Split(new[] { ':' }, 2);
-            if (parts.Length != 2 || parts[0] != "Register") return "Invalid registration format";
-
-            var remainingParts = parts[1];
-            var addressSignatureParts = remainingParts.Split('|');
-            if (addressSignatureParts.Length != 2) return "Invalid registration format";
-
-            var nodeAddress = addressSignatureParts[0];
-            var signature = addressSignatureParts[1];
-
-            if (!ValidateSignature(nodeAddress, signature))
-            {
-                Logger.Log($"ValidateSignature failed. Node not registered: {nodeAddress} Signature: {signature}");
-                return "";
-            }
-
-            Node.AddNodeIP(nodeAddress);
-            Logger.Log($"Node registered: {nodeAddress}");
-
-            return "ok";
-        }
-
-        /// <summary>
-        ///     Validates a node's signature using HMACSHA256 with the server's secret key.
-        /// </summary>
-        /// <param name="nodeAddress">The node address being validated.</param>
-        /// <param name="signature">The provided signature to validate.</param>
-        /// <returns>True if the signature is valid; otherwise, false.</returns>
-        private bool ValidateSignature(string nodeAddress, string signature)
-        {
-            using (var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(Config.Default.ChainId)))
-            {
-                var computedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(nodeAddress));
-                var computedSignature = Convert.ToBase64String(computedHash);
-
-                return computedSignature == signature;
-            }
-        }
-
-        /// <summary>
-        ///     Handles heartbeat messages from nodes to update their last active timestamp.
-        /// </summary>
-        /// <param name="message">The heartbeat message containing the node address.</param>
-        private void HandleHeartbeat(string message)
-        {
-            const string prefix = "Heartbeat:";
-            if (!message.StartsWith(prefix))
-            {
-                Logger.Log("Invalid Heartbeat message received.");
-                return;
-            }
-
-            var nodeAddress = message.Substring(prefix.Length);
-
-            if (!Uri.IsWellFormedUriString(nodeAddress, UriKind.Absolute))
-            {
-                Logger.Log("Invalid node address in heartbeat received.");
-                return;
-            }
-
-            Node.AddNodeIP(nodeAddress);
-
-            if (Config.Default.Debug)
-                Logger.Log($"Heartbeat {nodeAddress} - {DateTime.Now} (HandleHeartbeat)");
-
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-        }
-
-        /// <summary>
-        ///     Processes a vote message and validates the block data.
-        /// </summary>
-        /// <param name="message">The vote message containing block data in Base64 format.</param>
-        /// <returns>"ok" with miner address if the vote is valid, or an error message otherwise.</returns>
-        private string HandleVote(string message)
-        {
-            const string prefix = "Vote:";
-            if (!message.StartsWith(prefix))
-            {
-                Logger.Log("Invalid Vote message received.");
-                return "";
-            }
-
-            try
-            {
-                var base64 = message.Substring(prefix.Length);
-                var block = Block.FromBase64(base64);
-                if (block != null)
-                {
-                    var hash = block.Hash;
-                    var calculatedHash = block.CalculateHash();
-                    if (calculatedHash == hash) return "ok#" + Config.Default.MinerAddress;
-                }
-            }
-            catch (Exception e)
-            {
-                Logger.Log($"Invalid Vote message received. {e.Message}");
-            }
-
-            return "";
-        }
-
-        /// <summary>
-        ///     Retrieves a list of active nodes, removing any that are inactive based on heartbeat timestamps.
-        /// </summary>
-        /// <param name="message">A dummy message for compatibility (not used).</param>
-        /// <returns>A comma-separated list of active node addresses.</returns>
-        private string HandleNodes(string message)
-        {
-            RemoveInactiveNodes();
-
-            if (Node.CurrentNodeIPs.Count > 0)
-            {
-                var nodes = string.Join(",", Node.CurrentNodeIPs.Where(node => !string.IsNullOrWhiteSpace(node)));
-                return nodes.TrimEnd(',');
-            }
-
-            return "";
-        }
-
-        /// <summary>
-        ///     Removes inactive nodes that have exceeded the heartbeat timeout from the registry.
-        /// </summary>
-        private void RemoveInactiveNodes()
-        {
-            var now = DateTime.UtcNow;
-
-            var inactiveNodes = Node.CurrentNodeIP_LastActive
-                .Where(kvp => (now - kvp.Value).TotalSeconds > HeartbeatTimeoutSeconds)
-                .Select(kvp => kvp.Key)
-                .ToList();
-
-            foreach (var node in inactiveNodes)
-            {
-                Node.RemoveNodeIP(node);
-                Logger.Log($"Node removed: {node} (Inactive)");
-            }
-        }
-
-
-        /// <summary>
-        ///     Payload structure for secure messages.
-        /// </summary>
-        internal class SecurePayload
-        {
-            public string SharedKey { get; set; }
-            public string EncryptedMessage { get; set; }
-            public string IV { get; set; }
-            public string HMAC { get; set; }
-        }
     }
 }

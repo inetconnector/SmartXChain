@@ -667,8 +667,8 @@ public class Blockchain
     }
 
     /// <summary>
-    /// Broadcasts a given block to all peers in the network except the current node's IPs.
-    /// Sends two types of broadcasts: one to push the list of servers and another to share the new block.
+    ///     Broadcasts a given block to all peers in the network except the current node's IPs.
+    ///     Sends two types of broadcasts: one to push the list of servers and another to share the new block.
     /// </summary>
     /// <param name="block">The block to broadcast to the network.</param>
     private void Broadcast(Block block)
@@ -677,23 +677,22 @@ public class Blockchain
         {
             if (peer.Contains(Config.Default.URL))
                 continue;
-             
+
             // Broadcast the list of servers securely
             BlockchainServer.BroadcastToPeers(
                 new ConcurrentBag<string> { peer },
                 "PushServers",
                 string.Join(",", Node.CurrentNodeIPs).TrimEnd(','));
-           
+
             // Broadcast the new block securely
             BlockchainServer.BroadcastToPeers(
                 new ConcurrentBag<string> { peer },
                 "NewBlock",
-                block.ToBase64());  
-       
+                block.ToBase64());
         }
     }
 
-   
+
     /// <summary>
     ///     Attempts to reach consensus for the provided smart contract across the network.
     /// </summary>

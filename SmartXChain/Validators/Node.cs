@@ -63,7 +63,7 @@ public class Node
     /// <param name="localRegistrationServer">Specifies whether to use the local registration server.</param>
     /// <returns>A Task resolving to the initialized <see cref="Node" />.</returns>
     internal static async Task<Node> Start()
-    { 
+    {
         var nodeAddress = Config.Default.URL;
         Logger.Log($"Starting node at {nodeAddress}...");
 
@@ -96,7 +96,7 @@ public class Node
 
         // Filter out the local node's own IP address
         ipList = ipList
-            .Where(ip => !ip.Contains(Config.Default.URL) && 
+            .Where(ip => !ip.Contains(Config.Default.URL) &&
                          !ip.Contains(Config.Default.URL)).ToList();
 
         // Register with a discovery server
@@ -106,7 +106,7 @@ public class Node
         Task.Run(async () =>
         {
             while (true)
-            { 
+            {
                 try
                 {
                     foreach (var server in CurrentNodeIPs)
@@ -480,7 +480,7 @@ public class Node
     }
 
     /// <summary>
-    /// ^Sends heartbeat with own address
+    ///     ^Sends heartbeat with own address
     /// </summary>
     /// <param name="serverAddress"></param>
     /// <returns></returns>

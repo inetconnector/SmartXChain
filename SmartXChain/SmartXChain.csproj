@@ -53,9 +53,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <None Update="wwwroot\index.html">
-	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	  </None>
+		<None Update="wwwroot\index.html">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
 	</ItemGroup>
 
 </Project>

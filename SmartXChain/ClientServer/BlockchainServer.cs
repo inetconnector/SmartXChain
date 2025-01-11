@@ -21,16 +21,16 @@ public partial class BlockchainServer
 {
     private const int HeartbeatTimeoutSeconds = 30; // Maximum time before a node is considered inactive
     private readonly List<string> _peerServers = new(); // Addresses of other peer registration servers
+    private SecurePeer _securePeer;
 
     private WebServer _server;
-    private SecurePeer _securePeer;
-     
+
 
     /// <summary>
     ///     Initializes a new instance of the BlockchainServer class with specified external and internal IP addresses.
     /// </summary>
     public BlockchainServer(string url)
-    {       
+    {
         // Initialize SecurePeer instance
         _securePeer = new SecurePeer();
         Logger.Log($"Starting server at {Config.Default.URL}...");
@@ -53,22 +53,19 @@ public partial class BlockchainServer
         FileSystem.CopyDirectory(Path.Combine(baseDirectory, "wwwroot"), str);
         var path = Path.Combine(str, "index.html");
         File.WriteAllText(path, ReplaceBody(File.ReadAllText(path)));
-        
+
         if (!Config.Default.SSL)
-        {
             _server = (WebServer)new WebServer(Configure).WithCors()
                 .WithLocalSessionManager()
                 .WithWebApi("/api", m => m.WithController<ApiController>())
                 .WithStaticFolder("/", str, true);
-        }
         else
-        {
             _server = (WebServer)new WebServer(Configure).WithCors()
-                .WithBearerToken("/api", Crypt.AssemblyFingerprint.Substring(0, 40), new BasicAuthorizationServerProvider())
+                .WithBearerToken("/api", Crypt.AssemblyFingerprint.Substring(0, 40),
+                    new BasicAuthorizationServerProvider())
                 .WithLocalSessionManager()
                 .WithWebApi("/api", m => m.WithController<ApiController>())
                 .WithStaticFolder("/", str, true);
-        }
         _server.RunAsync();
 
         Console.WriteLine($"Server started at {Config.Default.URL}");
@@ -86,26 +83,20 @@ public partial class BlockchainServer
     }
 
     private void Configure(WebServerOptions o)
-    { 
+    {
         var port = Config.Default.URL.Split(':')[2];
 
         o.WithMode(HttpListenerMode.EmbedIO);
 
         if (Config.Default.SSL && WebserverCertificate != null)
-        {       
+        {
             // Force the application to use TLS 1.2
             if (Config.Default.SecurityProtocol == "Tls11")
-            {
                 ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls11;
-            }
             else if (Config.Default.SecurityProtocol == "Tls12")
-            {
                 ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls13;
-            }
             else if (Config.Default.SecurityProtocol == "Tls13")
-            {
                 ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls13;
-            }
 
             // HTTPS configuration
             o.WithAutoLoadCertificate(true);

@@ -1,5 +1,4 @@
-﻿
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 /// <summary>
 ///     Extended ERC20 token class with additional features such as minting, burning, pausing transfers,

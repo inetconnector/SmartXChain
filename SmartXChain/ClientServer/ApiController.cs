@@ -10,7 +10,7 @@ namespace SmartXChain.Server;
 public partial class BlockchainServer
 {
     /// <summary>
-    /// for unsecured API calls with http: / https 
+    ///     for unsecured API calls with http: / https
     /// </summary>
     public partial class ApiController
     {
@@ -115,7 +115,7 @@ public partial class BlockchainServer
 
             await HttpContext.SendStringAsync(_blockCount.ToString(), "text/plain", Encoding.UTF8);
         }
-          
+
         /// <summary>
         ///     Retrieves specific block data by block number.
         /// </summary>
@@ -151,6 +151,7 @@ public partial class BlockchainServer
                 Logger.Log("ERROR: Blockchain is empty");
             }
         }
+
         #endregion
     }
 }

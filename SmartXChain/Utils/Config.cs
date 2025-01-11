@@ -15,7 +15,7 @@ public class Config
         BlockchainPath,
         MinerAddress,
         Mnemonic,
-        WalletPrivateKey, 
+        WalletPrivateKey,
         URL,
         Debug,
         PublicKey,
@@ -69,10 +69,10 @@ public class Config
     public string Mnemonic { get; private set; }
     public int MaxParallelConnections { get; private set; }
     public string WalletPrivateKey { get; private set; }
-    public List<string> Peers { get; } 
+    public List<string> Peers { get; }
     public string URL { get; private set; }
     public string SecurityProtocol { get; private set; }
-    public bool Debug { get; private set; } 
+    public bool Debug { get; private set; }
     public string BlockchainPath { get; private set; }
     public bool SSL => SSLCertificate.Length > 0 && URL.StartsWith("https");
     public string SSLCertificate { get; private set; }
@@ -121,7 +121,7 @@ public class Config
         ChainId = null;
         MinerAddress = null;
         Mnemonic = null;
-        WalletPrivateKey = null; 
+        WalletPrivateKey = null;
         PublicKey = null;
         PrivateKey = null;
         BlockchainPath = "";
@@ -261,7 +261,7 @@ public class Config
 
             ConfigKey.MinerAddress => "Miner",
             ConfigKey.Mnemonic => "Miner",
-            ConfigKey.WalletPrivateKey => "Miner", 
+            ConfigKey.WalletPrivateKey => "Miner",
 
             ConfigKey.PublicKey => "Server",
             ConfigKey.PrivateKey => "Server",
@@ -351,12 +351,12 @@ public class Config
                 {
                     case "[Config]":
                         if (key.Equals("BlockchainPath", StringComparison.OrdinalIgnoreCase))
-                            BlockchainPath = value; 
+                            BlockchainPath = value;
                         if (key.Equals("Debug", StringComparison.OrdinalIgnoreCase) &&
                             bool.TryParse(value, out var debug))
                             Debug = debug;
                         if (key.Equals("ChainId", StringComparison.OrdinalIgnoreCase))
-                            ChainId = value; 
+                            ChainId = value;
                         if (key.Equals("URL", StringComparison.OrdinalIgnoreCase))
                             URL = value;
                         if (key.Equals("SecurityProtocol", StringComparison.OrdinalIgnoreCase))
@@ -390,7 +390,7 @@ public class Config
                 if (Regex.IsMatch(peerValue, @"^https?://[\w\-.]+(:\d+)?$"))
                     Peers.Add(peerValue);
                 else
-                    Logger.Log($"Invalid Peer URL: {peerValue}"); 
+                    Logger.Log($"Invalid Peer URL: {peerValue}");
             }
         }
     }

@@ -1,5 +1,4 @@
-﻿using NBitcoin.Protocol;
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 
 namespace SmartXChain.Server;
 
@@ -9,26 +8,10 @@ namespace SmartXChain.Server;
 /// </summary>
 public class SecurePeer
 {
-    private readonly ECDiffieHellmanCng _diffieHellman;
-    private byte[] _sharedKey;
-
-    public byte[] SharedKey
-    {
-        get => _sharedKey;
-        private set
-        {
-            _sharedKey = value;
-        }
-    }
-
     private static readonly Lazy<SecurePeer> AliceSecurePeer = new(() => new SecurePeer());
     private static readonly Lazy<SecurePeer> BobSecurePeer = new(() => new SecurePeer());
+    private readonly ECDiffieHellmanCng _diffieHellman;
 
-    /// <summary>
-    /// Default SecurePeer instance
-    /// </summary>
-    public static SecurePeer Alice => AliceSecurePeer.Value;
-    public static SecurePeer Bob => BobSecurePeer.Value;
     public SecurePeer()
     {
         _diffieHellman = new ECDiffieHellmanCng
@@ -38,11 +21,21 @@ public class SecurePeer
         };
     }
 
+    public byte[] SharedKey { get; private set; }
+
+    /// <summary>
+    ///     Default SecurePeer instance
+    /// </summary>
+    public static SecurePeer Alice => AliceSecurePeer.Value;
+
+    public static SecurePeer Bob => BobSecurePeer.Value;
+
     public static SecurePeer GetAlice(string bobSharedKey)
-    { 
+    {
         Alice.ComputeSharedKey(Convert.FromBase64String(bobSharedKey));
         return Alice;
     }
+
     public static SecurePeer GetAlice(byte[] bobSharedKey)
     {
         Alice.ComputeSharedKey(bobSharedKey);
@@ -50,16 +43,17 @@ public class SecurePeer
     }
 
     public static SecurePeer GetBob(string aliceSharedKey)
-    { 
+    {
         Bob.ComputeSharedKey(Convert.FromBase64String(aliceSharedKey));
         return Bob;
     }
+
     public static SecurePeer GetBob(byte[] aliceSharedKey)
     {
         Bob.ComputeSharedKey(aliceSharedKey);
         return Bob;
     }
-     
+
     /// <summary>
     ///     Returns the public key for key exchange.
     /// </summary>

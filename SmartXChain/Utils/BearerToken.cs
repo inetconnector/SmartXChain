@@ -23,8 +23,8 @@ public static class BearerToken
         return token;
     }
 
-    private static string GenerateToken(string secretKey, string userId )
-{   
+    private static string GenerateToken(string secretKey, string userId)
+    {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
@@ -35,14 +35,13 @@ public static class BearerToken
         };
 
         var token = new JwtSecurityToken(
-            issuer: "your-app",
-            audience: "your-audience",
-            claims: claims,
+            "your-app",
+            "your-audience",
+            claims,
             expires: DateTime.UtcNow.AddSeconds(30),
             signingCredentials: credentials
         );
 
         return new JwtSecurityTokenHandler().WriteToken(token);
-    } 
-
+    }
 }

@@ -54,16 +54,16 @@ public partial class BlockchainServer
         while (true)
         {
             foreach (var peer in _peerServers)
-                try  
+                try
                 {
                     // Fetch the peer's public key (with caching)
                     var bobSharedKey = FetchPeerPublicKey(peer);
-                     
+
                     // Prepare secure payload
                     if (bobSharedKey != null)
                     {
                         var (encryptedMessage, iv, hmac) = SecurePeer.GetAlice(bobSharedKey)
-                                .EncryptAndSign("");
+                            .EncryptAndSign("");
                         var payload = new
                         {
                             SharedKey = Convert.ToBase64String(SecurePeer.Alice.GetPublicKey()),
@@ -94,14 +94,14 @@ public partial class BlockchainServer
                                     Node.AddNodeIP(node);
                         }
                         else
-                        { 
+                        {
                             Logger.Log($"Error synchronizing with peer {peer}: {response.StatusCode}");
                         }
                     }
                     else
                     {
-                        Logger.Log($"ERROR: Could not retrieve public key from: {peer}"); 
-                    } 
+                        Logger.Log($"ERROR: Could not retrieve public key from: {peer}");
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -135,7 +135,7 @@ public partial class BlockchainServer
                 var url = "";
                 try
                 {
-                    var bobSharedKey = FetchPeerPublicKey(peer); 
+                    var bobSharedKey = FetchPeerPublicKey(peer);
 
                     // Encrypt and sign the message
                     if (bobSharedKey != null)
@@ -236,5 +236,4 @@ public partial class BlockchainServer
 
         return null;
     }
-
 }
