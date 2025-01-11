@@ -58,7 +58,7 @@ public class Contract
         try
         {
             using var client = new HttpClient();
-            if (Config.Default.SSL) 
+            if (Config.Default.SSL)
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", BearerToken.GetToken());
             var content = new StringContent(data, Encoding.UTF8, "application/json");
             var response = await client.PostAsync(url, content);
@@ -66,9 +66,9 @@ public class Contract
             Log($"Sent event to {url}, response: {response.StatusCode}");
         }
         catch (Exception ex)
-        { 
+        {
             LogException(ex, $"Send failed: {url}");
-        } 
+        }
     }
 
     public bool RegisterUser(string address, string privateKey)
@@ -130,9 +130,9 @@ public class Contract
     {
         Logger.Log($"[{Name}] " + message);
     }
-    public void LogException(Exception ex, string message="" , bool trim = false)
+    public void LogException(Exception ex, string message = "", bool trim = false)
     {
-        Logger.LogException(ex, $"[{Name}] {message}"); 
+        Logger.LogException(ex, $"[{Name}] {message}");
     }
 }
 
