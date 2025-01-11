@@ -23,12 +23,16 @@ public partial class BlockchainServer
     private readonly List<string> _peerServers = new(); // Addresses of other peer registration servers
 
     private WebServer _server;
+    private SecurePeer _securePeer;
+     
 
     /// <summary>
     ///     Initializes a new instance of the BlockchainServer class with specified external and internal IP addresses.
     /// </summary>
     public BlockchainServer(string url)
-    {
+    {       
+        // Initialize SecurePeer instance
+        _securePeer = new SecurePeer();
         Logger.Log($"Starting server at {Config.Default.URL}...");
     }
 
@@ -247,7 +251,7 @@ public partial class BlockchainServer
     /// </summary>
     /// <param name="message">A dummy message for compatibility (not used).</param>
     /// <returns>A comma-separated list of active node addresses.</returns>
-    private string HandleNodes(string message)
+    private static string HandleNodes(string message)
     {
         RemoveInactiveNodes();
 
@@ -263,7 +267,7 @@ public partial class BlockchainServer
     /// <summary>
     ///     Removes inactive nodes that have exceeded the heartbeat timeout from the registry.
     /// </summary>
-    private void RemoveInactiveNodes()
+    private static void RemoveInactiveNodes()
     {
         var now = DateTime.UtcNow;
 

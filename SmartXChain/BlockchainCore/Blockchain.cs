@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -666,19 +667,33 @@ public class Blockchain
     }
 
     /// <summary>
-    ///     Broadcasts a given block to all peers in the network except the current node's IPs.
-    ///     Sends two types of broadcasts: one to push the list of servers and another to
-    ///     share the new block.
+    /// Broadcasts a given block to all peers in the network except the current node's IPs.
+    /// Sends two types of broadcasts: one to push the list of servers and another to share the new block.
     /// </summary>
     /// <param name="block">The block to broadcast to the network.</param>
     private void Broadcast(Block block)
     {
-        BlockchainServer.BroadcastToPeers(Node.CurrentNodeIPs,
-            "PushServers", string.Join(",", Node.CurrentNodeIPs).TrimEnd(','));
-        BlockchainServer.BroadcastToPeers(Node.CurrentNodeIPs,
-            "NewBlock", block.ToBase64());
+        foreach (var peer in Node.CurrentNodeIPs)
+        {
+            if (peer.Contains(Config.Default.URL))
+                continue;
+             
+            // Broadcast the list of servers securely
+            BlockchainServer.BroadcastToPeers(
+                new ConcurrentBag<string> { peer },
+                "PushServers",
+                string.Join(",", Node.CurrentNodeIPs).TrimEnd(','));
+           
+            // Broadcast the new block securely
+            BlockchainServer.BroadcastToPeers(
+                new ConcurrentBag<string> { peer },
+                "NewBlock",
+                block.ToBase64());  
+       
+        }
     }
 
+   
     /// <summary>
     ///     Attempts to reach consensus for the provided smart contract across the network.
     /// </summary>

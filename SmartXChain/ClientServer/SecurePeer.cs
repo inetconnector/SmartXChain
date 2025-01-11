@@ -1,6 +1,7 @@
-﻿using System.Security.Cryptography;
+﻿using NBitcoin.Protocol;
+using System.Security.Cryptography;
 
-namespace SmartXChain.Utils;
+namespace SmartXChain.Server;
 
 /// <summary>
 ///     A reusable class for secure communication between peers using Diffie-Hellman for key exchange,
@@ -11,6 +12,23 @@ public class SecurePeer
     private readonly ECDiffieHellmanCng _diffieHellman;
     private byte[] _sharedKey;
 
+    public byte[] SharedKey
+    {
+        get => _sharedKey;
+        private set
+        {
+            _sharedKey = value;
+        }
+    }
+
+    private static readonly Lazy<SecurePeer> AliceSecurePeer = new(() => new SecurePeer());
+    private static readonly Lazy<SecurePeer> BobSecurePeer = new(() => new SecurePeer());
+
+    /// <summary>
+    /// Default SecurePeer instance
+    /// </summary>
+    public static SecurePeer Alice => AliceSecurePeer.Value;
+    public static SecurePeer Bob => BobSecurePeer.Value;
     public SecurePeer()
     {
         _diffieHellman = new ECDiffieHellmanCng
@@ -20,6 +38,28 @@ public class SecurePeer
         };
     }
 
+    public static SecurePeer GetAlice(string bobSharedKey)
+    { 
+        Alice.ComputeSharedKey(Convert.FromBase64String(bobSharedKey));
+        return Alice;
+    }
+    public static SecurePeer GetAlice(byte[] bobSharedKey)
+    {
+        Alice.ComputeSharedKey(bobSharedKey);
+        return Alice;
+    }
+
+    public static SecurePeer GetBob(string aliceSharedKey)
+    { 
+        Bob.ComputeSharedKey(Convert.FromBase64String(aliceSharedKey));
+        return Bob;
+    }
+    public static SecurePeer GetBob(byte[] aliceSharedKey)
+    {
+        Bob.ComputeSharedKey(aliceSharedKey);
+        return Bob;
+    }
+     
     /// <summary>
     ///     Returns the public key for key exchange.
     /// </summary>
@@ -35,7 +75,7 @@ public class SecurePeer
     /// <param name="otherPublicKey">The public key of the other peer</param>
     public void ComputeSharedKey(byte[] otherPublicKey)
     {
-        _sharedKey = _diffieHellman.DeriveKeyMaterial(CngKey.Import(otherPublicKey, CngKeyBlobFormat.EccPublicBlob));
+        SharedKey = _diffieHellman.DeriveKeyMaterial(CngKey.Import(otherPublicKey, CngKeyBlobFormat.EccPublicBlob));
     }
 
     /// <summary>
@@ -45,14 +85,15 @@ public class SecurePeer
     /// <returns>Tuple containing the encrypted message, IV, and HMAC</returns>
     public (byte[] EncryptedMessage, byte[] IV, byte[] HMAC) EncryptAndSign(string message)
     {
-        if (_sharedKey == null) throw new InvalidOperationException("Shared key has not been computed.");
+        if (SharedKey == null)
+            throw new InvalidOperationException("Shared key has not been computed.");
 
         var iv = GenerateRandomBytes(16);
         byte[] encryptedMessage;
 
         using (var aes = Aes.Create())
         {
-            aes.Key = _sharedKey;
+            aes.Key = SharedKey;
             aes.IV = iv;
 
             using (var encryptor = aes.CreateEncryptor(aes.Key, aes.IV))
@@ -68,7 +109,7 @@ public class SecurePeer
             }
         }
 
-        var hmac = GenerateHMAC(encryptedMessage, _sharedKey);
+        var hmac = GenerateHMAC(encryptedMessage, SharedKey);
         return (encryptedMessage, iv, hmac);
     }
 
@@ -81,14 +122,14 @@ public class SecurePeer
     /// <returns>The decrypted plaintext message</returns>
     public string DecryptAndVerify(byte[] encryptedMessage, byte[] iv, byte[] hmac)
     {
-        if (_sharedKey == null) throw new InvalidOperationException("Shared key has not been computed.");
+        if (SharedKey == null) throw new InvalidOperationException("Shared key has not been computed.");
 
-        if (!ValidateHMAC(encryptedMessage, _sharedKey, hmac))
+        if (!ValidateHMAC(encryptedMessage, SharedKey, hmac))
             throw new CryptographicException("HMAC verification failed. The message may have been tampered with.");
 
         using (var aes = Aes.Create())
         {
-            aes.Key = _sharedKey;
+            aes.Key = SharedKey;
             aes.IV = iv;
 
             using (var decryptor = aes.CreateDecryptor(aes.Key, aes.IV))
@@ -160,7 +201,7 @@ public class SecurePeer
     }
 
     /// <summary>
-    /// Example usage of the SecurePeer class.
+    ///     Example usage of the SecurePeer class.
     /// </summary>
     public static class SecurePeerExample
     {
@@ -171,23 +212,22 @@ public class SecurePeer
             var bob = new SecurePeer();
 
             // Exchange public keys
-            byte[] alicePublicKey = alice.GetPublicKey();
-            byte[] bobPublicKey = bob.GetPublicKey();
+            var alicePublicKey = alice.GetPublicKey();
+            var bobPublicKey = bob.GetPublicKey();
 
             // Compute shared secret keys
             alice.ComputeSharedKey(bobPublicKey);
             bob.ComputeSharedKey(alicePublicKey);
 
             // Alice encrypts and sends a message
-            string originalMessage = "Secret Message";
+            var originalMessage = "Secret Message";
             var (encryptedMessage, iv, hmac) = alice.EncryptAndSign(originalMessage);
 
             // Bob decrypts and verifies the message
-            string decryptedMessage = bob.DecryptAndVerify(encryptedMessage, iv, hmac);
+            var decryptedMessage = bob.DecryptAndVerify(encryptedMessage, iv, hmac);
 
             Console.WriteLine($"Original Message: {originalMessage}");
             Console.WriteLine($"Decrypted Message: {decryptedMessage}");
         }
-    } 
-
+    }
 }

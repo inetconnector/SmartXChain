@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using SmartXChain;
@@ -75,13 +74,14 @@ internal class Program
     {
         if (Config.Default.URL.ToLower().StartsWith("https"))
         {
-            if (!String.IsNullOrEmpty(Config.Default.SSLCertificate) && File.Exists(Config.Default.SSLCertificate))
+            if (!string.IsNullOrEmpty(Config.Default.SSLCertificate) && File.Exists(Config.Default.SSLCertificate))
             {
                 //assign certificate for https
-                BlockchainServer.WebserverCertificate = CertificateManager.GetCertificate(Config.Default.SSLCertificate);
+                BlockchainServer.WebserverCertificate =
+                    CertificateManager.GetCertificate(Config.Default.SSLCertificate);
             }
             else
-            {                
+            {
                 //create webserver certificate
                 var name = Config.ChainName;
                 var certManager = new CertificateManager(name,
@@ -93,9 +93,9 @@ internal class Program
                 if (!certManager.IsCertificateInstalled()) certManager.InstallCertificate(certPath);
 
                 //assign certificate for https
-                BlockchainServer.WebserverCertificate = certManager.GetCertificate(); 
+                BlockchainServer.WebserverCertificate = certManager.GetCertificate();
             }
-        } 
+        }
     }
 
     private static async Task RunConsoleMenuAsync(BlockchainServer.NodeStartupResult? startup)
