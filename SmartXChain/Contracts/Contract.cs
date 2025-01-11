@@ -5,9 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using SmartXChain.Utils;
-using System.Threading.Tasks;
-using NBitcoin.Protocol;
-using System;
+using System.Threading.Tasks; 
 public class Contract
 {
     private readonly Dictionary<string, string> _authenticatedUsers = new();
