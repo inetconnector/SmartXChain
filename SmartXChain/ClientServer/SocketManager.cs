@@ -161,20 +161,22 @@ public class SocketManager : IDisposable
                         {
                             var responseString = response.Content.ReadAsStringAsync().Result;
 
-                            var bobPayload =
-                                JsonSerializer
-                                    .Deserialize<BlockchainServer.ApiController.SecurePayload>(responseString);
-                            if (bobPayload != null)
+                            if (!string.IsNullOrEmpty(responseString))
                             {
-                                var bob = SecurePeer.GetAlice(bobPayload.SharedKey);
+                                var bobPayload =
+                                    JsonSerializer
+                                        .Deserialize<BlockchainServer.ApiController.SecurePayload>(responseString);
+                                if (bobPayload != null)
+                                {
+                                    var bob = SecurePeer.GetAlice(bobPayload.SharedKey);
 
-                                responseString = bob.DecryptAndVerify(
-                                    Convert.FromBase64String(bobPayload.EncryptedMessage),
-                                    Convert.FromBase64String(bobPayload.IV),
-                                    Convert.FromBase64String(bobPayload.HMAC)
-                                );
-                            }
-
+                                    responseString = bob.DecryptAndVerify(
+                                        Convert.FromBase64String(bobPayload.EncryptedMessage),
+                                        Convert.FromBase64String(bobPayload.IV),
+                                        Convert.FromBase64String(bobPayload.HMAC)
+                                    );
+                                }
+                            } 
 
                             if (Config.Default.Debug)
                                 Logger.Log($"Received response: {responseString}");

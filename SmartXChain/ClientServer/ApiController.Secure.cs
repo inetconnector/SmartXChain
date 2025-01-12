@@ -246,7 +246,8 @@ public partial class BlockchainServer
             try
             {
                 var encryptedPayload = await HttpContext.GetRequestBodyAsStringAsync();
-                Logger.Log($"Register: {encryptedPayload}");
+                if (Config.Default.Debug)
+                    Logger.Log($"Register: {encryptedPayload}");
 
                 // Deserialize the payload and decrypt
                 var alicePayload = JsonSerializer.Deserialize<SecurePayload>(encryptedPayload);
