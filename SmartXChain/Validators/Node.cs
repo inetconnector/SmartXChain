@@ -473,7 +473,7 @@ public class Node
         }
         catch (Exception ex)
         {
-            Logger.Log($"ERROR: retrieving registered nodes from {serverAddress} failed: {ex.Message}");
+            Logger.LogException(ex,$"ERROR: retrieving registered nodes from {serverAddress} failed");
         }
 
         return ret;

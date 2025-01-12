@@ -632,7 +632,8 @@ public partial class BlockchainServer
             {
                 // Get and log the encrypted payload
                 var encryptedPayload = await HttpContext.GetRequestBodyAsStringAsync();
-                Logger.Log($"BlockCount: {encryptedPayload}");
+                if (Config.Default.Debug)
+                    Logger.Log($"BlockCount: {encryptedPayload}");
 
                 // Deserialize and decrypt the payload
                 var alicePayload = JsonSerializer.Deserialize<SecurePayload>(encryptedPayload);
@@ -648,7 +649,8 @@ public partial class BlockchainServer
                         Convert.FromBase64String(alicePayload.HMAC)
                     );
 
-                    Logger.Log($"Decrypted BlockCount message: {message}");
+                    if (Config.Default.Debug)
+                        Logger.Log($"Decrypted BlockCount message: {message}");
 
                     // Update block count if necessary
                     if (Startup.Blockchain != null &&
