@@ -149,10 +149,7 @@ public class Logger
     {
         // Format the message with a timestamp
         var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
-        var formattedMessage = $"{timestamp} - {message}";
-        if (message.ToLower().Contains("error"))
-        {
-        }
+        var formattedMessage = $"{timestamp} - {message}"; 
 
         // Print the message to the console, truncating if it exceeds 100 characters
         if (formattedMessage.Length > 110 && trim)

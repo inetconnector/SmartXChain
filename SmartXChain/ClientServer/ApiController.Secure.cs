@@ -251,6 +251,13 @@ public partial class BlockchainServer
                 // Deserialize the payload and decrypt
                 var alicePayload = JsonSerializer.Deserialize<SecurePayload>(encryptedPayload);
 
+                var peerUrl = HttpContext.Request.RemoteEndPoint.ToString();
+
+                lock (PublicKeyCache)
+                {
+                    PublicKeyCache.Clear();
+                }
+                 
                 if (alicePayload != null)
                 {
                     aliceSharedKey = alicePayload.SharedKey;

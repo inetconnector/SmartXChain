@@ -21,8 +21,6 @@ public partial class BlockchainServer
 {
     private const int HeartbeatTimeoutSeconds = 30; // Maximum time before a node is considered inactive
     private readonly List<string> _peerServers = new(); // Addresses of other peer registration servers
-    private SecurePeer _securePeer;
-
     private WebServer _server;
 
 
@@ -31,8 +29,6 @@ public partial class BlockchainServer
     /// </summary>
     public BlockchainServer(string url)
     {
-        // Initialize SecurePeer instance
-        _securePeer = new SecurePeer();
         Logger.Log($"Starting server at {Config.Default.URL}...");
     }
 
@@ -53,7 +49,7 @@ public partial class BlockchainServer
         FileSystem.CopyDirectory(Path.Combine(baseDirectory, "wwwroot"), str);
         var path = Path.Combine(str, "index.html");
         File.WriteAllText(path, ReplaceBody(File.ReadAllText(path)));
-
+         
         if (!Config.Default.SSL)
             _server = (WebServer)new WebServer(Configure).WithCors()
                 .WithLocalSessionManager()
@@ -66,10 +62,18 @@ public partial class BlockchainServer
                 .WithLocalSessionManager()
                 .WithWebApi("/api", m => m.WithController<ApiController>())
                 .WithStaticFolder("/", str, true);
+
+        //if (!Config.Default.Debug)
+        {
+            Swan.Logging.Logger.UnregisterLogger<ConsoleLogger>();
+            //Terminal.Settings.DefaultColor = ConsoleColor.Green;
+        }
         _server.RunAsync();
 
-        Console.WriteLine($"Server started at {Config.Default.URL}");
-        _server.StateChanged += (s, e) => $"WebServer New State - {e.NewState}".Info();
+        Logger.Log($"Server started at {Config.Default.URL}");
+
+        _server.StateChanged += (s, e) => 
+            $"WebServer New State - {e.NewState}".Info();
     }
 
     private string ReplaceBody(string html)
@@ -109,7 +113,6 @@ public partial class BlockchainServer
             o.WithUrlPrefix($"http://*:{port}/");
         }
     }
-
 
     public void StopServer()
     {
@@ -175,50 +178,7 @@ public partial class BlockchainServer
         }
 
         return (server, result);
-    }
-
-    /// <summary>
-    ///     Removes the fingerprint identifier from a message string.
-    /// </summary>
-    /// <param name="message">The input message containing a fingerprint.</param>
-    /// <returns>The message without the fingerprint.</returns>
-    private string RemoveFingerprint(string message)
-    {
-        return message.Substring(Crypt.AssemblyFingerprint.Length + 1);
-    }
-
-    /// <summary>
-    ///     Handles the registration of a node by validating its address and signature, and adds it to the registered nodes.
-    /// </summary>
-    /// <param name="message">The registration message containing node address and signature.</param>
-    /// <returns>"ok" if successful, or an error message if registration fails.</returns>
-    private string HandleRegistration(string message)
-    {
-        var parts = message.Split(new[] { ':' }, 2);
-        if (parts.Length != 2 || parts[0] != "Register") return "Invalid registration format";
-
-        var remainingParts = parts[1];
-
-        // Split the remaining data into node address and signature
-        var addressSignatureParts = remainingParts.Split('|');
-        if (addressSignatureParts.Length != 2) return "Invalid registration format";
-
-        var nodeAddress = addressSignatureParts[0]; // Node address
-        var signature = addressSignatureParts[1]; // Signature for validation
-
-        // Security check using signature validation
-        if (!ValidateSignature(nodeAddress, signature))
-        {
-            Logger.Log($"ValidateSignature failed. Node not registered: {nodeAddress} Signature: {signature}");
-            return "";
-        }
-
-        // Register the node
-        Node.AddNodeIP(nodeAddress);
-        Logger.Log($"Node registered: {nodeAddress}");
-
-        return "ok";
-    }
+    } 
 
     /// <summary>
     ///     Validates a node's signature using HMACSHA256 with the server's secret key.
