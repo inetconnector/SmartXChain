@@ -54,7 +54,7 @@ public class SmartXWallet
 
             // 5. Convert the private key to an Ethereum-compatible address
             var account = new Account(privateKey.ToHex());
-            Logger.Log("\nYour SmartXChain Address:\n" + smartX + account.Address.Substring(2));
+            Logger.Log("\nYour SmartXChain Address: " + smartX + account.Address.Substring(2));
             WalletAddresses.Add(smartX + account.Address.Substring(2));
 
             // 6. Generate additional addresses in the same wallet

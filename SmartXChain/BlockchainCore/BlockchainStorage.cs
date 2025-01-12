@@ -6,7 +6,7 @@ namespace SmartXChain.BlockchainCore;
 
 public static class BlockchainStorage
 {
-    public static bool SaveBlock(Block block, string blockchainPath, string chainId)
+    public static bool SaveBlock(Block? block, string blockchainPath, string chainId)
     {
         var databasePath = Path.Combine(blockchainPath, chainId + ".db");
         Directory.CreateDirectory(blockchainPath);

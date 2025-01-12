@@ -4,6 +4,7 @@ using System.Text.Json;
 using EmbedIO;
 using EmbedIO.Routing;
 using EmbedIO.WebApi;
+using NBitcoin.Protocol;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Utils;
 using Node = SmartXChain.Validators.Node;
@@ -246,6 +247,7 @@ public partial class BlockchainServer
             try
             {
                 var encryptedPayload = await HttpContext.GetRequestBodyAsStringAsync();
+
                 if (Config.Default.Debug)
                     Logger.Log($"Register: {encryptedPayload}");
 
@@ -283,7 +285,7 @@ public partial class BlockchainServer
             {
                 Logger.LogException(ex, "Error: Register request failed.");
                 if (bob != null)
-                    await SendSecureResponse("Error:  Register request failed.", aliceSharedKey);
+                    await SendSecureResponse("Error: Register request failed.", aliceSharedKey);
             }
         }
 
@@ -299,6 +301,10 @@ public partial class BlockchainServer
             {
                 var encryptedPayload = await HttpContext.GetRequestBodyAsStringAsync();
                 var alicePayload = JsonSerializer.Deserialize<SecurePayload>(encryptedPayload);
+
+                if (Config.Default.Debug)
+                    Logger.Log($"Nodes: {encryptedPayload}");
+
                 if (alicePayload != null)
                 {
                     aliceSharedKey = alicePayload.SharedKey;
@@ -339,6 +345,10 @@ public partial class BlockchainServer
             {
                 var encryptedPayload = await HttpContext.GetRequestBodyAsStringAsync();
                 var alicePayload = JsonSerializer.Deserialize<SecurePayload>(encryptedPayload);
+
+                if (Config.Default.Debug)
+                    Logger.Log($"Heartbeat: {encryptedPayload}");
+
                 if (alicePayload != null)
                 {
                     aliceSharedKey = alicePayload.SharedKey;
@@ -375,6 +385,10 @@ public partial class BlockchainServer
             {
                 var encryptedPayload = await HttpContext.GetRequestBodyAsStringAsync();
                 var alicePayload = JsonSerializer.Deserialize<SecurePayload>(encryptedPayload);
+
+                if (Config.Default.Debug)
+                    Logger.Log($"Vote: {encryptedPayload}");
+
                 if (alicePayload != null)
                 {
                     aliceSharedKey = alicePayload.SharedKey;
@@ -402,16 +416,17 @@ public partial class BlockchainServer
         /// </summary>
         [Route(HttpVerbs.Post, "/GetChain")]
         public async Task GetChain()
-        {
-            if (Config.Default.Debug)
-                Logger.Log("GetChain called.");
-
+        { 
             var aliceSharedKey = "";
 
             try
             {
                 var encryptedPayload = await HttpContext.GetRequestBodyAsStringAsync();
                 var alicePayload = JsonSerializer.Deserialize<SecurePayload>(encryptedPayload);
+
+                if (Config.Default.Debug)
+                    Logger.Log($"GetChain: {encryptedPayload}");
+
                 if (alicePayload != null)
                 {
                     aliceSharedKey = alicePayload.SharedKey;
@@ -427,7 +442,8 @@ public partial class BlockchainServer
                     {
                         var chainData = Startup.Blockchain.ToBase64();
 
-                        if (message != null) await SendSecureResponse(chainData, aliceSharedKey);
+                        if (message != null) 
+                            await SendSecureResponse(chainData, aliceSharedKey);
                     }
                 }
             }
@@ -450,6 +466,10 @@ public partial class BlockchainServer
             {
                 var encryptedPayload = await HttpContext.GetRequestBodyAsStringAsync();
                 var alicePayload = JsonSerializer.Deserialize<SecurePayload>(encryptedPayload);
+
+                if (Config.Default.Debug)
+                    Logger.Log($"NewBlock: {encryptedPayload}");
+
                 if (alicePayload != null)
                 {
                     aliceSharedKey = alicePayload.SharedKey;
@@ -461,22 +481,27 @@ public partial class BlockchainServer
                         Convert.FromBase64String(alicePayload.HMAC)
                     );
 
-                    Block newBlock = null;
+                    Block? newBlock = null;
 
                     try
                     {
                         newBlock = Block.FromBase64(message);
                     }
-                    catch (Exception e)
+                    catch (Exception ex)
                     {
-                        Logger.Log($"ERROR: {e.Message}\n{e.StackTrace}");
+                        Logger.LogException(ex, $"ERROR: {ex.Message}\n{ex.StackTrace}");
                     }
 
                     if (newBlock != null && Startup.Blockchain != null &&
                         Startup.Blockchain.AddBlock(newBlock, true, false))
+                    { 
                         await SendSecureResponse("ok", aliceSharedKey);
+                    }
                     else
+                    { 
                         await SendSecureResponse("Error: Block rejected.", aliceSharedKey);
+                    }
+
                 }
             }
             catch (Exception ex)
@@ -498,11 +523,11 @@ public partial class BlockchainServer
 
             try
             {
-                // Empfange und protokolliere den verschlüsselten Payload
                 var encryptedPayload = await HttpContext.GetRequestBodyAsStringAsync();
-                Logger.Log($"PushChain: {encryptedPayload}");
+                
+                if (Config.Default.Debug)
+                    Logger.Log($"PushChain: {encryptedPayload}");
 
-                // Deserialisieren und entschlüsseln
                 var alicePayload = JsonSerializer.Deserialize<SecurePayload>(encryptedPayload);
 
                 if (alicePayload != null)
@@ -516,9 +541,9 @@ public partial class BlockchainServer
                         Convert.FromBase64String(alicePayload.HMAC)
                     );
 
-                    Logger.Log($"Decrypted PushChain message: {serializedChain}");
+                    if (Config.Default.Debug)
+                        Logger.Log($"Decrypted PushChain message: {serializedChain}");
 
-                    // Deserialisiere die Blockchain und prüfe sie
                     var incomingChain = Blockchain.FromBase64(serializedChain);
 
                     if (Startup.Blockchain != null && Startup.Blockchain.SmartContracts.Count == 0)
@@ -536,7 +561,6 @@ public partial class BlockchainServer
                                 }
                             }
 
-                        // Sende verschlüsselte Antwort
                         await SendSecureResponse("ok", aliceSharedKey);
                         return;
                     }
@@ -553,7 +577,6 @@ public partial class BlockchainServer
                     await SendSecureResponse("Error: PushChain request failed.", aliceSharedKey);
             }
 
-            // Fehler oder ungültiger Zustand -> Verschlüsselte leere Antwort senden
             if (bob != null)
                 await SendSecureResponse("", aliceSharedKey);
         }
@@ -580,7 +603,8 @@ public partial class BlockchainServer
                 }
 
                 // Validate block existence
-                if (Startup.Blockchain == null || block < 0 || block >= Startup.Blockchain.Chain.Count)
+                if (Startup.Blockchain == null || block < 0 || 
+                    (Startup.Blockchain.Chain!=null && block >= Startup.Blockchain.Chain.Count))
                 {
                     HttpContext.Response.StatusCode = 404;
                     await SendSecureResponse($"ERROR: Block {block} not found.", aliceSharedKey);
@@ -588,27 +612,31 @@ public partial class BlockchainServer
                 }
 
                 // Retrieve the block
-                var blockData = Startup.Blockchain.Chain[block];
-                if (Config.Default.Debug)
-                    Logger.Log($"Sent block {block}");
+                if (Startup.Blockchain.Chain != null)
+                {
+                    var blockData = Startup.Blockchain.Chain[block];
 
-                // Encrypt the response
-                var response = blockData.ToString();
-                if (!string.IsNullOrEmpty(HttpContext.Request.Headers["SharedKey"]))
-                {
-                    aliceSharedKey = HttpContext.Request.Headers["SharedKey"];
-                    bob = SecurePeer.GetBob(aliceSharedKey);
-                }
+                    if (Config.Default.Debug)
+                        Logger.Log($"Sent block {block}");
 
-                if (bob != null && !string.IsNullOrEmpty(aliceSharedKey))
-                {
-                    await SendSecureResponse(response, aliceSharedKey);
-                }
-                else
-                {
-                    // If encryption isn't available, fall back to plaintext (not recommended)
-                    Logger.Log("Warning: SharedKey not provided. Sending response in plaintext.");
-                    await HttpContext.SendStringAsync(response, "application/json", Encoding.UTF8);
+                    // Encrypt the response
+                    var response = blockData.ToString();
+                    if (!string.IsNullOrEmpty(HttpContext.Request.Headers["SharedKey"]))
+                    {
+                        aliceSharedKey = HttpContext.Request.Headers["SharedKey"];
+                        if (aliceSharedKey != null) bob = SecurePeer.GetBob(aliceSharedKey);
+                    }
+
+                    if (bob != null && !string.IsNullOrEmpty(aliceSharedKey))
+                    {
+                        await SendSecureResponse(response, aliceSharedKey);
+                    }
+                    else
+                    {
+                        // If encryption isn't available, fall back to plaintext (not recommended)
+                        Logger.Log("Warning: SharedKey not provided. Sending response in plaintext.");
+                        await HttpContext.SendStringAsync(response, "application/json", Encoding.UTF8);
+                    }
                 }
             }
             catch (Exception ex)
@@ -633,6 +661,7 @@ public partial class BlockchainServer
             {
                 // Get and log the encrypted payload
                 var encryptedPayload = await HttpContext.GetRequestBodyAsStringAsync();
+               
                 if (Config.Default.Debug)
                     Logger.Log($"BlockCount: {encryptedPayload}");
 
@@ -659,6 +688,7 @@ public partial class BlockchainServer
                         _blockCount != Startup.Blockchain.Chain.Count)
                     {
                         _blockCount = Startup.Blockchain.Chain.Count;
+
                         if (Config.Default.Debug)
                             Logger.Log($"Updated BlockCount: {Startup.Blockchain.Chain.Count}");
                     }
@@ -705,7 +735,9 @@ public partial class BlockchainServer
             try
             {
                 var encryptedPayload = await HttpContext.GetRequestBodyAsStringAsync();
-                Logger.Log($"VerifyCode: {encryptedPayload}");
+                
+                if (Config.Default.Debug)
+                    Logger.Log($"VerifyCode: {encryptedPayload}");
 
                 // Deserialize and decrypt the payload
                 var alicePayload = JsonSerializer.Deserialize<SecurePayload>(encryptedPayload);
@@ -721,12 +753,14 @@ public partial class BlockchainServer
                         Convert.FromBase64String(alicePayload.HMAC)
                     );
 
-                    Logger.Log($"Decrypted VerifyCode message: {message}");
+                    if (Config.Default.Debug)
+                        Logger.Log($"Decrypted VerifyCode message: {message}");
 
                     // Perform code verification logic
                     var result = HandleVerifyCode(message);
-
-                    Logger.Log($"VerifyCode Result: {result}");
+                    
+                    if (Config.Default.Debug)
+                        Logger.Log($"VerifyCode Result: {result}");
 
                     // Send the secure response
                     await SendSecureResponse(result, aliceSharedKey);
@@ -776,7 +810,8 @@ public partial class BlockchainServer
                         Convert.FromBase64String(alicePayload.HMAC)
                     );
 
-                    Logger.Log($"Decrypted PushServers message: {message}");
+                    if (Config.Default.Debug)
+                        Logger.Log($"Decrypted PushServers message: {message}");
 
                     // Process the decrypted message
                     var serverAdded = false;
@@ -818,7 +853,9 @@ public partial class BlockchainServer
             try
             {
                 var encryptedPayload = await HttpContext.GetRequestBodyAsStringAsync();
-                Logger.Log($"ValidateChain: {encryptedPayload}");
+                
+                if (Config.Default.Debug)
+                    Logger.Log($"ValidateChain: {encryptedPayload}");
 
                 // Deserialize and decrypt the payload
                 var alicePayload = JsonSerializer.Deserialize<SecurePayload>(encryptedPayload);
@@ -834,10 +871,12 @@ public partial class BlockchainServer
                         Convert.FromBase64String(alicePayload.HMAC)
                     );
 
-                    Logger.Log($"Decrypted ValidateChain message: {message}");
+                    if (Config.Default.Debug)
+                        Logger.Log($"Decrypted ValidateChain message: {message}");
 
                     // Validate the blockchain
                     var isValid = Startup.Blockchain.IsValid();
+                    
                     if (Config.Default.Debug)
                         Logger.Log($"Blockchain validation result: {isValid}");
 

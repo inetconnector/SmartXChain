@@ -99,7 +99,7 @@ public class Blockchain
     /// <summary>
     ///     Creates the genesis block, which serves as the initial block in the blockchain.
     /// </summary>
-    private Block CreateGenesisBlock()
+    private Block? CreateGenesisBlock()
     {
         var genesisBlock = new Block([], "0");
         genesisBlock.Approves.Add(genesisBlock.CalculateHash());
@@ -110,11 +110,11 @@ public class Blockchain
     /// <summary>
     ///     Adds a block to the blockchain with optional parameters for locking the chain and mining the block.
     /// </summary>
-    internal bool AddBlock(Block block, bool lockChain = true, bool mineBlock = true, int? index = null)
+    internal bool AddBlock(Block? block, bool lockChain = true, bool mineBlock = true, int? index = null)
     {
         if (!block.ValidateTimestamp())
         {
-            Logger.Log("Invalid timestamp. Block rejected.");
+            Logger.Log("Error: Invalid timestamp. Block rejected.");
             return false;
         }
 
@@ -145,19 +145,19 @@ public class Blockchain
             {
                 if (index.Value < 0)
                 {
-                    Logger.Log("Invalid index for adding block.");
+                    Logger.Log("Error: Invalid index for adding block.");
                     return false;
                 }
 
                 if (index.Value > 0 && Chain[index.Value - 1].Hash != block.PreviousHash)
                 {
-                    Logger.Log("Block not added to chain -- invalid previous block for given index.");
+                    Logger.Log("Error: Block not added to chain -- invalid previous block for given index.");
                     return false;
                 }
 
                 if (index.Value < Chain.Count && Chain[index.Value].PreviousHash != block.Hash)
                 {
-                    Logger.Log("Block not added to chain -- would break chain consistency.");
+                    Logger.Log("Error: Block not added to chain -- would break chain consistency.");
                     return false;
                 }
 
@@ -175,7 +175,7 @@ public class Blockchain
             }
             else
             {
-                Logger.Log("Block not added to chain -- invalid previous block");
+                Logger.Log("Error: Block not added to chain -- invalid previous block");
                 return false;
             }
         }
@@ -306,7 +306,7 @@ public class Blockchain
     ///     A tuple where the first value indicates if consensus was reached, and the second is a list of reward
     ///     addresses.
     /// </returns>
-    private async Task<(bool, List<string>)> ReachConsensus(Block block)
+    private async Task<(bool, List<string>)> ReachConsensus(Block? block)
     {
         Logger.Log($"Starting Snowman-Consensus for block: {block.Hash}");
 
@@ -359,7 +359,7 @@ public class Blockchain
     ///     A tuple where the first value indicates if the request was successful, and the second contains the response
     ///     message.
     /// </returns>
-    private async Task<(bool, string)> SendVoteRequestAsync(string targetValidator, Block block)
+    private async Task<(bool, string)> SendVoteRequestAsync(string targetValidator, Block? block)
     {
         try
         {
@@ -604,7 +604,7 @@ public class Blockchain
         {
             if (Chain != null)
             {
-                Block block;
+                Block? block;
                 lock (Chain)
                 {
                     var transactionsToMine = new List<Transaction>();
@@ -671,7 +671,7 @@ public class Blockchain
     ///     Sends two types of broadcasts: one to push the list of servers and another to share the new block.
     /// </summary>
     /// <param name="block">The block to broadcast to the network.</param>
-    private void Broadcast(Block block)
+    private void Broadcast(Block? block)
     {
         foreach (var peer in Node.CurrentNodeIPs)
         {
@@ -1071,7 +1071,7 @@ public class Blockchain
     ///     Indexes all transactions from a given block for efficient lookup.
     /// </summary>
     /// <param name="block">The block containing transactions to index.</param>
-    private void IndexTransactions(Block block)
+    private void IndexTransactions(Block? block)
     {
         foreach (var transaction in block.Transactions) IndexTransaction(transaction);
 
