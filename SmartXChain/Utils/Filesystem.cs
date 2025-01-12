@@ -5,10 +5,46 @@
 // Assembly location: C:\Users\Dell\Desktop\net8.0\SmartXChain.dll
 // XML documentation location: C:\Users\Dell\Desktop\net8.0\SmartXChain.xml
 
+using System.IO.Compression;
+
 namespace SmartXChain.Utils;
 
 public static class FileSystem
 {
+    /// <summary>
+    /// Creates a zip file from a given directory
+    /// </summary>
+    /// <param name="sourceDirectory"></param>
+    /// <param name="zipFilePath"></param>
+    /// <returns></returns>
+    public static bool CreateZipFromDirectory(string sourceDirectory, string zipFilePath)
+    {
+        if (Directory.Exists(sourceDirectory))
+        { 
+            if (File.Exists(zipFilePath))
+            {
+                File.Delete(zipFilePath);
+            }
+             
+            ZipFile.CreateFromDirectory(sourceDirectory, zipFilePath); 
+            return true;
+        }
+
+        return false;
+    }
+
+    public static byte[] ReadZipFileAsBytes(string zipFilePath)
+    {
+        if (File.Exists(zipFilePath))
+        {
+            // Lese die ZIP-Datei in ein Byte-Array
+            return File.ReadAllBytes(zipFilePath);
+        }
+        else
+        {
+            throw new FileNotFoundException($"Die ZIP-Datei {zipFilePath} wurde nicht gefunden.");
+        }
+    }
     public static void CopyDirectory(string sourceDir, string targetDir)
     {
         if (!Directory.Exists(sourceDir))

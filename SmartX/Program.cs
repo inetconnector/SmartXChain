@@ -38,9 +38,14 @@ internal class Program
 
             var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "SmartXChain_Testnet");
-
+             
             if (Directory.Exists(appDir))
+            {
+                Directory.Delete(Path.Combine(appDir, "Blockchain"));
+                Directory.Delete(Path.Combine(appDir, "wwwroot"));
+                CreateBackup(appDir); 
                 Directory.Delete(appDir, true);
+            }
         }
 
         // Initialize application and start the blockchain server
@@ -49,6 +54,26 @@ internal class Program
         var (blockchainServer, startup) = await BlockchainServer.StartServerAsync();
 
         await RunConsoleMenuAsync(startup);
+    }
+
+    private static void CreateBackup(string appDir)
+    {
+        try
+        {
+            var tmp = Path.GetTempFileName();
+            FileSystem.CreateZipFromDirectory(appDir, tmp);
+            var  backupBytes = FileSystem.ReadZipFileAsBytes(tmp);
+            var backupDir = appDir + "_Backup";
+            Directory.CreateDirectory(backupDir);
+            var backupFile=Path.Combine(backupDir, DateTime.Now.ToString("yyyy-MM-dd_HHmmss")+".zip");
+            File.WriteAllBytes(backupFile,backupBytes);
+            File.Delete(tmp);
+            Logger.Log($"Backup created: {backupFile}.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex, $"ERROR: Saving Backup failed.");
+        }
     }
 
     private static async Task InitializeApplicationAsync()

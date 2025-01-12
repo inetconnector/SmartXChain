@@ -139,7 +139,7 @@ public class Node
                                         {
                                             var remoteChain = Blockchain.FromBase64(response);
 
-                                            if (BlockchainServer.Startup.Blockchain != null)
+                                            if (BlockchainServer.Startup != null && BlockchainServer.Startup.Blockchain != null)
                                             {
                                                 lock (BlockchainServer.Startup.Blockchain)
                                                 {
