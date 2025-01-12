@@ -95,11 +95,12 @@ public partial class BlockchainServer
                         }
                         else
                         {
-                            Logger.Log($"Error synchronizing with peer {peer}: {response.StatusCode}");
+                            Logger.Log($"Error: Synchronizing with peer {peer} failed with {response.StatusCode} ");
                         }
                     }
                     else
                     {
+                        Logger.Log($"ERROR: Synchronizing with peer {peer} failed");
                         Logger.Log($"ERROR: Could not retrieve public key from: {peer}");
                     }
                 }
@@ -234,6 +235,7 @@ public partial class BlockchainServer
             Logger.LogException(ex, $"ERROR: Failed to fetch public key from peer: {peer}");
         }
 
+        RemoveInactiveNodes();
         return null;
-    }
+    } 
 }

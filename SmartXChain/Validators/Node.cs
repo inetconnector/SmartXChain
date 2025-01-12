@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Net;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Server;
@@ -40,7 +41,7 @@ public class Node
     /// <summary>
     ///     A dictionary of IP addresses for nodes with las activity currently known to the system.
     /// </summary>
-    public static Dictionary<string, DateTime> CurrentNodeIP_LastActive { get; set; } = new();
+    public static ConcurrentDictionary<string, DateTime> CurrentNodeIP_LastActive { get; set; } = new();
 
     /// <summary>
     ///     Gets the blockchain chain identifier associated with this node.
@@ -262,18 +263,15 @@ public class Node
                     tempList.Add(currentIp);
                 else
                     Logger.Log($"Node removed {ip}...");
-            foreach (var remainingIp in tempList) CurrentNodeIPs.Add(remainingIp);
 
-            lock (CurrentNodeIP_LastActive)
-            {
-                if (CurrentNodeIP_LastActive.ContainsKey(ip))
-                    CurrentNodeIP_LastActive.Remove(ip);
-            }
+            CurrentNodeIPs.Clear();
+            foreach (var remainingIp in tempList) CurrentNodeIPs.Add(remainingIp);
+            
+            CurrentNodeIP_LastActive.TryRemove(ip, out _); 
 
             SocketManager.RemoveInstance(ip);
         }
-    }
-
+    } 
     /// <summary>
     ///     and updates CurrentNodeIP_LastActive
     /// </summary>
