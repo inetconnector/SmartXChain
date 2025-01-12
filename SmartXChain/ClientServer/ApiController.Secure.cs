@@ -1,10 +1,10 @@
-﻿using System.Security.Cryptography;
+﻿using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using EmbedIO;
 using EmbedIO.Routing;
-using EmbedIO.WebApi;
-using NBitcoin.Protocol;
+using EmbedIO.WebApi; 
 using SmartXChain.BlockchainCore;
 using SmartXChain.Utils;
 using Node = SmartXChain.Validators.Node;
@@ -220,8 +220,18 @@ public partial class BlockchainServer
                 var publicKey = SecurePeer.Bob.GetPublicKey();
                 var publicKeyBase64 = Convert.ToBase64String(publicKey);
 
+                var responseObject = new
+                {
+                    PublicKey = publicKeyBase64,
+                    DllFingerprint = Crypt.GenerateFileFingerprint(Assembly.GetExecutingAssembly().Location),
+                    ChainID = Config.Default.ChainId
+                };
+                 
+                var responseJson = System.Text.Json.JsonSerializer.Serialize(responseObject);
+                var responseBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(responseJson));
+                  
                 // Send the public key as a response
-                await HttpContext.SendStringAsync(publicKeyBase64, "text/plain", Encoding.UTF8);
+                await HttpContext.SendStringAsync(responseBase64, "text/plain", Encoding.UTF8);
 
                 if (Config.Default.Debug)
                     Logger.Log($"Public key served: {publicKeyBase64}");

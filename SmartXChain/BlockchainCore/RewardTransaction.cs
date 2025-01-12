@@ -42,7 +42,7 @@ public class RewardTransaction : Transaction
 
             // Settle Founders - Ensure the first 10 founders get 10,000,000 each
             var foundersReward = 10_000_000;
-            if (Balances[Blockchain.SystemAddress] > TotalSupply - 10 * foundersReward)
+            if (Balances[Blockchain.SystemAddress] > TotalSupply - 100 * foundersReward)
                 reward = foundersReward;
 
             if (Balances[Blockchain.SystemAddress] - reward > 0)

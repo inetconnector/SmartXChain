@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Net.Http.Headers;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using SmartXChain.Utils;
@@ -221,8 +222,30 @@ public partial class BlockchainServer
 
             if (response.IsSuccessStatusCode)
             {
-                var publicKeyBase64 = response.Content.ReadAsStringAsync().Result;
-                var publicKey = Convert.FromBase64String(publicKeyBase64);
+                var responseBase64 = response.Content.ReadAsStringAsync().Result;
+                var responseJson = Encoding.UTF8.GetString(Convert.FromBase64String(responseBase64));
+
+                // Deserialize the JSON structure
+                var responseObject = JsonSerializer.Deserialize<ResponseObject>(responseJson);
+                if (responseObject == null)
+                    throw new Exception("Invalid response structure");
+
+                // Extract the values
+                var publicKey = Convert.FromBase64String(responseObject.PublicKey);
+                var dllFingerprint = responseObject.DllFingerprint;
+                var chainId = responseObject.ChainID;
+
+                if (dllFingerprint != Crypt.GenerateFileFingerprint(Assembly.GetExecutingAssembly().Location))
+                {
+                    //Logger.Log($"ERROR: Failed to fetch public key (DLL fingerprint mismatch): {peer}");
+                    //return null;
+                }
+
+                if (chainId != Config.Default.ChainId)
+                {
+                    Logger.Log($"ERROR: ChainId mismatch: {peer}");
+                    return null;
+                } 
 
                 // Cache the fetched public key
                 PublicKeyCache[peer] = publicKey;
@@ -237,5 +260,12 @@ public partial class BlockchainServer
 
         RemoveInactiveNodes();
         return null;
-    } 
+    }
+
+    private class ResponseObject
+    {
+        public string PublicKey { get; set; } = string.Empty;
+        public string DllFingerprint { get; set; } = string.Empty;
+        public string ChainID { get; set; } = string.Empty;
+    }
 }
