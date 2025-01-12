@@ -51,12 +51,7 @@ public class Node
     ///     Gets the address of the node.
     /// </summary>
     public string NodeAddress { get; }
-
-    /// <summary>
-    ///     Gets or sets the startup result containing the blockchain and node details.
-    /// </summary>
-    internal BlockchainServer.NodeStartupResult StartupResult { get; set; }
-
+ 
     /// <summary>
     ///     Starts the node by discovering, registering with, and synchronizing with peer servers.
     /// </summary>
@@ -113,14 +108,20 @@ public class Node
                     {
                         var alive = node != null && await node.SendHeartbeatAsync(server);
                         if (alive)
-                        {
-                            if (node != null && node.StartupResult != null)
+                        { 
+
+                            Blockchain? blockchain = null;
+                            if (BlockchainServer.Startup != null)
                             {
-                                var newChain = await UpdateBlockchainWithMissingBlocks(node.StartupResult.Blockchain,
-                                    node.StartupResult.Node);
-                                if (newChain != null) node.StartupResult.Blockchain = newChain;
+                                blockchain = BlockchainServer.Startup.Blockchain; 
+                            } 
+
+                            if (blockchain != null)
+                            {
+                                var newChain = await UpdateBlockchainWithMissingBlocks(blockchain, node);
+                                if (newChain != null) BlockchainServer.Startup.Blockchain = newChain;
                             }
-                            else if (node != null && node.StartupResult == null && BlockchainServer.Startup != null)
+                            else
                             {
                                 try
                                 {
@@ -149,7 +150,6 @@ public class Node
                                                         remoteChain.IsValid())
                                                     {
                                                         BlockchainServer.Startup.Blockchain = remoteChain;
-                                                        node.StartupResult = BlockchainServer.Startup;
                                                         SaveBlockChain(remoteChain, node);
                                                     }
                                                 }
