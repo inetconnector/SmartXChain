@@ -41,8 +41,14 @@ internal class Program
              
             if (Directory.Exists(appDir))
             {
-                Directory.Delete(Path.Combine(appDir, "Blockchain"));
-                Directory.Delete(Path.Combine(appDir, "wwwroot"));
+                var path = Path.Combine(appDir, "Blockchain");
+                if (Directory.Exists(path))
+                    Directory.Delete(path,true); 
+                
+                path = Path.Combine(appDir, "wwwroot");
+                if (Directory.Exists(path))
+                    Directory.Delete(path, true);
+
                 CreateBackup(appDir); 
                 Directory.Delete(appDir, true);
             }
