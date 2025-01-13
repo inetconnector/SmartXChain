@@ -1,5 +1,6 @@
 ﻿using System.Security.Cryptography;
 using System.Text.RegularExpressions;
+using NBitcoin.Protocol;
 
 namespace SmartXChain.Utils;
 
@@ -78,6 +79,8 @@ public class Config
     public string SSLCertificate { get; private set; }
     public string PublicKey { get; private set; }
     public string PrivateKey { get; private set; }
+
+    public static bool TestNet => ChainName == "SmartXChain_Testnet";
     public static Config Default => _defaultInstance.Value;
     public static string ChainName { get; set; } = "SmartXChain";
 
@@ -99,7 +102,7 @@ public class Config
         }
         catch (Exception ex)
         {
-            Logger.Log($"Error deleting file {ex.Message}");
+            Logger.LogException(ex, $"deleting config file"); 
         }
 
         return false;

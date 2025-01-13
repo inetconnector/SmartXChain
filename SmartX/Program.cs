@@ -36,22 +36,7 @@ internal class Program
             Config.ChainName = "SmartXChain_Testnet";
             Logger.Log($"ChainName has been set to '{Config.ChainName}'.");
 
-            var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "SmartXChain_Testnet");
-             
-            if (Directory.Exists(appDir))
-            {
-                var path = Path.Combine(appDir, "Blockchain");
-                if (Directory.Exists(path))
-                    Directory.Delete(path,true); 
-                
-                path = Path.Combine(appDir, "wwwroot");
-                if (Directory.Exists(path))
-                    Directory.Delete(path, true);
-
-                CreateBackup(appDir); 
-                Directory.Delete(appDir, true);
-            }
+            FileSystem.CreateBackup();
         }
 
         // Initialize application and start the blockchain server
@@ -62,29 +47,9 @@ internal class Program
         await RunConsoleMenuAsync(startup);
     }
 
-    private static void CreateBackup(string appDir)
-    {
-        try
-        {
-            var tmp = Path.GetTempFileName();
-            FileSystem.CreateZipFromDirectory(appDir, tmp);
-            var  backupBytes = FileSystem.ReadZipFileAsBytes(tmp);
-            var backupDir = appDir + "_Backup";
-            Directory.CreateDirectory(backupDir);
-            var backupFile=Path.Combine(backupDir, DateTime.Now.ToString("yyyy-MM-dd_HHmmss")+".zip");
-            File.WriteAllBytes(backupFile,backupBytes);
-            File.Delete(tmp);
-            Logger.Log($"Backup created: {backupFile}.");
-        }
-        catch (Exception ex)
-        {
-            Logger.LogException(ex, $"ERROR: Saving Backup failed.");
-        }
-    }
-
     private static async Task InitializeApplicationAsync()
     {
-        Logger.Log("Application start");
+        Logger.LogLine("Application start");
 
         // ensure wallet and keys are set up
 
@@ -139,7 +104,7 @@ internal class Program
                 DisplayMenu();
 
                 var mode = Console.ReadKey().KeyChar;
-                Logger.Log("----------------------------------------------------");
+                Logger.Log("Menu");
 
                 switch (mode)
                 {
@@ -168,12 +133,19 @@ internal class Program
                         await UploadContract(startup);
                         break;
                     case '8':
-                        DeleteWallet(startup);
-                        return;
-                    case '9':
                         Logger.Log("9: Toggle Debug mode");
                         Config.Default.SetProperty(Config.ConfigKey.Debug,
                             (!Config.Default.Debug).ToString());
+                        break;
+                    case 'e':
+                        EraseWallet(startup);
+                        return;
+                    case 'r':
+                        if (Config.TestNet && RebootChains(startup))
+                        {
+                            Thread.Sleep(5000);
+                            Functions.RestartApplication();
+                        } 
                         break;
                     case 'n':
                         DisplayNodes(startup);
@@ -187,14 +159,38 @@ internal class Program
             }
             catch (Exception ex)
             {
-                Logger.Log($"ERROR: {ex.Message}");
+                Logger.LogException(ex); 
                 throw;
             }
     }
 
+    private static void DisplayMenu()
+    {
+        // Show available menu options
+        Logger.LogLine();
+        Logger.Log("Enter mode:");
+        Logger.Log("n: Show nodes");
+        Logger.Log("s: Send SCX Tokens");
+        Logger.Log("c: Clear screen");
+        Logger.Log("e: Erase wallet and local chain");
+        if (Config.TestNet) 
+            Logger.Log("r: Reboot nodes");
+        Logger.Log();
+        Logger.Log("1: Coin class tester");
+        Logger.Log("2: SmartContract Demo");
+        Logger.Log("3: Blockchain state");
+        Logger.Log("4: Wallet Balances");
+        Logger.Log("5: Chain Info");
+        Logger.Log("6: Show Contracts");
+        Logger.Log("7: Upload Contract");
+        Logger.Log("9: Toggle Debug mode");
+        Logger.Log("0: Exit");
+        Logger.LogLine();
+    }
+
     private static async Task SendNativeTokens(BlockchainServer.NodeStartupResult? startup)
     {
-        Logger.Log("s: Send SCX Tokens");
+        Logger.LogLine("s: Send SCX Tokens");
         var walletAddresses = SmartXWallet.LoadWalletAdresses();
 
         Logger.Log("Enter recipient");
@@ -220,7 +216,7 @@ internal class Program
 
     private static void DisplayNodes(BlockchainServer.NodeStartupResult? startup)
     {
-        Logger.Log("n: Show nodes");
+        Logger.LogLine("n: Show nodes");
         if (startup != null && startup.Node != null)
         {
             if (Node.CurrentNodeIPs.Count == 0)
@@ -234,38 +230,35 @@ internal class Program
         }
     }
 
-    private static void DisplayMenu()
-    {
-        // Show available menu options
-        Logger.Log("----------------------------------------------------");
-        Logger.Log("Enter mode:");
-        Logger.Log("n: Show nodes");
-        Logger.Log("s: Send SCX Tokens");
-        Logger.Log("c: Clear screen");
-        Logger.Log();
-        Logger.Log("1: Coin class tester");
-        Logger.Log("2: SmartContract Demo");
-        Logger.Log("3: Blockchain state");
-        Logger.Log("4: Wallet Balances");
-        Logger.Log("5: Chain Info");
-        Logger.Log("6: Show Contracts");
-        Logger.Log("7: Upload Contract");
-        Logger.Log("8: Delete wallet and local chain");
-        Logger.Log("9: Toggle Debug mode");
-        Logger.Log("0: Exit");
-        Logger.Log();
-    }
-
     private static async Task RunCoinClassTesterAsync()
     {
-        Logger.Log("1: Coin class tester");
+        Logger.LogLine("1: Coin class tester");
 
-        // Test ERC20 coin functionalities
+        // Get Wallet
+        Logger.LogLine("Get Wallet");
         var walletAddresses = SmartXWallet.LoadWalletAdresses();
-
         var seedFile = Path.Combine(Config.AppDirectory(), "seed.txt");
         var seed = File.ReadAllText(seedFile);
 
+
+        //Get GasContract
+        Logger.LogLine("Get GasContract");
+        var gas = new GasConfiguration(walletAddresses[0]);
+        gas.RegisterUser(walletAddresses[0], seed);
+
+        Logger.LogLine("Gas configuration:");
+        foreach (var gasInfo in gas.ToString().Split(Environment.NewLine))
+            Logger.Log(gasInfo, false);
+
+        Logger.LogLine("Updated Gas configuration:");
+        gas.UpdateParameter(walletAddresses[0], GasConfiguration.GasConfigParameter.BaseGasTransaction,
+            gas.BaseGasContract * (decimal)1.1);
+        foreach (var gasInfo in gas.ToString().Split(Environment.NewLine))
+            Logger.Log(gasInfo, false);
+
+
+        // Test ERC20 coin functionalities
+        Logger.LogLine("ERC20 coin functionalities");
         var token = new ERC20Token("SmartXchain", "SXC", 18, 10000000000, walletAddresses[0]);
         token.RegisterUser(walletAddresses[0], seed);
         token.Transfer(walletAddresses[0], walletAddresses[1], 100, seed);
@@ -302,9 +295,9 @@ internal class Program
 
     private static async Task RunSmartContractDemoAsync(BlockchainServer.NodeStartupResult? node)
     {
-        Logger.Log("2: SmartContract Demo");
+        Logger.LogLine("2: SmartContract Demo");
 
-        // Demonstrate ERC20 and GoldCoin smart contracts
+        //get Wallet
         var walletAddresses = SmartXWallet.LoadWalletAdresses();
         if (walletAddresses.Count == 0)
         {
@@ -318,17 +311,21 @@ internal class Program
             return;
         }
 
+
+        // Demonstrate ERC20 and GoldCoin smart contracts  
+        await GasConfigurationExample(walletAddresses[0], node.Blockchain);
         await ERC20Example(walletAddresses[0], walletAddresses, node.Blockchain);
         await ERC20ExtendedExample(walletAddresses[0], walletAddresses, node.Blockchain);
         await GoldCoinExample(walletAddresses[0], walletAddresses, SmartXWallet.LoadWalletAdresses(),
             node.Blockchain);
 
-        await PerformNativeTransfer(node.Blockchain,
-            walletAddresses[0],
-            walletAddresses[1],
-            (decimal)0.01,
-            "49.83278, 9.88167",
-            PrivateKey);
+        if (PrivateKey != null)
+            await PerformNativeTransfer(node.Blockchain,
+                walletAddresses[0],
+                walletAddresses[1],
+                (decimal)0.01,
+                "49.83278, 9.88167",
+                PrivateKey);
     }
 
     private static async Task<bool> PerformNativeTransfer(Blockchain? chain,
@@ -364,7 +361,7 @@ internal class Program
 
     private static void DisplayBlockchainState(BlockchainServer.NodeStartupResult? node)
     {
-        Logger.Log("3: Blockchain state");
+        Logger.LogLine("3: Blockchain state");
 
         // Show current state of the blockchain
         if (node != null && node.Blockchain != null && node.Blockchain.Chain != null)
@@ -374,7 +371,7 @@ internal class Program
 
     private static void DisplayWalletBalances(BlockchainServer.NodeStartupResult? node)
     {
-        Logger.Log("4: Wallet Balances");
+        Logger.LogLine("4: Wallet Balances");
 
         var walletAddresses = SmartXWallet.LoadWalletAdresses();
 
@@ -393,42 +390,14 @@ internal class Program
 
     private static void DisplayChainInfo(BlockchainServer.NodeStartupResult? node)
     {
-        Logger.Log("5: Chain Info");
+        Logger.LogLine("5: Chain Info");
         if (node != null && node.Blockchain != null)
             node.Blockchain.PrintAllBlocksAndTransactions();
     }
 
-    private static void DeleteWallet(BlockchainServer.NodeStartupResult? node)
-    {
-        Logger.Log("8: Delete wallet and local chain");
-
-        // deletes wallet
-        SmartXWallet.DeleteWallet();
-
-        //delete saved contracts
-        var contractsPath = Path.Combine(Config.Default.BlockchainPath, "Contracts");
-        if (Directory.Exists(contractsPath))
-            Directory.Delete(contractsPath, true);
-
-        //delete local chains
-        foreach (var file in Directory.GetFiles(Config.Default.BlockchainPath))
-            try
-            {
-                File.Delete(file);
-                Logger.Log($"Deleted {file}");
-            }
-            catch (Exception e)
-            {
-                Logger.Log($"Error deleting file {file}: {e.Message}");
-            }
-
-        Logger.Log("Press any key to end");
-        Console.ReadKey();
-    }
-
     private static void DisplayContracts(BlockchainServer.NodeStartupResult? node)
     {
-        Logger.Log("6: Show Contracts");
+        Logger.LogLine("6: Show Contracts");
 
         // List all deployed contracts and save to File
         var contractsDirectory = Path.Combine(Config.AppDirectory(), "Contracts");
@@ -455,6 +424,52 @@ internal class Program
         {
             Logger.Log("No contracts found.");
         }
+    }
+
+    private static void EraseWallet(BlockchainServer.NodeStartupResult? node)
+    {
+        Logger.LogLine("e: Delete wallet and local chain");
+
+        // deletes wallet
+        SmartXWallet.DeleteWallet();
+
+        //delete saved contracts
+        var contractsPath = Path.Combine(Config.Default.BlockchainPath, "Contracts");
+        if (Directory.Exists(contractsPath))
+            Directory.Delete(contractsPath, true);
+
+        //delete local chains
+        foreach (var file in Directory.GetFiles(Config.Default.BlockchainPath))
+            try
+            {
+                File.Delete(file);
+                Logger.Log($"Deleted {file}");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogException(ex, $"deleting file {file}"); 
+            }
+
+        Logger.Log("Press any key to end");
+        Console.ReadKey();
+    }
+
+    private static bool RebootChains(BlockchainServer.NodeStartupResult? node)
+    {
+        Logger.LogLine("d: Reboot chains on all servers. Clears all chains in testnet");
+        Logger.Log("Are you sure to reboot and clear testnet chains on all servers?");
+        Logger.Log("This action cannot be undone. (yes/no):");
+
+        var confirmation = Console.ReadLine();
+
+        if (confirmation == null || !confirmation.Equals("yes", StringComparison.OrdinalIgnoreCase))
+        {
+            Logger.Log("Chain reboot canceled.");
+            return false;
+        }
+
+        if (node != null) _ = node.Node.RebootChainsAsync();
+        return true;
     }
 
     private static async Task UploadContract(BlockchainServer.NodeStartupResult? node)
@@ -514,13 +529,42 @@ internal class Program
         }
     }
 
+    private static async Task GasConfigurationExample(string ownerAddress, Blockchain? blockchain)
+    {
+        // Deploy and interact with an GasConfiguration contract
+        var contractFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Contract.cs");
+        if (File.Exists(contractFile))
+        {
+            var contractCode = File.ReadAllText(contractFile);
+            var (contract, created) = await SmartContract.Create("GasConfiguration", blockchain, ownerAddress, contractCode);
+            if (!created) Logger.Log($"Contract {contract.Name} could not be created.");
+
+            // Update BaseGasTransaction 
+            string[] inputs =
+            {
+                $"var gas = new GasConfiguration(\"{ownerAddress}\");",
+                $"gas.RegisterUser(\"{ownerAddress}\", \"{PrivateKey}\");",
+                $"foreach (var gasInfo in gas.ToString().Split(Environment.NewLine))",
+                $"      Logger.Log(gasInfo, false);",
+                "Logger.LogLine(\"Updated Gas configuration:\")",
+                "gas.UpdateParameter(walletAddresses[0], GasConfiguration.GasConfigParameter.BaseGasTransaction,gas.BaseGasContract * (decimal)1.1) "
+            };
+            var result = await ExecuteSmartContract(blockchain, contract, inputs);
+
+        }
+        else
+        {
+            Logger.LogError($"contractFile {contractFile} not found");
+        }
+    } 
+
     private static async Task ERC20Example(string ownerAddress, List<string> walletAddresses, Blockchain? blockchain)
     {
         // Deploy and interact with an ERC20 token contract
         var contractFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Examples", "ERC20.cs");
         var contractCode = File.ReadAllText(contractFile);
         var (contract, created) = await SmartContract.Create("ERC20Token", blockchain, ownerAddress, contractCode);
-        if (!created) Logger.Log($"Contract {contract} could not be created.");
+        if (!created) Logger.Log($"Contract {contract.Name} could not be created.");
 
         string[] inputs =
         {
@@ -530,8 +574,8 @@ internal class Program
             $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 50, \"{PrivateKey}\");",
             "Logger.Log(\"[ERC20Token] \" + JsonSerializer.Serialize(token, new JsonSerializerOptions { WriteIndented = true }));"
         };
-
         var result = await ExecuteSmartContract(blockchain, contract, inputs);
+         
 
         //Save and Reload Test
         //var tmpFile = Path.GetTempFileName();
@@ -688,13 +732,13 @@ internal class Program
                 Logger.Log($"Result: {executionResult.result}");
             }
         }
-        catch (Exception e)
+        catch (Exception ex)
         {
             if (!string.IsNullOrEmpty(executionResult.result) ||
-                !string.IsNullOrEmpty(executionResult.updatedSerializedState))
-                Logger.Log($"ERROR: {executionResult.result} {e.Message}");
+                !string.IsNullOrEmpty(executionResult.updatedSerializedState)) 
+                Logger.LogException(ex, $"{executionResult.result}");
             else
-                Logger.Log($"ERROR: {e.Message}");
+                Logger.LogException(ex);
         }
 
         return executionResult;

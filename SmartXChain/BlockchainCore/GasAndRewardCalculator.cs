@@ -1,17 +1,19 @@
-﻿namespace SmartXChain.BlockchainCore;
+﻿using System.Text.Json.Serialization;
 
-public class GasAndRewardCalculator
+namespace SmartXChain.BlockchainCore;
+
+internal class GasAndRewardCalculator
 {
     // Constants for base gas values and rewards
-    private const int BaseGasTransaction = 5; // Base gas consumption for a transaction
-    private const int BaseGasContract = 10; // Base gas consumption for a smart contract
-    private const int GasPerCharacter = 2; // Gas consumption per character in data
-    private const decimal MinerInitialReward = (decimal)0.1; // Initial reward for miners
-    private const decimal ValidatorInitialReward = (decimal)0.05; // Initial reward for validators
-    private const decimal MinerDecayFactor = (decimal)0.98; // Decay rate for miner rewards
-    private const decimal ValidatorDecayFactor = (decimal)0.99; // Decay rate for validator rewards
-    private const decimal MinerMinimumReward = (decimal)0.01; // Minimum reward for miners
-    private const decimal ValidatorMinimumReward = (decimal)0.005; // Minimum reward for validators
+    internal static int BaseGasTransaction = 5; // Base gas consumption for a transaction
+    internal static int BaseGasContract = 10; // Base gas consumption for a smart contract
+    internal static int GasPerCharacter = 2; // Gas consumption per character in data
+    internal static decimal MinerInitialReward = (decimal)0.1; // Initial reward for miners
+    internal static decimal ValidatorInitialReward = (decimal)0.05; // Initial reward for validators
+    internal static decimal MinerDecayFactor = (decimal)0.98; // Decay rate for miner rewards
+    internal static decimal ValidatorDecayFactor = (decimal)0.99; // Decay rate for validator rewards
+    internal static decimal MinerMinimumReward = (decimal)0.01; // Minimum reward for miners
+    internal static decimal ValidatorMinimumReward = (decimal)0.005; // Minimum reward for validators
 
     /// <summary>
     ///     Gets the gas factor used to scale gas calculations.
@@ -58,12 +60,19 @@ public class GasAndRewardCalculator
 
         Gas = BaseGasTransaction + (dataLength + infoLength + senderLength) * GasPerCharacter / GasFactor;
 
-        if (Blockchain.CurrentNetworkLoad > 0.75)
-            Gas = (int)(Gas * 1.2);
-        else if (Blockchain.CurrentNetworkLoad < 0.25)
-            Gas = (int)(Gas * 0.8);
+        if (Blockchain.CurrentNetworkLoad > CurrentNetworkLoadGT)
+            Gas = (int)(Gas * CurrentNetworkLoadGTMultiply);
+        else if (Blockchain.CurrentNetworkLoad < CurrentNetworkLoadLT)
+            Gas = (int)(Gas * CurrentNetworkLoadLTMultiply);
     }
 
+    internal static decimal CurrentNetworkLoadGT = (decimal)0.75; 
+    internal static decimal CurrentNetworkLoadLT = (decimal)0.25;
+    internal static decimal CurrentNetworkLoadGTMultiply = (decimal)1.2;
+    internal static decimal CurrentNetworkLoadLTMultiply = (decimal)0.8;
+    internal static decimal ContractDataLengthMin = (decimal)1000;
+    internal static decimal ContractDataLengthGasFactor = (decimal)1.5;
+  
     /// <summary>
     ///     Calculates the gas required for a smart contract transaction based on the length
     ///     of the serialized contract code, with adjustments for code size and network load.
@@ -75,13 +84,13 @@ public class GasAndRewardCalculator
 
         Gas = BaseGasContract + dataLength * GasPerCharacter / GasFactor;
 
-        if (dataLength > 1000)
-            Gas = (int)(Gas * 1.5);
+        if (dataLength > ContractDataLengthMin)
+            Gas = (int)(Gas * ContractDataLengthGasFactor);
 
-        if (Blockchain.CurrentNetworkLoad > 0.75)
-            Gas = (int)(Gas * 1.2);
-        else if (Blockchain.CurrentNetworkLoad < 0.25)
-            Gas = (int)(Gas * 0.8);
+        if (Blockchain.CurrentNetworkLoad > CurrentNetworkLoadGT)
+            Gas = (int)(Gas * CurrentNetworkLoadGTMultiply);
+        else if (Blockchain.CurrentNetworkLoad < CurrentNetworkLoadLT)
+            Gas = (int)(Gas * CurrentNetworkLoadLTMultiply);
     }
 
     /// <summary>

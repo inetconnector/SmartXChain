@@ -99,7 +99,7 @@ public static class BlockchainStorage
         }
         catch (Exception ex)
         {
-            Logger.Log($"ERROR: Block could not be saved to SQLite: {ex.Message}");
+            Logger.LogException(ex, "Block could not be saved to SQLite"); 
             return false;
         }
     }
@@ -112,7 +112,7 @@ public static class BlockchainStorage
         {
             if (!File.Exists(databasePath))
             {
-                Logger.Log($"ERROR: Database not found at {databasePath}");
+                Logger.LogError($"Database not found at {databasePath}");
                 return null;
             }
 
@@ -138,7 +138,7 @@ public static class BlockchainStorage
         }
         catch (Exception ex)
         {
-            Logger.Log($"ERROR: Block could not be retrieved from SQLite: {ex.Message}");
+            Logger.LogException(ex, "Block could not be retrieved from SQLite"); 
             return null;
         }
     }
@@ -165,7 +165,7 @@ public static class BlockchainStorage
             // Check if the database file exists
             if (!File.Exists(databasePath))
             {
-                Logger.Log($"ERROR: Database not found at {databasePath}");
+                Logger.LogError($"Database not found at {databasePath}");
                 return null;
             }
 
@@ -205,12 +205,12 @@ public static class BlockchainStorage
                 }
             }
 
-            Logger.Log($"ERROR: Contract '{contractName}' not found.");
+            Logger.LogError($"Contract '{contractName}' not found.");
             return null;
         }
         catch (Exception ex)
         {
-            Logger.Log($"ERROR: Could not retrieve contract code: {ex.Message}");
+            Logger.LogException(ex, $"Could not retrieve contract code"); 
             return null;
         }
     }
@@ -240,7 +240,7 @@ public static class BlockchainStorage
         }
         catch (JsonException ex)
         {
-            Logger.Log($"ERROR: Failed to parse SmartContracts JSON: {ex.Message}");
+            Logger.LogException(ex, "Failed to parse SmartContracts JSON"); 
             return null;
         }
     }
@@ -261,7 +261,7 @@ public static class BlockchainStorage
         {
             if (!File.Exists(databasePath))
             {
-                Logger.Log($"ERROR: Database not found at {databasePath}");
+                Logger.LogError($"Database not found at {databasePath}");
                 return JsonConvert.SerializeObject(new { error = "Database not found" });
             }
 
@@ -308,7 +308,7 @@ public static class BlockchainStorage
         }
         catch (Exception ex)
         {
-            Logger.Log($"ERROR: Could not retrieve transactions for user {user}: {ex.Message}");
+            Logger.LogException(ex, $"Could not retrieve transactions for user {user}"); 
         }
 
         return "";
@@ -334,7 +334,7 @@ public static class BlockchainStorage
             // Ensure the database file exists
             if (!File.Exists(databasePath))
             {
-                Logger.Log($"ERROR: Database not found at {databasePath}");
+                Logger.LogError($"Database not found at {databasePath}");
                 return contractNames;
             }
 
@@ -380,9 +380,8 @@ public static class BlockchainStorage
             return contractNames.Distinct().Take(maxResults).ToList();
         }
         catch (Exception ex)
-        {
-            // Log the error
-            Logger.Log($"ERROR: Could not retrieve contract names: {ex.Message}");
+        { 
+            Logger.LogException(ex, $"Could not retrieve contract names");  
             return contractNames;
         }
     }
@@ -411,7 +410,7 @@ public static class BlockchainStorage
         }
         catch (JsonException ex)
         {
-            Logger.Log($"ERROR: Failed to parse SmartContracts JSON: {ex.Message}");
+            Logger.LogException(ex, "Failed to parse SmartContracts JSON"); 
             return Enumerable.Empty<string>();
         }
     }

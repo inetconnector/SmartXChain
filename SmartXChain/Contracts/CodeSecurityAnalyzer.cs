@@ -19,6 +19,7 @@ public class CodeSecurityAnalyzer
         "System.Threading",
         "System.Threading.Tasks",
         "System.Threading.Tasks",
+        "SmartXChain.Utils",
         "System.Diagnostics",
         "System.Net.Http",
         "System.Xml",
@@ -75,38 +76,20 @@ public class CodeSecurityAnalyzer
     {
         "\\|\\|", ".*\\$.*", "<script>", "eval\\(", "\\bexec\\b"
     };
-
-    private static string _safeContractCode = "";
+      
+    private static string RemoveBaseClassesSection(string code)
+    {
+        var pattern = @"/// ---------BEGIN BASE CLASSES----------[\s\S]*?/// ---------END BASE CLASSES----------";
+        return Regex.Replace(code, pattern, string.Empty, RegexOptions.Singleline);
+    }
 
     public static bool IsCodeSafe(string code, ref string message)
     {
-        // Preprocess the code to remove comments
-        code = RemoveComments(code);
+        // Preprocess the code to remove comments 
+        code = RemoveBaseClassesSection(code);
+        code = RemoveComments(code); 
 
-        if (_safeContractCode == "")
-        {
-            var contractBaseFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Contracts", "Contract.cs");
-
-            if (!File.Exists(contractBaseFile))
-            {
-                Logger.Log($"ERROR: Contract.cs not found at {contractBaseFile}.");
-                return false;
-            }
-
-            var contractBaseContent = File.ReadAllText(contractBaseFile);
-            if (!contractBaseContent.Contains("public Contract()"))
-            {
-                Logger.Log($"ERROR: {contractBaseFile} is invalid.");
-                return false;
-            }
-
-            var usingRegex = new Regex(@"^using\s+[^;]+;", RegexOptions.Multiline);
-            var code1WithoutUsings = usingRegex.Replace(contractBaseContent, "").Trim();
-
-            _safeContractCode = code1WithoutUsings;
-        }
-
-        var tree = CSharpSyntaxTree.ParseText(code.Replace(_safeContractCode, ""));
+        var tree = CSharpSyntaxTree.ParseText(code);
         var root = tree.GetRoot();
 
         // Check for non-whitelisted namespaces

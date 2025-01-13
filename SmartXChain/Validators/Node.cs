@@ -1,5 +1,4 @@
 ﻿using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Net;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Server;
@@ -52,7 +51,7 @@ public class Node
     ///     Gets the address of the node.
     /// </summary>
     public string NodeAddress { get; }
- 
+
     /// <summary>
     ///     Starts the node by discovering, registering with, and synchronizing with peer servers.
     /// </summary>
@@ -109,13 +108,9 @@ public class Node
                     {
                         var alive = node != null && await node.SendHeartbeatAsync(server);
                         if (alive)
-                        { 
-
+                        {
                             Blockchain? blockchain = null;
-                            if (BlockchainServer.Startup != null)
-                            {
-                                blockchain = BlockchainServer.Startup.Blockchain; 
-                            } 
+                            if (BlockchainServer.Startup != null) blockchain = BlockchainServer.Startup.Blockchain;
 
                             if (blockchain != null)
                             {
@@ -139,7 +134,8 @@ public class Node
                                         {
                                             var remoteChain = Blockchain.FromBase64(response);
 
-                                            if (BlockchainServer.Startup != null && BlockchainServer.Startup.Blockchain != null)
+                                            if (BlockchainServer.Startup != null &&
+                                                BlockchainServer.Startup.Blockchain != null)
                                             {
                                                 lock (BlockchainServer.Startup.Blockchain)
                                                 {
@@ -166,7 +162,7 @@ public class Node
                                 }
                                 catch (Exception ex)
                                 {
-                                    Logger.Log($"Error sending GetChain request to {server}: {ex.Message}");
+                                    Logger.LogException(ex, $"sending GetChain request to {server}"); 
                                 }
                             }
                         }
@@ -178,7 +174,7 @@ public class Node
                 }
                 catch (Exception ex)
                 {
-                    Logger.Log($"Error sending heartbeat: {ex.Message}");
+                    Logger.LogException(ex, $"sending heartbeat"); 
                 }
 
                 Thread.Sleep(20000);
@@ -203,7 +199,7 @@ public class Node
                 }
                 catch (Exception ex)
                 {
-                    Logger.Log($"Error retrieving nodes: {ex.Message}");
+                    Logger.LogException(ex, $"retrieving nodes"); 
                 }
 
                 Thread.Sleep(30000);
@@ -266,12 +262,13 @@ public class Node
 
             CurrentNodeIPs.Clear();
             foreach (var remainingIp in tempList) CurrentNodeIPs.Add(remainingIp);
-            
-            CurrentNodeIP_LastActive.TryRemove(ip, out _); 
+
+            CurrentNodeIP_LastActive.TryRemove(ip, out _);
 
             SocketManager.RemoveInstance(ip);
         }
-    } 
+    }
+
     /// <summary>
     ///     and updates CurrentNodeIP_LastActive
     /// </summary>
@@ -365,7 +362,7 @@ public class Node
         }
         catch (Exception ex)
         {
-            Logger.Log($"Error during blockchain synchronization: {ex.Message}");
+            Logger.LogException(ex, $"during blockchain synchronization"); 
         }
 
         return blockchain;
@@ -428,7 +425,7 @@ public class Node
         }
         catch (Exception ex)
         {
-            Logger.Log($"ERROR: registering with server {serverAddress} failed: {ex.Message}");
+            Logger.LogException(ex, $"registering with server {serverAddress} failed"); 
         }
     }
 
@@ -450,7 +447,7 @@ public class Node
 
             if (response == "ERROR: Timeout")
             {
-                Logger.Log($"ERROR: Timeout from server {serverAddress}");
+                Logger.LogError($"Timeout from server {serverAddress}");
                 RemoveNodeIP(serverAddress);
                 return ret;
             }
@@ -471,7 +468,7 @@ public class Node
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex,$"ERROR: retrieving registered nodes from {serverAddress} failed");
+            Logger.LogException(ex, $"ERROR: retrieving registered nodes from {serverAddress} failed");
         }
 
         return ret;
@@ -522,8 +519,42 @@ public class Node
         }
         catch (Exception ex)
         {
-            Logger.Log($"ERROR: sending heartbeat to {serverAddress} failed: {ex.Message}");
+            Logger.LogException(ex, $"sending heartbeat to {serverAddress} failed"); 
             return false; // Node is considered dead due to exception
         }
+    }
+
+    /// <summary>
+    ///     Reboot client chains
+    /// </summary>
+    /// <returns></returns>
+    public async Task RebootChainsAsync()
+    {
+        if (Config.TestNet)
+            foreach (var serverAddress in CurrentNodeIPs)
+            {
+                if (serverAddress == Config.Default.URL)
+                    continue;
+
+                try
+                {
+                    var response = await SocketManager.GetInstance(serverAddress)
+                        .SendMessageAsync($"RebootChain:{NodeAddress}");
+
+                    if (Config.Default.Debug)
+                    {
+                        Logger.Log($"RebootChain sent to {serverAddress}");
+                        Logger.Log($"Response from server {serverAddress}: {response}");
+                    }
+
+                    Logger.Log(!string.IsNullOrEmpty(response)
+                        ? $"ERROR: No response received from {serverAddress}"
+                        : $"Shutdown initiated {serverAddress}");
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogException(ex, $"sending Shutdown command to {serverAddress} failed"); 
+                }
+            }
     }
 }

@@ -40,7 +40,7 @@ public class Blockchain
 
     [JsonInclude] internal List<Transaction>? PendingTransactions { get; private set; }
 
-    [JsonInclude] internal static double CurrentNetworkLoad { get; private set; } = .5d;
+    [JsonInclude] internal static decimal CurrentNetworkLoad { get; private set; } = (decimal).5;
 
     public IReadOnlyDictionary<string, SmartContract?> SmartContracts
     {
@@ -256,6 +256,14 @@ public class Blockchain
             Logger.Log($"A Smart Contract with the name '{contract.Name}' already exists in the blockchain.");
             return false;
         }
+        string message = "";
+        if (!CodeSecurityAnalyzer.IsCodeSafe(Serializer.DeserializeFromBase64<string>(contract.SerializedContractCode),
+                ref message))
+        {
+            Logger.LogError($"The code contains forbidden constructs and was not executed. ");
+            Logger.LogError($"Details: {message}");
+            return false;
+        }
 
         if (await ReachCodeConsensus(contract))
         {
@@ -275,7 +283,7 @@ public class Blockchain
                 if (chain != null)
                     if (!await chain.AddTransaction(contractTransaction, true))
                     {
-                        Logger.Log($"ERROR: Smart Contract '{contract.Name}' not added to the blockchain.");
+                        Logger.LogError($"Smart Contract '{contract.Name}' not added to the blockchain.");
                         return false;
                     }
             }
@@ -381,10 +389,10 @@ public class Blockchain
         }
         catch (Exception ex)
         {
-            Logger.Log($"Error sending vote request: {ex.Message}");
+            Logger.LogException(ex, $"sending vote request"); 
         }
 
-        Logger.Log($"ERROR: block.Verify failed from {targetValidator}");
+        Logger.LogError($"block.Verify failed from {targetValidator}");
         return (false, "");
     }
 
@@ -430,7 +438,7 @@ public class Blockchain
         }
         catch (Exception ex)
         {
-            Logger.Log($"Error executing Smart Contract '{contractName}': {ex.Message}");
+            Logger.LogException(ex, $"executing Smart Contract '{contractName}'"); 
             return ("Execution failed", currentSerializedState);
         }
     }
@@ -572,17 +580,16 @@ public class Blockchain
                             }
                             catch (Exception ex)
                             {
-                                Logger.Log($"ERROR: Failed to deserialize contract data: {ex.Message}");
+                                Logger.LogException(ex, $"Failed to deserialize contract data"); 
                                 return null;
                             }
                     }
             }
 
-        Logger.Log($"ERROR: SmartContract '{contractName}' not found in blockchain transactions.");
+        Logger.LogError($"SmartContract '{contractName}' not found in blockchain transactions.");
         return null;
     }
-
-
+     
     /// <summary>
     ///     Mines all pending transactions and adds them to the blockchain.
     ///     Includes consensus validation and reward distribution for miners and validators.
@@ -666,6 +673,8 @@ public class Blockchain
         }
     }
 
+
+
     /// <summary>
     ///     Broadcasts a given block to all peers in the network except the current node's IPs.
     ///     Sends two types of broadcasts: one to push the list of servers and another to share the new block.
@@ -685,10 +694,11 @@ public class Blockchain
                 string.Join(",", Node.CurrentNodeIPs).TrimEnd(','));
 
             // Broadcast the new block securely
-            BlockchainServer.BroadcastToPeers(
-                new ConcurrentBag<string> { peer },
-                "NewBlock",
-                block.ToBase64());
+            if (block != null)
+                BlockchainServer.BroadcastToPeers(
+                    new ConcurrentBag<string> { peer },
+                    "NewBlock",
+                    block.ToBase64());
         }
     }
 
@@ -706,7 +716,7 @@ public class Blockchain
             {
                 if (Node.CurrentNodeIPs.Count == 0)
                 {
-                    Logger.Log($"ERROR: No validator adresses found for: {contract.Name}");
+                    Logger.LogError($"No validator adresses found for: {contract.Name}");
                     return false;
                 }
 
@@ -732,7 +742,7 @@ public class Blockchain
         }
         catch (Exception ex)
         {
-            Logger.Log($"Error during consensus: {ex.Message}");
+            Logger.LogException(ex, $"during consensus"); 
         }
 
         return false;
@@ -761,12 +771,12 @@ public class Blockchain
                 return response == "ok";
             }
 
-            Logger.Log($"ERROR: sending code to {serverAddress} failed: contract is empty");
+            Logger.LogError($"sending code to {serverAddress} failed: contract is empty");
         }
         catch (Exception ex)
         {
             if (contract != null)
-                Logger.Log($"ERROR: sending code {contract.Name} to {serverAddress} failed: {ex.Message}");
+                Logger.LogException(ex, $"sending code {contract.Name} to {serverAddress} failed"); 
         }
 
         return false;
@@ -806,14 +816,14 @@ public class Blockchain
             return;
 
         if (toBlock == -1 || toBlock >= Chain.Count) toBlock = Chain.Count - 1;
-
-        Logger.Log("------------------- CHAIN INFO -------------------");
+         
+        Logger.LogLine("CHAIN INFO");
         Logger.Log("Listing all blocks and their transactions:");
 
         for (var i = fromBlock; i <= toBlock; i++)
         {
             var block = Chain[i];
-            Logger.Log("------------------- BLOCK -------------------");
+            Logger.LogLine("BLOCK");
             Logger.Log($"Block Index: {i}");
             Logger.Log($"Timestamp: {block.Timestamp}");
             Logger.Log($"Hash: {block.Hash}");
@@ -823,7 +833,7 @@ public class Blockchain
             if (showTransactions)
                 foreach (var transaction in block.Transactions)
                 {
-                    Logger.Log("---------------- TRANSACTION ----------------");
+                    Logger.LogLine("TRANSACTION");
                     Logger.Log($"Sender: {transaction.Sender}");
                     Logger.Log($"Recipient: {transaction.Recipient}");
                     if (transaction.Amount > 0)
@@ -841,7 +851,7 @@ public class Blockchain
                 }
         }
 
-        Logger.Log("------------------- END CHAIN INFO -------------------");
+        Logger.LogLine("END CHAIN INFO");
     }
 
     /// <summary>
@@ -882,7 +892,7 @@ public class Blockchain
         }
         catch (Exception ex)
         {
-            Logger.Log($"Error loading the blockchain: {ex.Message}");
+            Logger.LogException(ex, $"loading the blockchain"); 
             throw;
         }
     }
@@ -953,7 +963,7 @@ public class Blockchain
         }
         catch (Exception ex)
         {
-            Logger.Log($"Error loading the blockchain: {ex.Message}");
+            Logger.LogException(ex, $"loading the blockchain"); 
             throw;
         }
 
@@ -1020,7 +1030,7 @@ public class Blockchain
         }
         catch (Exception ex)
         {
-            Logger.Log($"Error saving the blockchain: {ex.Message}");
+            Logger.LogException(ex, $"saving the blockchain"); 
         }
 
         return false;
@@ -1042,7 +1052,7 @@ public class Blockchain
                 // Check if the current block's hash is valid
                 if (currentBlock.Hash != currentBlock.CalculateHash())
                 {
-                    Logger.Log($"ERROR: Block {i} has an invalid hash.");
+                    Logger.LogError($"Block {i} has an invalid hash.");
                     isValid = false;
                     state.Stop(); // Stop further iterations if invalid
                 }
@@ -1050,7 +1060,7 @@ public class Blockchain
                 // Check if the previous hash in the current block matches the hash of the previous block
                 if (currentBlock.PreviousHash != previousBlock.Hash)
                 {
-                    Logger.Log($"ERROR: Block {i} has an invalid previous hash.");
+                    Logger.LogError($"Block {i} has an invalid previous hash.");
                     isValid = false;
                     state.Stop(); // Stop further iterations if invalid
                 }
@@ -1128,7 +1138,7 @@ public class Blockchain
         }
         catch (Exception ex)
         {
-            Logger.Log($"ERROR: archiving transactions for {address} failed: {ex.Message}");
+            Logger.LogException(ex, $"archiving transactions for {address} failed"); 
         }
     }
 
@@ -1157,7 +1167,7 @@ public class Blockchain
         }
         catch (Exception ex)
         {
-            Logger.Log($"ERROR: loading archived transactions for {address} failed: {ex.Message}");
+            Logger.LogException(ex, $"loading archived transactions for {address} failed"); 
         }
 
         return transactions;

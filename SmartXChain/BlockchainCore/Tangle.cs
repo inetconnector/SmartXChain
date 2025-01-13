@@ -24,20 +24,19 @@ public class Tangle
         }
 
         _blocks.Add(block);
-        Console.WriteLine($"Block added: {block.CalculateHash()}");
-        Console.WriteLine($"Approved: {string.Join(", ", block.Approves)}");
+        Logger.Log($"Block added: {block.CalculateHash()}");
+        Logger.Log($"Approved: {string.Join(", ", block.Approves)}");
     }
 
     public void PrintTangle()
     {
-        Console.WriteLine("\n--- actual tangle ---");
+        Logger.LogLine("actual tangle");
         foreach (var tx in _blocks)
         {
-            Console.WriteLine($"ID: {tx.CalculateHash()}");
-            Console.WriteLine($"Bestätigt: {string.Join(", ", tx.Approves)}");
+            Logger.Log($"ID: {tx.CalculateHash()}");
+            Logger.Log($"Confirmed: {string.Join(", ", tx.Approves)}");
             foreach (var transaction in tx.Transactions) Console.WriteLine($"Data: {transaction}");
-
-            Console.WriteLine();
+            Logger.Log();
         }
     }
 }

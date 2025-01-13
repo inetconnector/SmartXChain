@@ -62,4 +62,46 @@ public static class FileSystem
             CopyDirectory(directory, targetDir1);
         }
     }
+
+    /// <summary>
+    /// Creates a backup of the current config and keys i.e. to ApplicationData\SmartXChain_Backup
+    /// </summary>
+    public static void CreateBackup()
+    {
+        var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "SmartXChain_Testnet");
+
+        if (Directory.Exists(appDir))
+        {
+            var path = Path.Combine(appDir, "Blockchain");
+            if (Directory.Exists(path))
+                Directory.Delete(path, true);
+
+            path = Path.Combine(appDir, "wwwroot");
+            if (Directory.Exists(path))
+                Directory.Delete(path, true);
+
+            CreateBackup(appDir);
+            Directory.Delete(appDir, true);
+        }
+    }
+    private static void CreateBackup(string appDir)
+    {
+        try
+        {
+            var tmp = Path.GetTempFileName();
+            FileSystem.CreateZipFromDirectory(appDir, tmp);
+            var backupBytes = FileSystem.ReadZipFileAsBytes(tmp);
+            var backupDir = appDir + "_Backup";
+            Directory.CreateDirectory(backupDir);
+            var backupFile = Path.Combine(backupDir, DateTime.Now.ToString("yyyy-MM-dd_HHmmss") + ".zip");
+            File.WriteAllBytes(backupFile, backupBytes);
+            File.Delete(tmp);
+            Logger.Log($"Backup created: {backupFile}.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex, $"ERROR: Saving Backup failed.");
+        }
+    }
 }

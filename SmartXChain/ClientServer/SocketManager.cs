@@ -129,7 +129,7 @@ public class SocketManager : IDisposable
                         var bobSharedKey = BlockchainServer.FetchPeerPublicKey(_serverAddress);
                         if (bobSharedKey == null)
                         {
-                            Logger.Log($"ERROR: Could not retrieve public key from: {_serverAddress} for message  {message}");
+                            Logger.LogError($"Could not retrieve public key from: {_serverAddress} for message  {message}");
                             tcs.TrySetResult($"ERROR: Could not retrieve public key from {_serverAddress} for message {message}");
                             continue;
                         }

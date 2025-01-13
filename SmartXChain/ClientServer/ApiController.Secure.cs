@@ -178,7 +178,7 @@ public partial class BlockchainServer
         /// <summary>
         ///     Removes inactive nodes that have exceeded the heartbeat timeout from the registry.
         /// </summary>
-        private void RemoveInactiveNodes()
+        private static void RemoveInactiveNodes()
         {
             var now = DateTime.UtcNow;
 
@@ -243,7 +243,6 @@ public partial class BlockchainServer
                 await HttpContext.SendStringAsync("Error: Unable to serve public key.", "text/plain", Encoding.UTF8);
             }
         }
-
         /// <summary>
         ///     Handles the registration of a node in the blockchain network securely.
         ///     Validates the node's address and signature and adds it to the registered nodes.
@@ -300,6 +299,60 @@ public partial class BlockchainServer
         }
 
         /// <summary>
+        ///     Handles the reboot of a node in the blockchain network securely. 
+        /// </summary>
+        [Route(HttpVerbs.Post, "/RebootChain")]
+        public async Task RebootChain()
+        {
+            SecurePeer? bob = null;
+            var aliceSharedKey = "";
+
+            try
+            {
+                var encryptedPayload = await HttpContext.GetRequestBodyAsStringAsync();
+
+                if (Config.Default.Debug)
+                    Logger.Log($"RebootChain: {encryptedPayload}");
+
+                // Deserialize the payload and decrypt
+                var alicePayload = JsonSerializer.Deserialize<SecurePayload>(encryptedPayload);
+                if (alicePayload != null)
+                {
+                    aliceSharedKey = alicePayload.SharedKey;
+                    bob = SecurePeer.GetBob(aliceSharedKey);
+
+                    var message = bob.DecryptAndVerify(
+                        Convert.FromBase64String(alicePayload.EncryptedMessage),
+                        Convert.FromBase64String(alicePayload.IV),
+                        Convert.FromBase64String(alicePayload.HMAC)
+                    );
+ 
+                    if (Config.Default.ChainId == "{3683DDE3-C2D3-4565-8E1C-50C8E0E2AAC2}")
+                    {
+                        Logger.Log($"Reboot not initiated.");
+                        await SendSecureResponse("", aliceSharedKey); 
+                    }
+                    else
+                    {
+                        Logger.Log($"Reboot initiated for {Config.Default.ChainId}");
+                        await SendSecureResponse("ok", aliceSharedKey);
+                        Functions.RestartApplication();
+                    } 
+                }
+                else
+                {
+                    Logger.Log("Error: RebootChain request failed. payload is null.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogException(ex, "Error: Register request failed.");
+                if (bob != null)
+                    await SendSecureResponse("Error: Register request failed.", aliceSharedKey);
+            }
+        }
+
+        /// <summary>
         ///     Handles requests for the list of nodes in the network securely.
         /// </summary>
         [Route(HttpVerbs.Post, "/Nodes")]
@@ -326,7 +379,7 @@ public partial class BlockchainServer
                         Convert.FromBase64String(alicePayload.HMAC)
                     );
 
-                    if (message.Contains("."))
+                    if (message.Contains(".")) //has IPs
                     {
                         var result = HandleNodes(message);
                         await SendSecureResponse(result, aliceSharedKey);

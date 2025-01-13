@@ -275,7 +275,7 @@ public class Transaction
         }
         catch (Exception ex)
         {
-            Logger.Log($"Error in VerifyPrivateKey: {ex.Message}");
+            Logger.LogException(ex, "VerifyPrivateKey failed"); 
             return false;
         }
     }

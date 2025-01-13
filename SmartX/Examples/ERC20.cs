@@ -15,10 +15,7 @@ public class ERC20Token : Contract
     public ERC20Token()
     {
         Balances = new Dictionary<string, decimal>();
-        Allowances = new Dictionary<string, Dictionary<string, decimal>>();
-        AuthenticatedUsers = new Dictionary<string, string>();
-        Version = "1.0.0";
-        DeploymentDate = DateTime.UtcNow;
+        Allowances = new Dictionary<string, Dictionary<string, decimal>>(); 
     }
 
     /// <summary>
@@ -38,13 +35,11 @@ public class ERC20Token : Contract
         TotalSupply = initialSupply;
         Balances = new Dictionary<string, decimal>();
         Allowances = new Dictionary<string, Dictionary<string, decimal>>();
-        AuthenticatedUsers = new Dictionary<string, string>();
-
+         
         // Assign initial supply to the owner's balance
-        Balances[owner] = initialSupply;
-        Version = "1.0.0";
-        DeploymentDate = DateTime.UtcNow;
+        Balances[owner] = initialSupply; 
     }
+      
 
     /// <summary>
     ///     Symbol of the token (e.g., "GLD").
@@ -76,23 +71,7 @@ public class ERC20Token : Contract
     [JsonInclude]
     public Dictionary<string, Dictionary<string, decimal>> Allowances { get; private protected set; }
 
-    /// <summary>
-    ///     Dictionary storing authenticated users and their hashed private keys.
-    /// </summary>
-    [JsonInclude]
-    public Dictionary<string, string> AuthenticatedUsers { get; private protected set; }
 
-    /// <summary>
-    ///     Version of the contract.
-    /// </summary>
-    [JsonInclude]
-    public string Version { get; private protected set; }
-
-    /// <summary>
-    ///     Timestamp of the contract deployment.
-    /// </summary>
-    [JsonInclude]
-    public DateTime DeploymentDate { get; private protected set; }
 
     /// <summary>
     ///     Exposes a read-only view of account balances.
@@ -143,68 +122,7 @@ public class ERC20Token : Contract
         if (Allowances.ContainsKey(owner) && Allowances[owner].ContainsKey(spender)) return Allowances[owner][spender];
         return 0;
     }
-
-    /// <summary>
-    ///     Registers a new user by linking their address with a hashed private key.
-    /// </summary>
-    /// <param name="address">The address of the user to register.</param>
-    /// <param name="privateKey">The private key to authenticate the user.</param>
-    /// <returns>True if registration is successful; otherwise, false.</returns>
-    public bool RegisterUser(string address, string privateKey)
-    {
-        if (!IsValidAddress(address))
-        {
-            Log("Registration failed: Invalid address format.");
-            return false;
-        }
-
-        if (AuthenticatedUsers.ContainsKey(address))
-        {
-            Log($"Registration failed: Address '{address}' is already registered.");
-            return false;
-        }
-
-        AuthenticatedUsers[address] = HashKey(privateKey);
-        if (!Balances.ContainsKey(address)) Balances[address] = 0;
-        Log($"User {address} registered successfully.");
-        return true;
-    }
-
-    /// <summary>
-    ///     Validates the format of an address.
-    /// </summary>
-    /// <param name="address">The address to validate.</param>
-    /// <returns>True if the address is valid; otherwise, false.</returns>
-    private bool IsValidAddress(string address)
-    {
-        return !string.IsNullOrWhiteSpace(address) && address.Length >= 5 && address.StartsWith("smartX");
-    }
-
-    /// <summary>
-    ///     Hashes a private key using SHA-256.
-    /// </summary>
-    /// <param name="key">The key to hash.</param>
-    /// <returns>The hashed key as a base64 string.</returns>
-    private string HashKey(string key)
-    {
-        using (var sha256 = SHA256.Create())
-        {
-            var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(key));
-            return Convert.ToBase64String(hashedBytes);
-        }
-    }
-
-    /// <summary>
-    ///     Authenticates a user by comparing their hashed private key with the stored hash.
-    /// </summary>
-    /// <param name="address">The user's address.</param>
-    /// <param name="privateKey">The private key for authentication.</param>
-    /// <returns>True if authentication is successful; otherwise, false.</returns>
-    private bool IsAuthenticated(string address, string privateKey)
-    {
-        var hashedKey = HashKey(privateKey);
-        return AuthenticatedUsers.ContainsKey(address) && AuthenticatedUsers[address] == hashedKey;
-    }
+     
 
     /// <summary>
     ///     Transfers tokens from one account to another, ensuring proper authentication and balance checks.

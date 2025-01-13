@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Diagnostics;
+using System.Net;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -19,10 +20,8 @@ namespace SmartXChain.Server;
 /// </summary>
 public partial class BlockchainServer
 {
-    private const int HeartbeatTimeoutSeconds = 30; // Maximum time before a node is considered inactive
-    private readonly List<string> _peerServers = new(); // Addresses of other peer registration servers
-    private WebServer _server;
-
+    private const int HeartbeatTimeoutSeconds = 30; // Maximum time before a node is considered inactive 
+    private WebServer _server; 
 
     /// <summary>
     ///     Initializes a new instance of the BlockchainServer class with specified external and internal IP addresses.
@@ -148,7 +147,7 @@ public partial class BlockchainServer
             }
             catch (Exception ex)
             {
-                Logger.Log($"Error starting server: {ex.Message}");
+                Logger.LogException(ex, $"starting server"); 
             }
         });
         Startup = result;
@@ -172,8 +171,8 @@ public partial class BlockchainServer
             }
             catch (Exception ex)
             {
-                Logger.Log($"Error loading existing chain from {chainPath}");
-                Logger.Log($"ERROR: {ex.Message}");
+                Logger.LogException(ex, $"loading existing chain from {chainPath}"); 
+                Logger.LogError($"{ex.Message}");
             }
         }
 

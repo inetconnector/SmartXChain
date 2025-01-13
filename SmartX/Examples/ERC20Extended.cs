@@ -29,12 +29,9 @@ public class ERC20Extended : ERC20Token
         TotalSupply = initialSupply;
         Balances = new Dictionary<string, decimal>();
         Allowances = new Dictionary<string, Dictionary<string, decimal>>();
-        AuthenticatedUsers = new Dictionary<string, string>();
 
         // Assign initial supply to the owner's balance
         Balances[owner] = initialSupply;
-        Version = "1.0.0";
-        DeploymentDate = DateTime.UtcNow;
         Owner = owner;
     }
 
@@ -43,12 +40,6 @@ public class ERC20Extended : ERC20Token
     /// </summary>
     [JsonInclude]
     public List<string> FrozenAccounts { get; private protected set; }
-
-    /// <summary>
-    ///     The address of the owner of the token.
-    /// </summary>
-    [JsonInclude]
-    public string Owner { get; private protected set; }
 
     /// <summary>
     ///     Indicates whether transfers are currently paused.

@@ -105,8 +105,10 @@ public class SmartContract
     {
         var inheritContract = await AddInherits(blockchain, contractCode, ownerAddress);
 
+        var message = ""; 
         var contract =
             new SmartContract(ownerAddress, Serializer.SerializeToBase64(inheritContract), contractName);
+        
         var added = blockchain != null && await blockchain.AddSmartContract(blockchain, contract);
         return (contract, added);
     }
@@ -165,14 +167,14 @@ public class SmartContract
         var contractBaseFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Contracts", "Contract.cs");
         if (!File.Exists(contractBaseFile))
         {
-            Logger.Log($"ERROR: Contract.cs not found at {contractBaseFile}.");
+            Logger.LogError($"Contract.cs not found at {contractBaseFile}.");
             return contractCode;
         }
 
         var contractBaseContent = File.ReadAllText(contractBaseFile);
         if (!contractBaseContent.Contains("public Contract()"))
         {
-            Logger.Log($"ERROR: {contractBaseFile} is invalid.");
+            Logger.LogError($"{contractBaseFile} is invalid.");
             return contractCode;
         }
 
@@ -182,7 +184,7 @@ public class SmartContract
 
         if (!addedSuccessfully)
         {
-            Logger.Log($"ERROR: Failed to add Contract to blockchain {blockchain.ChainId}.");
+            Logger.LogError($"Failed to add Contract to blockchain {blockchain.ChainId}.");
             return contractCode;
         }
 

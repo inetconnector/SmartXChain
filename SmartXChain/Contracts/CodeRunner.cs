@@ -75,12 +75,16 @@ using System.IO;
         }
         catch (CompilationErrorException ex)
         {
-            return ($"Execution failed with compilation errors: {string.Join(Environment.NewLine, ex.Diagnostics)}",
+            var exMessage =
+                $"Execution failed with compilation errors: {string.Join(Environment.NewLine, ex.Diagnostics)}";
+            Logger.LogException(ex, exMessage);
+            return ($"Execution failed with compilation errors: ",
                 currentState);
         }
         catch (Exception ex)
         {
-            return ($"Execution failed: {ex.Message}", currentState);
+            Logger.LogException(ex,"Execution failed");
+            return ($"Execution failed: {ex.Message} " +ex.StackTrace, currentState);
         }
     }
 

@@ -31,9 +31,9 @@ public partial class BlockchainServer
                 if (!string.IsNullOrEmpty(peer) && peer.StartsWith("http"))
                 {
                     if (peer == Config.Default.URL) continue;
-                    if (!_peerServers.Contains(peer))
+                    if (!Node.CurrentNodeIPs.Contains(peer))
                     {
-                        _peerServers.Add(peer);
+                        Node.CurrentNodeIPs.Add(peer);
                         validPeers.Add(peer);
                     }
                 }
@@ -42,7 +42,7 @@ public partial class BlockchainServer
         }
         catch (Exception ex)
         {
-            Logger.Log($"Error processing static peers: {ex.Message}");
+            Logger.LogException(ex, $"processing static peers"); 
         }
     }
 
@@ -50,11 +50,14 @@ public partial class BlockchainServer
     ///     Continuously synchronizes with peer servers to update the list of active nodes.
     ///     Secure communication is ensured using encryption and signing.
     /// </summary>
-    private async void SynchronizeWithPeers()
+    private async Task SynchronizeWithPeers()
     {
         while (true)
         {
-            foreach (var peer in _peerServers)
+            foreach (var peer in Node.CurrentNodeIPs)
+            {
+                if (peer == Config.Default.URL)
+                    continue;
                 try
                 {
                     // Fetch the peer's public key (with caching)
@@ -96,13 +99,13 @@ public partial class BlockchainServer
                         }
                         else
                         {
-                            Logger.Log($"Error: Synchronizing with peer {peer} failed with {response.StatusCode} ");
+                            Logger.LogError($"Synchronizing with peer {peer} failed with {response.StatusCode} ");
                         }
                     }
                     else
                     {
-                        Logger.Log($"ERROR: Synchronizing with peer {peer} failed");
-                        Logger.Log($"ERROR: Could not retrieve public key from: {peer}");
+                        Logger.LogError($"Synchronizing with peer {peer} failed");
+                        Logger.LogError($"Could not retrieve public key from: {peer}");
                     }
                 }
                 catch (Exception ex)
@@ -110,11 +113,13 @@ public partial class BlockchainServer
                     Logger.LogException(ex, $"ERROR: Synchronizing with peer {peer} failed");
                 }
 
+            }
+
             // Wait for 20 seconds before the next synchronization cycle
             await Task.Delay(20000);
         }
     }
-
+     
     /// <summary>
     ///     Broadcasts a message to a list of peer servers, targeting a specific API endpoint command.
     ///     Messages are securely encrypted and signed. Fetches the public key for each peer dynamically.
@@ -122,7 +127,7 @@ public partial class BlockchainServer
     /// <param name="serversList">List of peer server URLs to send the message to.</param>
     /// <param name="command">The API command to invoke on each peer server.</param>
     /// <param name="message">The message content to be sent to the peers.</param>
-    public static async void BroadcastToPeers(ConcurrentBag<string> serversList, string command, string message)
+    public static async Task BroadcastToPeers(ConcurrentBag<string> serversList, string command, string message)
     {
         var semaphore = new SemaphoreSlim(Config.Default.MaxParallelConnections);
 
@@ -186,7 +191,7 @@ public partial class BlockchainServer
                     }
                     else
                     {
-                        Logger.Log($"ERROR: Could not retrieve public key from: {peer}");
+                        Logger.LogError($"Could not retrieve public key from: {peer}");
                     }
                 }
                 catch (Exception ex)
@@ -202,7 +207,7 @@ public partial class BlockchainServer
 
         await Task.WhenAll(tasks);
     }
-
+     
     /// <summary>
     ///     Fetches the public key of a peer for establishing secure communication.
     ///     Checks the cache first to avoid redundant fetching.
@@ -237,13 +242,16 @@ public partial class BlockchainServer
 
                 if (dllFingerprint != Crypt.GenerateFileFingerprint(Assembly.GetExecutingAssembly().Location))
                 {
-                    //Logger.Log($"ERROR: Failed to fetch public key (DLL fingerprint mismatch): {peer}");
-                    //return null;
+                    if (!Config.ChainName.ToLower().Contains("test"))
+                    {
+                        Logger.LogError($"Failed to fetch public key (DLL fingerprint mismatch): {peer}");
+                        return null;
+                    }
                 }
 
                 if (chainId != Config.Default.ChainId)
                 {
-                    Logger.Log($"ERROR: ChainId mismatch: {peer}");
+                    Logger.LogError($"ChainId mismatch: {peer}");
                     return null;
                 } 
 
