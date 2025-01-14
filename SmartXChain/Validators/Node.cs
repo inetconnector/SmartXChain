@@ -238,7 +238,7 @@ public class Node
             }
             catch (Exception ex)
             {
-                Logger.Log("ERROR: server discovery failed: " + ex.Message);
+                Logger.LogException(ex, "server discovery failed");
             }
 
         return resolvedUrls;

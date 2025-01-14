@@ -154,7 +154,7 @@ public static class BlockchainStorage
     {
         if (string.IsNullOrWhiteSpace(contractName))
         {
-            Logger.Log("ERROR: Contract name is null or empty.");
+            Logger.LogError("Contract name is null or empty.");
             return null;
         }
 

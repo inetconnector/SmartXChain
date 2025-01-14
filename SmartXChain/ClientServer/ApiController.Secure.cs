@@ -44,7 +44,7 @@ public partial class BlockchainServer
             }
             else
             {
-                Logger.Log("Error: SendSecureResponse failed. sender SharedKey is null.");
+                Logger.LogError("SendSecureResponse failed. sender SharedKey is null.");
             }
         }
 
@@ -287,7 +287,7 @@ public partial class BlockchainServer
                 }
                 else
                 {
-                    Logger.Log("Error: Register request failed. payload is null.");
+                    Logger.LogError("Register request failed. payload is null.");
                 }
             }
             catch (Exception ex)
@@ -341,7 +341,7 @@ public partial class BlockchainServer
                 }
                 else
                 {
-                    Logger.Log("Error: RebootChain request failed. payload is null.");
+                    Logger.LogError("RebootChain request failed. payload is null.");
                 }
             }
             catch (Exception ex)
@@ -630,7 +630,7 @@ public partial class BlockchainServer
                 }
                 else
                 {
-                    Logger.Log("Error: PushChain request failed. Payload is null.");
+                    Logger.LogError("PushChain request failed. Payload is null.");
                 }
             }
             catch (Exception ex)
@@ -774,7 +774,7 @@ public partial class BlockchainServer
                 }
                 else
                 {
-                    Logger.Log("Error: BlockCount request failed. Payload is null.");
+                    Logger.LogError("BlockCount request failed. Payload is null.");
                 }
             }
             catch (Exception ex)
@@ -830,7 +830,7 @@ public partial class BlockchainServer
                 }
                 else
                 {
-                    Logger.Log("Error: VerifyCode request failed. Payload is null.");
+                    Logger.LogError("VerifyCode request failed. Payload is null.");
                 }
             }
             catch (Exception ex)
@@ -855,7 +855,9 @@ public partial class BlockchainServer
             {
                 // Read the encrypted payload from the request
                 var encryptedPayload = await HttpContext.GetRequestBodyAsStringAsync();
-                Logger.Log($"PushServers: {encryptedPayload}");
+
+                if (Config.Default.Debug)
+                    Logger.Log($"PushServers: {encryptedPayload}");
 
                 // Deserialize and decrypt the payload
                 var alicePayload = JsonSerializer.Deserialize<SecurePayload>(encryptedPayload);
@@ -891,7 +893,7 @@ public partial class BlockchainServer
                 }
                 else
                 {
-                    Logger.Log("Error: PushServers request failed. Payload is null.");
+                    Logger.LogError("PushServers request failed. Payload is null.");
                 }
             }
             catch (Exception ex)
@@ -949,7 +951,7 @@ public partial class BlockchainServer
                 }
                 else
                 {
-                    Logger.Log("Error: ValidateChain request failed. Payload is null.");
+                    Logger.LogError("ValidateChain request failed. Payload is null.");
                 }
             }
             catch (Exception ex)

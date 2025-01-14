@@ -148,7 +148,7 @@ public partial class BlockchainServer
             }
             else
             {
-                Logger.Log("ERROR: Blockchain is empty");
+                Logger.LogError("Blockchain is empty");
             }
         }
 

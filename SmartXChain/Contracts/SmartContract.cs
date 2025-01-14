@@ -148,7 +148,7 @@ public class SmartContract
     {
         if (blockchain == null)
         {
-            Logger.Log("ERROR: Blockchain instance is null.");
+            Logger.LogError("Blockchain instance is null.");
             return contractCode;
         }
 
@@ -229,7 +229,7 @@ public class SmartContract
         if (match.Success) return match.Groups[1].Value;
 
         // If no inheritance is found, return an appropriate message or empty string
-        Logger.Log("ERROR: No inheritance found in contract code");
+        Logger.LogError("No inheritance found in contract code");
         return "";
     }
 

@@ -47,7 +47,7 @@ internal class Program
         await RunConsoleMenuAsync(startup);
     }
 
-    private static async Task InitializeApplicationAsync()
+    private static Task InitializeApplicationAsync()
     {
         Logger.LogLine("Application start");
 
@@ -64,6 +64,7 @@ internal class Program
             Config.Default.GenerateServerKeys();
 
         SetWebserverCertificate();
+        return Task.CompletedTask;
     }
 
     private static void SetWebserverCertificate()
@@ -220,7 +221,7 @@ internal class Program
         if (startup != null && startup.Node != null)
         {
             if (Node.CurrentNodeIPs.Count == 0)
-                Logger.Log("ERROR: no nodes found!");
+                Logger.LogError("no nodes found!");
             else
                 foreach (var ip in Node.CurrentNodeIPs)
                     if (ip == startup.Node.NodeAddress)
@@ -301,13 +302,13 @@ internal class Program
         var walletAddresses = SmartXWallet.LoadWalletAdresses();
         if (walletAddresses.Count == 0)
         {
-            Logger.Log("ERROR: SmartXWallet adresses are empty. SmartContractDemo cancelled.");
+            Logger.LogError("SmartXWallet adresses are empty. SmartContractDemo cancelled.");
             return;
         }
 
         if (node == null)
         {
-            Logger.Log("ERROR: Node is empty. SmartContractDemo cancelled.");
+            Logger.LogError("Node is empty. SmartContractDemo cancelled.");
             return;
         }
 
@@ -456,7 +457,7 @@ internal class Program
 
     private static bool RebootChains(BlockchainServer.NodeStartupResult? node)
     {
-        Logger.LogLine("d: Reboot chains on all servers. Clears all chains in testnet");
+        Logger.LogLine("r: Reboot chains on all servers. Clears all chains in testnet");
         Logger.Log("Are you sure to reboot and clear testnet chains on all servers?");
         Logger.Log("This action cannot be undone. (yes/no):");
 
@@ -488,7 +489,7 @@ internal class Program
             var fi = new FileInfo(fileName);
             if (!fi.Exists || fi.Extension.ToLower() != ".cs")
             {
-                Logger.Log("ERROR: invalid file specified");
+                Logger.LogError("invalid file specified");
             }
             else
             {
@@ -505,7 +506,7 @@ internal class Program
                     var walletAddresses = SmartXWallet.LoadWalletAdresses();
                     if (walletAddresses.Count == 0)
                     {
-                        Logger.Log("ERROR: SmartXWallet adresses are empty. SmartContractDemo cancelled.");
+                        Logger.LogError("SmartXWallet adresses are empty. SmartContractDemo cancelled.");
                         return;
                     }
 
@@ -519,38 +520,39 @@ internal class Program
                 }
                 else
                 {
-                    Logger.Log("ERROR: Chain not available");
+                    Logger.LogError("Chain not available");
                 }
             }
         }
         else
         {
-            Logger.Log("ERROR: No contract filename specified");
+            Logger.LogError("No contract filename specified");
         }
     }
 
     private static async Task GasConfigurationExample(string ownerAddress, Blockchain? blockchain)
     {
         // Deploy and interact with an GasConfiguration contract
-        var contractFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Contract.cs");
+        var contractFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"Contracts", "Contract.cs");
         if (File.Exists(contractFile))
         {
             var contractCode = File.ReadAllText(contractFile);
-            var (contract, created) = await SmartContract.Create("GasConfiguration", blockchain, ownerAddress, contractCode);
+            var (contract, created) =
+                await SmartContract.Create("GasConfiguration", blockchain, ownerAddress, contractCode);
             if (!created) Logger.Log($"Contract {contract.Name} could not be created.");
+
 
             // Update BaseGasTransaction 
             string[] inputs =
             {
                 $"var gas = new GasConfiguration(\"{ownerAddress}\");",
-                $"gas.RegisterUser(\"{ownerAddress}\", \"{PrivateKey}\");",
+                $"gas.RegisterUser(, \"{PrivateKey}\");",
                 $"foreach (var gasInfo in gas.ToString().Split(Environment.NewLine))",
                 $"      Logger.Log(gasInfo, false);",
-                "Logger.LogLine(\"Updated Gas configuration:\")",
-                "gas.UpdateParameter(walletAddresses[0], GasConfiguration.GasConfigParameter.BaseGasTransaction,gas.BaseGasContract * (decimal)1.1) "
+                "Logger.LogLine(\"Updated Gas configuration:\");",
+                $"gas.UpdateParameter(\"{ownerAddress}\", GasConfiguration.GasConfigParameter.BaseGasTransaction,gas.BaseGasContract * (decimal)1.1) "
             };
             var result = await ExecuteSmartContract(blockchain, contract, inputs);
-
         }
         else
         {

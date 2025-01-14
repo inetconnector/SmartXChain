@@ -114,7 +114,7 @@ public class Blockchain
     {
         if (!block.ValidateTimestamp())
         {
-            Logger.Log("Error: Invalid timestamp. Block rejected.");
+            Logger.LogError("Invalid timestamp. Block rejected.");
             return false;
         }
 
@@ -145,19 +145,19 @@ public class Blockchain
             {
                 if (index.Value < 0)
                 {
-                    Logger.Log("Error: Invalid index for adding block.");
+                    Logger.LogError("Invalid index for adding block.");
                     return false;
                 }
 
                 if (index.Value > 0 && Chain[index.Value - 1].Hash != block.PreviousHash)
                 {
-                    Logger.Log("Error: Block not added to chain -- invalid previous block for given index.");
+                    Logger.LogError("Block not added to chain -- invalid previous block for given index.");
                     return false;
                 }
 
                 if (index.Value < Chain.Count && Chain[index.Value].PreviousHash != block.Hash)
                 {
-                    Logger.Log("Error: Block not added to chain -- would break chain consistency.");
+                    Logger.LogError("Block not added to chain -- would break chain consistency.");
                     return false;
                 }
 
@@ -175,7 +175,7 @@ public class Blockchain
             }
             else
             {
-                Logger.Log("Error: Block not added to chain -- invalid previous block");
+                Logger.LogError("Block not added to chain -- invalid previous block");
                 return false;
             }
         }
@@ -663,13 +663,13 @@ public class Blockchain
                 }
                 else
                 {
-                    Logger.Log("ERROR: Block rejected");
+                    Logger.LogError("Block rejected");
                 }
             }
         }
         else
         {
-            Logger.Log("ERROR: The chain is not valid");
+            Logger.LogError("The chain is not valid");
         }
     }
 
