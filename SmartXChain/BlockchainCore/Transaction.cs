@@ -19,7 +19,8 @@ public class Transaction
         ContractState,
         Gas,
         ValidatorReward,
-        Data
+        Data,
+        GasConfiguration
     }
 
     private string _data;
@@ -48,7 +49,7 @@ public class Transaction
     ///     Transaction unique ID
     /// </summary>
     [JsonInclude]
-    public Guid ID { get; private set; }
+    public Guid ID { get; internal set; }
 
     /// <summary>
     ///     Holds the allowances for transactions between accounts.
@@ -119,7 +120,7 @@ public class Transaction
     ///     Automatically recalculated when relevant properties are updated.
     /// </summary>
     [JsonInclude]
-    internal int Gas { get; private set; }
+    internal decimal Gas { get; private set; }
 
     /// <summary>
     ///     The name of the blockchain system associated with the transaction.
@@ -468,4 +469,5 @@ public class Transaction
             WriteIndented = true // Pretty print the JSON
         });
     }
+
 }

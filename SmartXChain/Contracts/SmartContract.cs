@@ -51,7 +51,7 @@ public class SmartContract
     /// <summary>
     ///     Gets the gas consumed by the last execution of the contract.
     /// </summary>
-    public int Gas { get; private set; }
+    public decimal Gas { get; private set; }
 
     /// <summary>
     ///     Executes the contract using the CodeRunner.

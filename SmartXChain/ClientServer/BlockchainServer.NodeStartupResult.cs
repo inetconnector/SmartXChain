@@ -49,8 +49,19 @@ public partial class BlockchainServer
             Info = "IP",
             Timestamp = DateTime.UtcNow,
             TransactionType = Transaction.TransactionTypes.Data
-        };
+        }; 
+        await blockchain.AddTransaction(nodeTransaction);
 
+        //publish gas settings in a transaction on the blockchain
+        var gasTransaction = new Transaction
+        {
+            Sender = Blockchain.SystemAddress,
+            Recipient = Blockchain.SystemAddress,
+            Data = GasConfiguration.Instance.ToBase64String(), // Store data as Base64 string
+            Info = "GasConfiguration",
+            Timestamp = DateTime.UtcNow,
+            TransactionType = Transaction.TransactionTypes.GasConfiguration
+        };
         await blockchain.AddTransaction(nodeTransaction);
 
         // Set up the result containing the blockchain and node

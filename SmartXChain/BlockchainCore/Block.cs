@@ -19,11 +19,12 @@ public class Block
         Hash = CalculateHash();
     }
 
-    [JsonInclude] public DateTime Timestamp { get; } = DateTime.MinValue;
+    [JsonInclude] public DateTime Timestamp { get; set; } = DateTime.MinValue;
     [JsonInclude] public List<Transaction> Transactions { get; }
     [JsonInclude] public string PreviousHash { get; set; }
-    [JsonInclude] public string Hash { get; private set; }
-    [JsonInclude] public int Nonce { get; private set; }
+    [JsonInclude] public string Hash { get; internal set; }
+    [JsonInclude] public int Nonce { get; internal set; }
+    [JsonInclude] public string Miner { get; internal set; }
 
     /// <summary>
     ///     Get a dictionary of SmartContract from the block
@@ -94,7 +95,7 @@ public class Block
         foreach (var transaction in Transactions)
             transactionsHash += transaction.CalculateHash();
 
-        var rawData = $"{transactionsHash}-{PreviousHash}-{Nonce}";
+        var rawData = $"{transactionsHash}-{PreviousHash}-{Nonce}-{Miner}";
         var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(rawData));
         return Convert.ToBase64String(bytes);
     }
@@ -203,6 +204,7 @@ public class Block
             ["PreviousHash"] = PreviousHash,
             ["Hash"] = Hash,
             ["Nonce"] = Nonce,
+            ["Miner"] = Miner,
             // Serialize Transactions as JSON objects instead of strings
             ["Transactions"] = Transactions,
             ["SmartContracts"] = SmartContracts

@@ -1,11 +1,15 @@
 using System.Collections.Concurrent;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using Nethereum.Signer;
+using Org.BouncyCastle.Cms;
 using SmartXChain.Contracts;
 using SmartXChain.Server;
 using SmartXChain.Utils;
 using SmartXChain.Validators;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 using static SmartXChain.BlockchainCore.Transaction;
 
 namespace SmartXChain.BlockchainCore;
@@ -189,15 +193,31 @@ public class Blockchain
     }
 
     /// <summary>
-    ///     Simulates the payment of gas fees by a transaction sender.
+    ///     pay gas fees by a transaction sender to system
     /// </summary>
-    private static void PayGas(string type, string payer, int gas)
+    private async Task PayGas(string type, string sender, decimal gas)
     {
-        if (gas > 0 && payer != SystemAddress)
+        if (gas > 0 && sender != SystemAddress)
         {
             Console.ForegroundColor = ConsoleColor.Gray;
-            Logger.Log($"[Gas] {payer} has to pay {gas} for {type}");
+            Logger.Log($"[Gas] {sender} has to pay {gas} for {type}");
             Console.ResetColor();
+             
+            var payGasTransaction = new Transaction
+            {
+                Sender = sender,
+                Recipient = SystemAddress,
+                Amount = gas,
+                Timestamp = DateTime.UtcNow,
+                Info = type,
+                TransactionType = TransactionTypes.Gas
+            };
+             
+            var success = await AddTransaction(payGasTransaction); 
+
+            Balances[sender] -= gas;
+            Balances.TryAdd(SystemAddress, 0);
+            Balances[SystemAddress] += gas;
         }
     }
 
@@ -225,7 +245,7 @@ public class Blockchain
         if (transaction.Sender == SystemAddress) gas = 0;
 
         if (gas > 0)
-            PayGas("Transaction", transaction.Sender, gas);
+            await PayGas("Transaction", transaction.Sender, gas);
 
         if (PendingTransactions != null)
             lock (PendingTransactions)
@@ -425,7 +445,7 @@ public class Blockchain
         {
             Logger.Log($"Executing Smart Contract '{contractName}'...");
 
-            PayGas("Contract " + contract.Name, contract.Owner, contract.Gas);
+            await PayGas("Contract " + contract.Name, contract.Owner, contract.Gas);
 
             var (result, updatedSerializedState) = await contract.Execute(ModifyInput(inputs), currentSerializedState);
 
@@ -829,6 +849,7 @@ public class Blockchain
             Logger.Log($"Hash: {block.Hash}");
             Logger.Log($"Previous Hash: {block.PreviousHash}");
             Logger.Log($"Nonce: {block.Nonce}");
+            Logger.Log($"Miner: {block.Miner}");
 
             if (showTransactions)
                 foreach (var transaction in block.Transactions)

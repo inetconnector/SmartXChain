@@ -244,15 +244,14 @@ internal class Program
 
         //Get GasContract
         Logger.LogLine("Get GasContract");
-        var gas = new GasConfiguration(walletAddresses[0]);
-        gas.RegisterUser(walletAddresses[0], seed);
+        var gas = new GasConfiguration();  
 
         Logger.LogLine("Gas configuration:");
         foreach (var gasInfo in gas.ToString().Split(Environment.NewLine))
             Logger.Log(gasInfo, false);
 
         Logger.LogLine("Updated Gas configuration:");
-        gas.UpdateParameter(walletAddresses[0], GasConfiguration.GasConfigParameter.BaseGasTransaction,
+        gas.UpdateParameter( GasConfiguration.GasConfigParameter.BaseGasTransaction,
             gas.BaseGasContract * (decimal)1.1);
         foreach (var gasInfo in gas.ToString().Split(Environment.NewLine))
             Logger.Log(gasInfo, false);
@@ -312,9 +311,7 @@ internal class Program
             return;
         }
 
-
         // Demonstrate ERC20 and GoldCoin smart contracts  
-        await GasConfigurationExample(walletAddresses[0], node.Blockchain);
         await ERC20Example(walletAddresses[0], walletAddresses, node.Blockchain);
         await ERC20ExtendedExample(walletAddresses[0], walletAddresses, node.Blockchain);
         await GoldCoinExample(walletAddresses[0], walletAddresses, SmartXWallet.LoadWalletAdresses(),
@@ -529,36 +526,6 @@ internal class Program
             Logger.LogError("No contract filename specified");
         }
     }
-
-    private static async Task GasConfigurationExample(string ownerAddress, Blockchain? blockchain)
-    {
-        // Deploy and interact with an GasConfiguration contract
-        var contractFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"Contracts", "Contract.cs");
-        if (File.Exists(contractFile))
-        {
-            var contractCode = File.ReadAllText(contractFile);
-            var (contract, created) =
-                await SmartContract.Create("GasConfiguration", blockchain, ownerAddress, contractCode);
-            if (!created) Logger.Log($"Contract {contract.Name} could not be created.");
-
-
-            // Update BaseGasTransaction 
-            string[] inputs =
-            {
-                $"var gas = new GasConfiguration(\"{ownerAddress}\");",
-                $"gas.RegisterUser(, \"{PrivateKey}\");",
-                $"foreach (var gasInfo in gas.ToString().Split(Environment.NewLine))",
-                $"      Logger.Log(gasInfo, false);",
-                "Logger.LogLine(\"Updated Gas configuration:\");",
-                $"gas.UpdateParameter(\"{ownerAddress}\", GasConfiguration.GasConfigParameter.BaseGasTransaction,gas.BaseGasContract * (decimal)1.1) "
-            };
-            var result = await ExecuteSmartContract(blockchain, contract, inputs);
-        }
-        else
-        {
-            Logger.LogError($"contractFile {contractFile} not found");
-        }
-    } 
 
     private static async Task ERC20Example(string ownerAddress, List<string> walletAddresses, Blockchain? blockchain)
     {
