@@ -7,7 +7,7 @@ using SmartXChain.Utils;
 
 namespace SmartXChain.BlockchainCore;
 
-public class Block
+public sealed class Block
 {
     public Block(List<Transaction> transactions, string previousHash)
     {
@@ -23,8 +23,7 @@ public class Block
     [JsonInclude] public List<Transaction> Transactions { get; }
     [JsonInclude] public string PreviousHash { get; set; }
     [JsonInclude] public string Hash { get; internal set; }
-    [JsonInclude] public int Nonce { get; internal set; }
-    [JsonInclude] public string Miner { get; internal set; }
+    [JsonInclude] public int Nonce { get; internal set; } 
 
     /// <summary>
     ///     Get a dictionary of SmartContract from the block
@@ -55,8 +54,7 @@ public class Block
                         }
                         catch (Exception ex)
                         {
-                            Logger.Log(
-                                $"ERROR: Failed to deserialize contract '{contractName}': {ex.Message}");
+                            Logger.LogException(ex,$"Failed to deserialize contract '{contractName}'");
                         }
                 }
 
@@ -95,7 +93,7 @@ public class Block
         foreach (var transaction in Transactions)
             transactionsHash += transaction.CalculateHash();
 
-        var rawData = $"{transactionsHash}-{PreviousHash}-{Nonce}-{Miner}";
+        var rawData = $"{transactionsHash}-{PreviousHash}-{Nonce}";
         var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(rawData));
         return Convert.ToBase64String(bytes);
     }
@@ -163,10 +161,19 @@ public class Block
     /// <returns>A Block object or null if deserialization fails.</returns>
     public static Block? FromBase64(string base64String)
     {
-        var compressedData = Convert.FromBase64String(base64String);
-        var jsonString = Compress.DecompressString(compressedData);
-        var block = JsonSerializer.Deserialize<Block>(jsonString);
-        return block;
+        try
+        {
+            var compressedData = Convert.FromBase64String(base64String);
+            var jsonString = Compress.DecompressString(compressedData);
+            var block = JsonSerializer.Deserialize<Block>(jsonString);
+            return block;
+        }
+        catch (Exception e)
+        {
+            Logger.LogException(e,"Block decompress failed.");
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -203,8 +210,7 @@ public class Block
             ["Timestamp"] = Timestamp,
             ["PreviousHash"] = PreviousHash,
             ["Hash"] = Hash,
-            ["Nonce"] = Nonce,
-            ["Miner"] = Miner,
+            ["Nonce"] = Nonce, 
             // Serialize Transactions as JSON objects instead of strings
             ["Transactions"] = Transactions,
             ["SmartContracts"] = SmartContracts

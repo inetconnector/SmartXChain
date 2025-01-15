@@ -2,11 +2,13 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+namespace SmartXChain.BlockchainCore;
+
 /// <summary>
 ///     Configuration class for gas and reward parameters in a smart contract.
 ///     This class defines key values and rules for gas calculations and reward mechanisms.
 /// </summary>
-public class GasConfiguration
+public sealed class GasConfiguration
 {
     private static Lazy<GasConfiguration> _instance = new Lazy<GasConfiguration>(() => new GasConfiguration());
 

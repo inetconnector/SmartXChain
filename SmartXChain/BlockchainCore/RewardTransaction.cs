@@ -6,7 +6,7 @@ namespace SmartXChain.BlockchainCore;
 ///     Represents a reward transaction in the blockchain, used for distributing rewards
 ///     to miners or validators.
 /// </summary>
-public class RewardTransaction : Transaction
+public sealed class RewardTransaction : Transaction
 {
     /// <summary>
     ///     Initializes a new instance of the <see cref="RewardTransaction" /> class,
@@ -39,19 +39,14 @@ public class RewardTransaction : Transaction
 
             // Determine the reward based on the recipient type (validator or miner)
             reward = validator ? validatorReward : minerReward + reward;
-
-            // Settle Founders - Ensure the first 10 founders get 10,000,000 each
-            var foundersReward = 10_000_000;
-            if (Balances[Blockchain.SystemAddress] > TotalSupply - 100 * foundersReward)
-                reward = foundersReward;
-
             if (Balances[Blockchain.SystemAddress] - reward > 0)
                 // Perform the transfer and update the reward property
                 if (Transfer(chain, Blockchain.SystemAddress, recipient, reward))
                     Reward = reward;
+
         }
     }
-
+     
     /// <summary>
     ///     Gets the reward amount distributed in this transaction.
     /// </summary>
@@ -72,7 +67,7 @@ public class RewardTransaction : Transaction
         // Check if the sender has sufficient balance
         if (!Balances.ContainsKey(sender) || Balances[sender] < amount)
         {
-            Log($"Transfer failed: Insufficient balance in account '{sender}'.");
+            Logger.LogError($"Transfer failed: Insufficient balance in account '{sender}'.");
             return false;
         }
 
@@ -92,7 +87,7 @@ public class RewardTransaction : Transaction
         Balances.TryAdd(recipient, 0);
         Balances[recipient] += amount;
 
-        Log($"Transfer successful: {amount} tokens from {sender} to {recipient}.");
+        Logger.Log($"{TransactionType} transaction successful: {amount} tokens from {sender} to {recipient}.",false);
         return true;
     }
 }

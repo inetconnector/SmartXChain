@@ -478,7 +478,7 @@ public static class BlockchainStorage
                 connection.Open();
 
                 var blockQuery = @"
-                SELECT Hash, PreviousHash, Timestamp, Nonce, Miner, Base64Encoded
+                SELECT Hash, PreviousHash, Timestamp, Nonce, Base64Encoded
                 FROM Blocks
                 ORDER BY Timestamp DESC
                 LIMIT @Count;";
@@ -497,7 +497,6 @@ public static class BlockchainStorage
                             {
                                 Timestamp = Convert.ToDateTime(blockReader["Timestamp"]),
                                 Nonce = Convert.ToInt32(blockReader["Nonce"]),
-                                Miner = blockReader["Miner"].ToString(),
                                 Hash = blockReader["Hash"].ToString()
                             };
                             blocks.Add(block);
@@ -710,7 +709,7 @@ public static class BlockchainStorage
                 connection.Open();
 
                 var blockQuery = @"
-                SELECT Hash, PreviousHash, Timestamp, Nonce, Miner, Base64Encoded
+                SELECT Hash, PreviousHash, Timestamp, Nonce, Base64Encoded
                 FROM Blocks
                 WHERE Hash = @Hash;";
                 using (var blockCommand = new SQLiteCommand(blockQuery, connection))
@@ -726,8 +725,7 @@ public static class BlockchainStorage
                             return new Block(transactions, blockReader["PreviousHash"].ToString())
                             {
                                 Timestamp = Convert.ToDateTime(blockReader["Timestamp"]),
-                                Nonce = Convert.ToInt32(blockReader["Nonce"]),
-                                Miner = blockReader["Miner"].ToString(),
+                                Nonce = Convert.ToInt32(blockReader["Nonce"]), 
                                 Hash = blockReader["Hash"].ToString()
                             };
                         }

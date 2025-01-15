@@ -110,7 +110,7 @@ public partial class BlockchainServer
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogException(ex, $"ERROR: Synchronizing with peer {peer} failed");
+                    Logger.LogException(ex, $"Synchronizing with peer {peer} failed");
                 }
 
             }
@@ -184,9 +184,8 @@ public partial class BlockchainServer
                         }
                         else
                         {
-                            // Log an error message if the response status indicates failure
-                            var error = $"ERROR: BroadcastToPeers {response.StatusCode} - {response.ReasonPhrase}";
-                            Logger.Log(error);
+                            // Log an error message if the response status indicates failure 
+                            Logger.LogError($"BroadcastToPeers {response.StatusCode} - {response.ReasonPhrase}");
                         }
                     }
                     else
@@ -196,7 +195,7 @@ public partial class BlockchainServer
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogException(ex, $"ERROR: BroadcastToPeers {url} failed");
+                    Logger.LogException(ex, $"BroadcastToPeers {url} failed");
                 }
             }
             finally
@@ -263,7 +262,7 @@ public partial class BlockchainServer
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, $"ERROR: Failed to fetch public key from peer: {peer}");
+            Logger.LogException(ex, $"Failed to fetch public key from peer: {peer}");
         }
 
         RemoveInactiveNodes();

@@ -40,30 +40,6 @@ public partial class BlockchainServer
         // Create a new blockchain with the provided wallet address
         var blockchain = new Blockchain(walletAddress, node.ChainId);
 
-        // Publish the server's IP address in a transaction on the blockchain
-        var nodeTransaction = new Transaction
-        {
-            Sender = Blockchain.SystemAddress,
-            Recipient = Blockchain.SystemAddress,
-            Data = Convert.ToBase64String(Encoding.ASCII.GetBytes(Config.Default.URL)), // Store data as Base64 string
-            Info = "IP",
-            Timestamp = DateTime.UtcNow,
-            TransactionType = Transaction.TransactionTypes.Data
-        }; 
-        await blockchain.AddTransaction(nodeTransaction);
-
-        //publish gas settings in a transaction on the blockchain
-        var gasTransaction = new Transaction
-        {
-            Sender = Blockchain.SystemAddress,
-            Recipient = Blockchain.SystemAddress,
-            Data = GasConfiguration.Instance.ToBase64String(), // Store data as Base64 string
-            Info = "GasConfiguration",
-            Timestamp = DateTime.UtcNow,
-            TransactionType = Transaction.TransactionTypes.GasConfiguration
-        };
-        await blockchain.AddTransaction(nodeTransaction);
-
         // Set up the result containing the blockchain and node
         Startup = new NodeStartupResult(blockchain, node);
         return Startup;

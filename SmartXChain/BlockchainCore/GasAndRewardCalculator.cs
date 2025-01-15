@@ -2,7 +2,7 @@
 
 namespace SmartXChain.BlockchainCore;
 
-internal class GasAndRewardCalculator
+internal sealed class GasAndRewardCalculator
 { 
     /// <summary>
     ///     Gets or sets the calculated gas value.

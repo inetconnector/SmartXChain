@@ -468,7 +468,7 @@ public class Node
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, $"ERROR: retrieving registered nodes from {serverAddress} failed");
+            Logger.LogException(ex, $"retrieving registered nodes from {serverAddress} failed");
         }
 
         return ret;
@@ -547,9 +547,10 @@ public class Node
                         Logger.Log($"Response from server {serverAddress}: {response}");
                     }
 
-                    Logger.Log(!string.IsNullOrEmpty(response)
-                        ? $"ERROR: No response received from {serverAddress}"
-                        : $"Shutdown initiated {serverAddress}");
+                    if (!string.IsNullOrEmpty(response))
+                        Logger.LogError($"No response received from {serverAddress}");
+                    else
+                        Logger.Log($"Shutdown initiated {serverAddress}");
                 }
                 catch (Exception ex)
                 {

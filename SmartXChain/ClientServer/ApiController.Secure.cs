@@ -57,9 +57,9 @@ public partial class BlockchainServer
             }
             catch (Exception ex)
             {
-                Logger.LogException(ex, "Error handling secure request.");
+                Logger.LogException(ex, "handling secure request failed");
                 if (bob != null)
-                    await SendSecureResponse("Error: Request failed.", aliceSharedKey);
+                    await SendSecureResponse("Error: Request failed", aliceSharedKey);
             }
         }
 

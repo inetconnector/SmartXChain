@@ -48,7 +48,11 @@ public static class FileSystem
     public static void CopyDirectory(string sourceDir, string targetDir)
     {
         if (!Directory.Exists(sourceDir))
+        {
+            Logger.LogError(sourceDir + " not found.");
             throw new DirectoryNotFoundException("ERROR: " + sourceDir + " not found.");
+        } 
+
         Directory.CreateDirectory(targetDir);
         foreach (var file in Directory.GetFiles(sourceDir))
         {
@@ -101,7 +105,7 @@ public static class FileSystem
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, $"ERROR: Saving Backup failed.");
+            Logger.LogException(ex, $"Saving Backup failed");
         }
     }
 }

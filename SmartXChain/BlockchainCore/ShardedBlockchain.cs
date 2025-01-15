@@ -7,7 +7,7 @@ namespace SmartXChain.BlockchainCore;
 ///     Represents a sharded blockchain implementation, enabling distribution of transactions
 ///     across multiple shards for scalability.
 /// </summary>
-public class ShardedBlockchain : Blockchain
+public sealed class ShardedBlockchain : Blockchain
 {
     private const int ShardCount = 4; // Number of shards in the blockchain
     private readonly List<Blockchain>[] _shards; // Array of blockchain shards

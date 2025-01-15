@@ -85,9 +85,12 @@ public class SmartContract
         }
         catch (Exception ex)
         {
-            result = ($"ERROR: Execution of {Name} failed: {ex.Message}", currentState);
+            Logger.LogException(ex, $"Execution of {Name} failed: {ex.Message}");
+            if (ex.InnerException == null)
+                result = (ex.Message, currentState);
+            else
+                result = (ex.Message + ex.InnerException.Message, currentState);
         }
-
         return result;
     }
 

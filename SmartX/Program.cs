@@ -208,7 +208,7 @@ internal class Program
             Logger.Log($"Ready to send {amount} to {recipient} ? (y/n)");
             if (Console.ReadLine() == "y")
             {
-                var success = await PerformNativeTransfer(startup.Blockchain, walletAddresses[0], recipient, amount,
+                var success = await NativeSCXTransfer(startup.Blockchain, walletAddresses[0], recipient, amount,
                     info, PrivateKey);
                 Logger.Log("Success: " + success);
             }
@@ -294,9 +294,7 @@ internal class Program
     }
 
     private static async Task RunSmartContractDemoAsync(BlockchainServer.NodeStartupResult? node)
-    {
-        Logger.LogLine("2: SmartContract Demo");
-
+    {        
         //get Wallet
         var walletAddresses = SmartXWallet.LoadWalletAdresses();
         if (walletAddresses.Count == 0)
@@ -305,56 +303,86 @@ internal class Program
             return;
         }
 
+        // Native SXC transfer for Gas  
+        if (PrivateKey != null && node != null)
+        {
+            await NativeSCXTransfer(node.Blockchain,
+                walletAddresses[0],
+                walletAddresses[1],
+                (decimal)1000.0,
+                "49.83278, 9.88167",
+                PrivateKey);
+
+
+            await NativeSCXTransfer(node.Blockchain,
+                walletAddresses[0],
+                walletAddresses[2],
+                (decimal)1000.0,
+                "49.83278, 9.88167",
+                PrivateKey);
+        }
+         
+        DisplayWalletBalances(node);
+
+        Logger.LogLine("2: SmartContract Demo");
+         
         if (node == null)
         {
             Logger.LogError("Node is empty. SmartContractDemo cancelled.");
             return;
         }
 
+
         // Demonstrate ERC20 and GoldCoin smart contracts  
         await ERC20Example(walletAddresses[0], walletAddresses, node.Blockchain);
         await ERC20ExtendedExample(walletAddresses[0], walletAddresses, node.Blockchain);
         await GoldCoinExample(walletAddresses[0], walletAddresses, SmartXWallet.LoadWalletAdresses(),
             node.Blockchain);
-
-        if (PrivateKey != null)
-            await PerformNativeTransfer(node.Blockchain,
-                walletAddresses[0],
-                walletAddresses[1],
-                (decimal)0.01,
-                "49.83278, 9.88167",
-                PrivateKey);
     }
 
-    private static async Task<bool> PerformNativeTransfer(Blockchain? chain,
+    private static async Task<bool> NativeSCXTransfer(Blockchain? chain,
         string sender,
         string recipient,
         decimal amount,
         string data,
         string privateKey)
     {
-        // Perform native token transfer
-        var transaction = new Transaction();
+        try
+        {
+            // Perform native token transfer
+            if (!string.IsNullOrEmpty(sender) && !string.IsNullOrEmpty(privateKey))
+            {
+                
+                var (transferred, message) = await Transaction.Transfer(
+                    chain,
+                    sender,
+                    recipient,
+                    amount,
+                    privateKey,
+                    "native transfer",
+                    data);
+                 
+                if (chain != null)
+                    await chain.MinePendingTransactions(sender);
 
-        transaction.RegisterUser(sender, privateKey);
-        var (transferred, message) = await transaction.Transfer(
-            chain,
-            sender,
-            recipient,
-            amount,
-            privateKey,
-            "native transfer",
-            data);
+                
+                if (transferred)
+                    Logger.Log($"Transferred SCX from {sender} to {recipient}", false);
+                else
+                {
+                    Logger.Log($"SCX could not be transferred from {sender} to {recipient}", false); 
+                    Logger.Log($"{message}", false);
+                }
 
-        if (chain != null)
-            await chain.MinePendingTransactions(sender);
+                return transferred;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex,$"Transferring SCX from {sender} to {recipient} failed");
+        }
 
-        if (transferred)
-            Logger.Log($"Transferred SCX from {sender} to {recipient}");
-        else
-            Logger.Log($"SCX could not be transferred from {sender} to {recipient}");
-
-        return transferred;
+        return false;
     }
 
     private static void DisplayBlockchainState(BlockchainServer.NodeStartupResult? node)

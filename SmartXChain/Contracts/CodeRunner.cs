@@ -71,20 +71,20 @@ using System.IO;
             // Retrieve the output from the globals
             if (!string.IsNullOrEmpty(globals.Output + ""))
                 return ("ok", globals.Output + "");
-            return ("Execution completed with no result.", currentState);
+            return ("Contract execution completed with no result.", currentState);
         }
         catch (CompilationErrorException ex)
         {
             var exMessage =
-                $"Execution failed with compilation errors: {string.Join(Environment.NewLine, ex.Diagnostics)}";
+                $"Contract execution failed with compilation errors: {string.Join(Environment.NewLine, ex.Diagnostics)}";
             Logger.LogException(ex, exMessage);
-            return ($"Execution failed with compilation errors: ",
+            return ($"Contract execution failed with compilation errors: ",
                 currentState);
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex,"Execution failed");
-            return ($"Execution failed: {ex.Message} " +ex.StackTrace, currentState);
+            Logger.LogException(ex, "Contract execution failed");
+            return ($"Contract eExecution failed: {ex.Message} " + ex.StackTrace, currentState);
         }
     }
 

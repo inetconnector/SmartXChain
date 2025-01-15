@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -20,7 +21,9 @@ public class Transaction
         Gas,
         ValidatorReward,
         Data,
-        GasConfiguration
+        Server,
+        GasConfiguration,
+        Founder
     }
 
     private string _data;
@@ -39,7 +42,7 @@ public class Transaction
         TransactionType = TransactionTypes.NotDefined;
 
         // Assign initial supply to the owner's balance
-        if (!Balances.ContainsKey(owner)) Balances.Add(owner, initialSupply);
+        if (!Balances.ContainsKey(owner)) Balances.TryAdd(owner, initialSupply);
 
         Version = "1.0.0";
         Timestamp = DateTime.UtcNow;
@@ -56,13 +59,7 @@ public class Transaction
     /// </summary>
     [JsonInclude]
     internal static Dictionary<string, Dictionary<string, double>> Allowances { get; } = new();
-
-    /// <summary>
-    ///     Stores authenticated users' data with hashed private keys.
-    /// </summary>
-    [JsonInclude]
-    internal static Dictionary<string, string> AuthenticatedUsers { get; } = new();
-
+ 
     /// <summary>
     ///     Stores TransactionType.
     /// </summary>
@@ -73,7 +70,7 @@ public class Transaction
     ///     Holds the balance of each account.
     /// </summary>
     [JsonInclude]
-    internal static Dictionary<string, decimal> Balances { get; } = new();
+    internal static ConcurrentDictionary<string, decimal> Balances { get; } = new();
 
     /// <summary>
     ///     Stores and retrieves the sender's address for the transaction.
@@ -209,13 +206,18 @@ public class Transaction
     /// </summary>
     public void SignTransaction(string privateKey)
     {
-        using var ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-        ecdsa.ImportECPrivateKey(Convert.FromBase64String(privateKey), out _);
-
-        var transactionData = $"{Sender}{Recipient}{Data}{Info}{Timestamp}";
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(transactionData));
-        var signature = ecdsa.SignHash(hash);
-        Signature = Convert.ToBase64String(signature) + "|" + Crypt.AssemblyFingerprint;
+        try
+        {
+            using var ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            ecdsa.ImportECPrivateKey(Convert.FromBase64String(privateKey), out _); 
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(ToString()));
+            var signature = ecdsa.SignHash(hash);
+            Signature = Convert.ToBase64String(signature) + "|" + Crypt.AssemblyFingerprint;
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("Failed to import private key.", ex);
+        }
     }
 
     /// <summary>
@@ -236,32 +238,7 @@ public class Transaction
 
         return ecdsa.VerifyHash(hash, signatureBytes) && sp[1] == Crypt.AssemblyFingerprint;
     }
-
-    /// <summary>
-    ///     Registers a user in the blockchain system using their address and private key.
-    /// </summary>
-    public bool RegisterUser(string address, string? privateKey)
-    {
-        try
-        {
-            if (AuthenticatedUsers.ContainsKey(address)) return false;
-
-            if (VerifyPrivateKey(privateKey, address))
-            {
-                AuthenticatedUsers[address] = HashKey(privateKey);
-                Balances.TryAdd(address, 0);
-                Log($"User {address} registered successfully.");
-                return true;
-            }
-        }
-        catch (Exception ex)
-        {
-            Log($"ERROR: user registration failed: {ex.Message}");
-        }
-
-        return false;
-    }
-
+ 
     /// <summary>
     ///     Verifies the private key of a user against the stored address.
     /// </summary>
@@ -296,7 +273,7 @@ public class Transaction
     {
         if (!Balances.ContainsKey(sender) || Balances[sender] < amount)
         {
-            Log($"Transfer failed: Insufficient balance in account '{sender}'.");
+            Logger.LogError($"Transfer failed: Insufficient balance in account '{sender}'.");
             return false;
         }
 
@@ -304,34 +281,25 @@ public class Transaction
         if (!Balances.ContainsKey(recipient)) Balances[recipient] = 0;
         Balances[recipient] += amount;
 
-        Log($"Transfer successful: {amount} tokens from {sender} to {recipient}.");
+        Logger.Log($"Transfer successful: {amount} tokens from {sender} to {recipient}.");
         return true;
     }
 
     /// <summary>
     ///     Transfers tokens with blockchain integration and optional metadata.
     /// </summary>
-    public async Task<(bool, string)> Transfer(Blockchain? chain, string sender, string recipient, decimal amount,
-        string? privateKey,
+    public static async Task<(bool, string)> Transfer(Blockchain? chain, string sender, string recipient, decimal amount,
+        string privateKey,
         string info = "", string data = "")
-    {
-        var message = "";
-        if (!IsAuthenticated(sender, privateKey))
-        {
-            message = $"Transfer failed: Unauthorized action by '{sender}'.";
-            Log(message);
-            return (false, message);
-        }
-
-        TransactionType = TransactionTypes.NativeTransfer;
+    { 
         UpdateBalancesFromChain(chain);
-
+        var message = "";
         if (!Balances.ContainsKey(sender) || Balances[sender] < amount)
         {
             message = $"Transfer failed: Insufficient balance in account '{sender}'.";
-            Log(message);
+            Logger.LogError(message);
             return (false, message);
-        }
+        } 
 
         var transferTransaction = new Transaction
         {
@@ -340,12 +308,10 @@ public class Transaction
             Amount = amount,
             Timestamp = DateTime.UtcNow,
             Info = info,
-            Data = data
+            Data = data,
+            TransactionType = TransactionTypes.NativeTransfer
         };
-
-        if (TransactionType == TransactionTypes.NotDefined)
-            TransactionType = TransactionTypes.NativeTransfer;
-
+          
         if (chain != null)
         {
             var success = await chain.AddTransaction(transferTransaction);
@@ -356,72 +322,54 @@ public class Transaction
         Balances[recipient] += amount;
 
         message = $"Transfer successful: {amount} tokens from {sender} to {recipient}.";
-        Log(message);
+        Logger.Log(message);
         return (true, message);
     }
-
+     
     /// <summary>
     ///     Updates account balances from the blockchain's transaction history.
     /// </summary>
     internal static void UpdateBalancesFromChain(Blockchain? chain)
-    {
-        lock (Balances)
-        {
-            Balances.Clear();
-            Balances[Blockchain.SystemAddress] = TotalSupply;
+    { 
+        Balances.Clear();
+        Balances[Blockchain.SystemAddress] = TotalSupply;
 
-            if (chain != null && chain.Chain != null)
-                foreach (var block in chain.Chain)
-                foreach (var transaction in block.Transactions)
-                {
-                    if (string.IsNullOrEmpty(transaction.Sender) || string.IsNullOrEmpty(transaction.Recipient) ||
-                        transaction.Amount <= 0)
-                        continue;
+        if (chain != null && chain.Chain != null)
+            foreach (var block in chain.Chain)
+            foreach (var transaction in block.Transactions)
+            {
+                if (string.IsNullOrEmpty(transaction.Sender) || string.IsNullOrEmpty(transaction.Recipient) ||
+                    transaction.Amount <= 0)
+                    continue;
 
-                    if (Balances.ContainsKey(transaction.Sender))
-                        Balances[transaction.Sender] -= transaction.Amount;
-                    else
-                        Balances[transaction.Sender] = -transaction.Amount;
+                if (Balances.ContainsKey(transaction.Sender))
+                    Balances[transaction.Sender] -= transaction.Amount;
+                else
+                    Balances[transaction.Sender] = -transaction.Amount;
 
-                    if (Balances.ContainsKey(transaction.Recipient))
-                        Balances[transaction.Recipient] += transaction.Amount;
-                    else
-                        Balances[transaction.Recipient] = transaction.Amount;
-                }
+                if (Balances.ContainsKey(transaction.Recipient))
+                    Balances[transaction.Recipient] += transaction.Amount;
+                else
+                    Balances[transaction.Recipient] = transaction.Amount;
+            }
 
-            foreach (var account in Balances.Keys.ToList())
-                if (Balances[account] < 0)
-                    Balances[account] = 0;
-        }
+        foreach (var account in Balances.Keys.ToList())
+            if (Balances[account] < 0)
+                Balances[account] = 0;
+  
 
         Logger.Log("Balances updated successfully from the blockchain.");
     }
-
-    /// <summary>
-    ///     Checks if a user is authenticated using their private key.
-    /// </summary>
-    private bool IsAuthenticated(string address, string? privateKey)
-    {
-        return AuthenticatedUsers.TryGetValue(address, out var storedKey) && storedKey == HashKey(privateKey);
-    }
-
+     
     /// <summary>
     ///     Hashes the provided key using SHA-256.
     /// </summary>
-    private string HashKey(string? key)
+    private static string HashKey(string? key)
     {
         using var sha256 = SHA256.Create();
         var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(key));
         return Convert.ToBase64String(hashedBytes);
-    }
-
-    /// <summary>
-    ///     Logs messages related to transactions.
-    /// </summary>
-    private protected void Log(string message)
-    {
-        Logger.Log($"[Transaction] {message}");
-    }
+    } 
 
 
     /// <summary>
@@ -469,5 +417,4 @@ public class Transaction
             WriteIndented = true // Pretty print the JSON
         });
     }
-
 }

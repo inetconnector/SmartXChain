@@ -1,6 +1,6 @@
 ﻿namespace SmartXChain.BlockchainCore;
 
-public class Tangle
+public sealed class Tangle
 {
     private readonly List<Block> _blocks;
 

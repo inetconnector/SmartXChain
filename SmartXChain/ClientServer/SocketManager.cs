@@ -183,15 +183,14 @@ public class SocketManager : IDisposable
                             tcs.TrySetResult(responseString);
                         }
                         else
-                        {
-                            var error = $"ERROR: {response.StatusCode} - {response.ReasonPhrase}";
-                            Logger.Log(error);
-                            tcs.TrySetResult(error);
+                        { 
+                            Logger.LogError($"{response.StatusCode} - {response.ReasonPhrase}");
+                            tcs.TrySetResult($"ERROR: {response.StatusCode} - {response.ReasonPhrase}");
                         }
                     }
                     catch (Exception ex)
                     {
-                        Logger.LogException(ex, $"ERROR: send failed: {url}");
+                        Logger.LogException(ex, $"send failed: {url}");
                         tcs.TrySetException(ex);
                     }
                 }
@@ -202,7 +201,7 @@ public class SocketManager : IDisposable
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, "ERROR: Critical error in ProcessQueue");
+            Logger.LogException(ex, "Critical error in ProcessQueue");
         }
     }
 }

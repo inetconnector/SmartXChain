@@ -8,11 +8,50 @@ using SmartXChain.Utils;
 
 /// ---------BEGIN BASE CLASSES----------
 public class Contract:Authenticate
-{
+{  
+    [JsonInclude] public string Name { get; protected set; }
+   
     private readonly Dictionary<string, List<(string RpcUrl, string Owner)>> _eventSubscriptions;
 
-    [JsonInclude] public string Name { get; protected set; }
-     
+    public Contract()
+    {
+        _eventSubscriptions = new Dictionary<string, List<(string RpcUrl, string Owner)>>();
+    }
+
+    public void RegisterHandler(string eventName, string rpcUrl, string owner)
+    {
+        if (!_eventSubscriptions.ContainsKey(eventName))
+            _eventSubscriptions[eventName] = new List<(string RpcUrl, string Owner)>();
+
+        _eventSubscriptions[eventName].Add((rpcUrl, owner));
+        Log($"Registered {rpcUrl} for event {eventName} by owner {owner}");
+    }
+
+    public void UnregisterHandler(string eventName, string rpcUrl, string requester)
+    {
+        if (_eventSubscriptions.ContainsKey(eventName))
+        {
+            var subscription = _eventSubscriptions[eventName].Find(s => s.RpcUrl == rpcUrl);
+            if (subscription.Owner == requester)
+            {
+                _eventSubscriptions[eventName].Remove(subscription);
+                Log($"Unregistered {rpcUrl} from event {eventName} by owner {requester}");
+            }
+            else
+            {
+                Log($"Unregister failed: Only the owner ({subscription.Owner}) can unregister this URL.");
+            }
+        }
+    }
+
+    public async Task TriggerHandlers(string eventName, string eventData)
+    {
+        if (_eventSubscriptions.ContainsKey(eventName))
+            foreach (var (url, _) in _eventSubscriptions[eventName])
+                await SendEvent(url, eventData);
+    }
+
+
     private async Task SendEvent(string url, string data)
     {
         try
@@ -198,6 +237,8 @@ public class Logger
         var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
         var formattedMessage = $"{timestamp} - {message}";
 
+        formattedMessage= formattedMessage.Replace("smartX0000000000000000000000000000000000000000","System");
+
         // Print the message to the console, truncating if it exceeds 100 characters
         if (formattedMessage.Length > 110 && trim)
             Console.WriteLine(formattedMessage.Substring(0, 110) + "...");
@@ -212,7 +253,17 @@ public class Logger
     /// <param name="trim">Trims output to 110 chars</param>
     public static void LogError(string message = "", bool trim = true)
     {
-        Log("Error: " +message,trim);
+        Log("[Error]: " +message,trim);
+    }
+
+    /// <summary>
+    ///     Logs an Error message to the console with a timestamp, excluding specific messages based on predefined filters.
+    /// </summary>
+    /// <param name="message">The message to log. Defaults to an empty string.</param>
+    /// <param name="trim">Trims output to 110 chars</param>
+    public static void LogWarning(string message = "", bool trim = true)
+    {
+        Log("[Warning]: " + message, trim);
     }
 
     /// <summary>
