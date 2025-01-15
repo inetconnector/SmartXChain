@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using SmartXChain.Utils;
+using System.Threading.Tasks;
 
 /// ---------BEGIN BASE CLASSES----------
 public class Contract:Authenticate
@@ -44,26 +45,26 @@ public class Contract:Authenticate
         }
     }
 
-    public async Task TriggerHandlers(string eventName, string eventData)
+    public async Task TriggerHandlers(string eventName, string eventData, string bearerToken="")
     {
         if (_eventSubscriptions.ContainsKey(eventName))
             foreach (var (url, _) in _eventSubscriptions[eventName])
-                await SendEvent(url, eventData);
+                await SendEvent(url, eventData, bearerToken);
     }
 
 
-    private async Task SendEvent(string url, string data)
+    private async Task SendEvent(string url, string data, string bearerToken = "")
     {
         try
         {
             using var client = new HttpClient();
-            if (Config.Default.SSL)
+            if (bearerToken!="")
                 client.DefaultRequestHeaders.Authorization =
-                    new AuthenticationHeaderValue("Bearer", BearerToken.GetToken());
+                    new AuthenticationHeaderValue("Bearer", bearerToken);
             var content = new StringContent(data, Encoding.UTF8, "application/json");
             var response = await client.PostAsync(url, content);
 
-            Log($"Sent event to {url}, response: {response.StatusCode}");
+            Log($"Sent event to {url}, response: {response.StatusCode}",false);
         }
         catch (Exception ex)
         {
