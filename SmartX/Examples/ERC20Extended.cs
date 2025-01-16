@@ -39,13 +39,13 @@ public class ERC20Extended : ERC20Token
     ///     List of accounts that are frozen and cannot perform transfers.
     /// </summary>
     [JsonInclude]
-    public List<string> FrozenAccounts { get; private protected set; }
+    public List<string> FrozenAccounts { get; private set; }
 
     /// <summary>
     ///     Indicates whether transfers are currently paused.
     /// </summary>
     [JsonInclude]
-    public bool TransfersPaused { get; private protected set; }
+    public bool TransfersPaused { get; private set; }
 
     /// <summary>
     ///     Triggered when tokens are minted.
@@ -195,7 +195,7 @@ public class ERC20Extended : ERC20Token
             return false;
         }
 
-        if (FrozenAccounts.Contains(from))
+        if (FrozenAccounts != null && FrozenAccounts.Contains(from))
         {
             Log($"Transfer failed: Account {from} is frozen.");
             return false;
@@ -245,6 +245,7 @@ public class ERC20Extended : ERC20Token
         }
 
         FrozenAccounts.Add(account);
+
         Log($"Account {account} has been frozen.");
 
         OnAccountFrozen?.Invoke(account);

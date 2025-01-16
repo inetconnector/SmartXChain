@@ -17,7 +17,6 @@ public class Node
     /// <summary>
     ///     Sends a heartbeat signal to a specific server to notify it that the node is active.
     /// </summary>
-    /// <param name="serverAddress">The address of the server to send the heartbeat to.</param>
     /// <returns>A Task representing the asynchronous operation.</returns>
     private static readonly ConcurrentDictionary<string, DateTime> LastResponseTimes = new();
 
@@ -33,7 +32,7 @@ public class Node
     }
 
     /// <summary>
-    ///     A list of IP addresses for nodes currently known to the system.
+    ///     A Thread safe list of IP addresses for nodes currently known to the system.
     /// </summary>
     public static ConcurrentBag<string> CurrentNodeIPs { get; set; } = new();
 

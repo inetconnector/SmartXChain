@@ -45,31 +45,31 @@ public class ERC20Token : Contract
     ///     Symbol of the token (e.g., "GLD").
     /// </summary>
     [JsonInclude]
-    public string Symbol { get; private protected set; }
+    public string Symbol { get; internal set; }
 
     /// <summary>
     ///     Number of decimal places for the token.
     /// </summary>
     [JsonInclude]
-    public uint Decimals { get; private protected set; }
+    public uint Decimals { get; internal set; }
 
     /// <summary>
     ///     Total supply of tokens in the contract.
     /// </summary>
     [JsonInclude]
-    public decimal TotalSupply { get; private protected set; }
+    public decimal TotalSupply { get; internal set; }
 
     /// <summary>
     ///     Internal dictionary storing the balance of each account.
     /// </summary>
     [JsonInclude]
-    public Dictionary<string, decimal> Balances { get; private protected set; }
+    public Dictionary<string, decimal> Balances { get; internal set; }
 
     /// <summary>
     ///     Internal dictionary managing allowances where a spender can spend on behalf of an owner.
     /// </summary>
     [JsonInclude]
-    public Dictionary<string, Dictionary<string, decimal>> Allowances { get; private protected set; }
+    public Dictionary<string, Dictionary<string, decimal>> Allowances { get; internal set; }
 
 
 

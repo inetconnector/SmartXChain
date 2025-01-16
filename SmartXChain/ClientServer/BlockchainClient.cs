@@ -23,7 +23,7 @@ public partial class BlockchainServer
     /// </summary>
     private void DiscoverAndRegisterWithPeers()
     {
-        var validPeers = new List<string>();
+        var validPeers = new ConcurrentBag<string>();
 
         try
         {

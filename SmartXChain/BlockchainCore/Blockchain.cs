@@ -50,16 +50,14 @@ public class Blockchain
     {
         get
         {
-            var contracts = new Dictionary<string, SmartContract?>();
+            var contracts = new ConcurrentDictionary<string, SmartContract?>();
 
             if (Chain != null)
                 lock (Chain)
                 {
-                    foreach (var block in Chain)
-                        lock (block)
-                        {
-                            foreach (var kvp in block.SmartContracts) contracts.Add(kvp.Key, kvp.Value);
-                        }
+                    foreach (var block in Chain)  
+                            foreach (var kvp in block.SmartContracts) contracts.TryAdd(kvp.Key, kvp.Value);
+                 
                 }
 
             return contracts;
@@ -175,7 +173,9 @@ public class Blockchain
                 if (Chain.Count > 0)
                     block.PreviousHash = Chain.Last().Hash;
                 block.Mine(_difficulty);
-                Chain.Add(block);
+
+                lock (Chain)
+                    Chain.Add(block);
             }
         }
         else if (index.HasValue && Chain != null && index.Value <= Chain.Count)
@@ -207,10 +207,8 @@ public class Blockchain
         {
             if (Chain != null && Chain.Count > 0 && Chain.Last().Hash == block.PreviousHash)
             {
-                lock (Chain)
-                {
-                    Chain.Add(block);
-                }
+                lock (Chain) 
+                    Chain.Add(block); 
             }
             else
             {
@@ -380,11 +378,9 @@ public class Blockchain
                 return false;
 
         if (PendingTransactions != null)
-            lock (PendingTransactions)
-            {
+            lock (PendingTransactions) 
                 PendingTransactions.Add(transaction);
-            }
-
+             
         if (mine) await MinePendingTransactions(transaction.Sender);
         return true;
     }
@@ -1262,7 +1258,8 @@ public class Blockchain
         {
             if (!_transactionIndex.ContainsKey(key)) _transactionIndex[key] = new List<Transaction>();
 
-            _transactionIndex[key].Add(tx);
+            lock (_transactionIndex[key]) 
+                _transactionIndex[key].Add(tx);
 
             // Maintain the max size limit for the index
             if (_transactionIndex[key].Count > MaxTransactionsPerAddress) ArchiveOldTransactions(key);

@@ -294,51 +294,53 @@ internal class Program
     }
 
     private static async Task RunSmartContractDemoAsync(BlockchainServer.NodeStartupResult? node)
-    {        
-        //get Wallet
+    {
+        Logger.LogLine("2: SmartContract Demo");
+
+        // Get Wallet Addresses
         var walletAddresses = SmartXWallet.LoadWalletAdresses();
         if (walletAddresses.Count == 0)
         {
-            Logger.LogError("SmartXWallet adresses are empty. SmartContractDemo cancelled.");
+            Logger.LogError("SmartXWallet addresses are empty. SmartContractDemo cancelled.");
             return;
         }
 
-        // Native SXC transfer for Gas  
+        // Ensure PrivateKey and node are not null
         if (PrivateKey != null && node != null)
         {
-            await NativeSCXTransfer(node.Blockchain,
-                walletAddresses[0],
-                walletAddresses[1],
-                (decimal)1000.0,
-                "49.83278, 9.88167",
-                PrivateKey);
+            // Create a list to hold all tasks for concurrent execution
+            var allTasks = new List<Task>
+            {
+                // Add transfer tasks for all wallet addresses (except the first one)
+                Task.WhenAll(walletAddresses.Skip(1).Select(targetAddress =>
+                        NativeSCXTransfer(
+                            node.Blockchain,
+                            walletAddresses[0], // Sender address
+                            targetAddress,      // Receiver address
+                            (decimal)1000.0,    // Amount to transfer
+                            "49.83278, 9.88167", // Location
+                            PrivateKey)          // Sender's private key
+                )),
+                // Add demonstration tasks for ERC20 and GoldCoin smart contracts
+                ERC20Example(walletAddresses[0], walletAddresses, node.Blockchain),
+                ERC20ExtendedExample(walletAddresses[0], walletAddresses, node.Blockchain),
+                GoldCoinExample(walletAddresses[0], walletAddresses, SmartXWallet.LoadWalletAdresses(), node.Blockchain)
+            };
 
+            // Wait for all tasks to complete
+            await Task.WhenAll(allTasks);
 
-            await NativeSCXTransfer(node.Blockchain,
-                walletAddresses[0],
-                walletAddresses[2],
-                (decimal)1000.0,
-                "49.83278, 9.88167",
-                PrivateKey);
+            Logger.LogLine("All operations completed.");
+
+            // Display Wallet Balances
+            DisplayWalletBalances(node);
         }
-         
-        DisplayWalletBalances(node);
-
-        Logger.LogLine("2: SmartContract Demo");
-         
-        if (node == null)
+        else
         {
-            Logger.LogError("Node is empty. SmartContractDemo cancelled.");
-            return;
+            Logger.LogError("PrivateKey or node is null. SmartContractDemo cancelled.");
         }
-
-
-        // Demonstrate ERC20 and GoldCoin smart contracts  
-        await ERC20Example(walletAddresses[0], walletAddresses, node.Blockchain);
-        await ERC20ExtendedExample(walletAddresses[0], walletAddresses, node.Blockchain);
-        await GoldCoinExample(walletAddresses[0], walletAddresses, SmartXWallet.LoadWalletAdresses(),
-            node.Blockchain);
     }
+
 
     private static async Task<bool> NativeSCXTransfer(Blockchain? chain,
         string sender,
