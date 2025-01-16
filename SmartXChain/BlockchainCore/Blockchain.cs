@@ -232,10 +232,7 @@ public class Blockchain
     {
         if (gas > 0 && sender != SystemAddress)
         { 
-            Balances.TryGetValue(sender, out var balance);
-            if (balance - gas < 0) 
-                await SettleFounder(sender);
-    
+            Balances.TryGetValue(sender, out var balance); 
             Logger.Log($"[Gas] {sender} has to pay {gas} for {type}");
 
             Balances.TryGetValue(sender, out balance);
@@ -296,7 +293,7 @@ public class Blockchain
         return false;
     }
 
-    private async Task SettleFounder(string sender)
+    internal async Task SettleFounder(string sender)
     {
         // Settle Founders - Ensure rewards are distributed based on founder index
         const int initialReward = 10_000_000;
@@ -340,7 +337,11 @@ public class Blockchain
 
                 var success = await AddTransaction(founderTransaction, true);
                 if (!success)
-                    Logger.LogError($"Founder {founderIndex} reward of {reward} SCX failed");
+                    Logger.LogError($"Founder {sender} reward of {founderIndex}.{reward} SCX failed");
+                else
+                {
+                    Logger.Log($"Founder {sender} reward of {founderIndex}.{reward} SCX success");
+                }
             }
 
         }
@@ -366,13 +367,11 @@ public class Blockchain
         {
             Logger.Log($"Transaction {transaction.Name} not added. Recipient is missing");
             return false;
-        } 
-
+        }
+         
         transaction.SignTransaction(Crypt.Default.PrivateKey);
         var gas = transaction.Gas;
-
-        if (transaction.Sender == SystemAddress) gas = 0;
-
+         
         if (gas > 0 && transaction.TransactionType!=TransactionTypes.Gas && transaction.TransactionType != TransactionTypes.Founder)
             if (!await PayGas("Transaction", transaction.Sender, gas))
                 return false;
@@ -380,7 +379,7 @@ public class Blockchain
         if (PendingTransactions != null)
             lock (PendingTransactions) 
                 PendingTransactions.Add(transaction);
-             
+
         if (mine) await MinePendingTransactions(transaction.Sender);
         return true;
     }
@@ -803,9 +802,7 @@ public class Blockchain
                         if (PendingTransactions != null)
                             PendingTransactions.Clear();
                     }
-
-                    await SettleFounder(Config.Default.MinerAddress);
-
+                     
                     //send a reward to the miner
                     var rewardTransaction = new RewardTransaction(this, Config.Default.MinerAddress);
 
@@ -951,17 +948,21 @@ public class Blockchain
     public bool ValidateChain()
     {
         if (Chain != null)
-            for (var i = 1; i < Chain.Count; i++)
+            lock (Chain)
             {
-                var current = Chain[i];
-                var previous = Chain[i - 1];
+                for (var i = 1; i < Chain.Count; i++)
+                {
+                    var current = Chain[i];
+                    var previous = Chain[i - 1];
 
-                if (current.Hash != current.CalculateHash())
-                    return false;
+                    if (current.Hash != current.CalculateHash())
+                        return false;
 
-                if (current.PreviousHash != previous.Hash)
-                    return false;
+                    if (current.PreviousHash != previous.Hash)
+                        return false;
+                }                
             }
+
 
         return true;
     }
@@ -1018,6 +1019,34 @@ public class Blockchain
 
         Logger.LogLine("END CHAIN INFO");
     }
+
+    /// <summary>
+    ///     Retrieves the balance of a specific address from the blockchain by aggregating transaction data.
+    /// </summary>
+    /// <param name="address">The blockchain address to retrieve the balance for.</param>
+    /// <returns>The balance of the address, or null if the address does not exist.</returns>
+    public decimal? GetBalanceForAddress(string address)
+    {
+        if (string.IsNullOrWhiteSpace(address))
+            throw new ArgumentException("Address cannot be null or empty.", nameof(address));
+
+        try
+        {
+            UpdateBalancesFromChain(this);
+
+            if (Balances.TryGetValue(address, out var balance))
+            {
+                return balance;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex, $"Failed to retrieve balance for address: {address}");
+        }
+
+        return null; // Return null if the address does not exist in the balances.
+    }
+
 
     /// <summary>
     ///     Retrieves all account balances from the blockchain by aggregating transaction data.

@@ -297,7 +297,7 @@ public class Logger
             }
 
             int padding = (totalWidth - messageLength - 2) / 2; // Calculate padding
-            string line = new string('-', padding) + " " + message + " " + new string('-', totalWidth - messageLength - padding - 2);
+            string line = new string('-', padding) + " " + message.ToUpper() + " " + new string('-', totalWidth - messageLength - padding - 2);
 
             Logger.Log();
             Logger.Log(line,false);

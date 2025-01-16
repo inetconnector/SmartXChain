@@ -52,13 +52,13 @@ public class GoldCoin : ERC20Extended
     {
         if (!IsAuthenticated(Owner, ownerPrivateKey))
         {
-            Log("Gold price interval update failed: Unauthorized action.");
+            LogError("Gold price interval update failed: Unauthorized action.");
             return false;
         }
 
         if (newInterval.TotalMinutes < 1)
         {
-            Log("Gold price interval update failed: Interval must be at least 1 minute.");
+            LogError("Gold price interval update failed: Interval must be at least 1 minute.");
             return false;
         }
 
@@ -79,20 +79,20 @@ public class GoldCoin : ERC20Extended
     {
         if (!IsAuthenticated(Owner, ownerPrivateKey))
         {
-            Log("Gold price update failed: Unauthorized action.");
+            LogError("Gold price update failed: Unauthorized action.");
             return false;
         }
 
         if (newGoldPrice <= 0)
         {
-            Log("Gold price update failed: Price must be greater than zero.");
+            LogError("Gold price update failed: Price must be greater than zero.");
             return false;
         }
 
         var timeSinceLastUpdate = DateTime.UtcNow - LastGoldPriceUpdate;
         if (timeSinceLastUpdate < GoldPriceUpdateInterval)
         {
-            Log(
+            LogError(
                 $"Gold price update failed: Updates are allowed only every {GoldPriceUpdateInterval.TotalMinutes} minutes. Time since last update: {timeSinceLastUpdate.TotalMinutes} minutes.");
             return false;
         }
@@ -169,12 +169,12 @@ public class GoldCoin : ERC20Extended
             }
             else
             {
-                Log("Failed to fetch or parse gold price from API.");
+                LogError("Failed to fetch or parse gold price from API.");
             }
         }
         catch (Exception ex)
         {
-            Log($"Error fetching gold price: {ex.Message}");
+            LogException(ex, $"Error fetching gold price");
         }
     }
 }

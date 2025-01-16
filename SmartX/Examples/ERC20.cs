@@ -131,19 +131,19 @@ public class ERC20Token : Contract
     {
         if (!IsAuthenticated(from, privateKey))
         {
-            Log($"Transfer failed: Unauthorized action by '{from}'.");
+            LogError($"Transfer failed: Unauthorized action by '{from}'.");
             return false;
         }
 
         if (!Balances.ContainsKey(from) || Balances[from] < amount)
         {
-            Log($"Transfer failed: Insufficient balance in account '{from}'.");
+            LogError($"Transfer failed: Insufficient balance in account '{from}'.");
             return false;
         }
 
         if (from == to)
         {
-            Log($"Transfer failed: Cannot transfer to the same account '{from}'.");
+            LogError($"Transfer failed: Cannot transfer to the same account '{from}'.");
             return false;
         }
 
@@ -164,13 +164,13 @@ public class ERC20Token : Contract
     {
         if (!IsAuthenticated(owner, privateKey))
         {
-            Log($"Approval failed: Unauthorized action by '{owner}'.");
+            LogError($"Approval failed: Unauthorized action by '{owner}'.");
             return false;
         }
 
         if (!Balances.ContainsKey(owner) || Balances[owner] < amount)
         {
-            Log($"Approval failed: Insufficient balance in account '{owner}'.");
+            LogError($"Approval failed: Insufficient balance in account '{owner}'.");
             return false;
         }
 
@@ -189,14 +189,14 @@ public class ERC20Token : Contract
     {
         if (!IsAuthenticated(spender, spenderKey))
         {
-            Log($"TransferFrom failed: Unauthorized action by '{spender}'.");
+            LogError($"TransferFrom failed: Unauthorized action by '{spender}'.");
             return false;
         }
 
         var allowedAmount = Allowance(from, spender);
         if (allowedAmount < amount)
         {
-            Log($"TransferFrom failed: Allowance of {spender} insufficient for {amount} tokens.");
+            LogError($"TransferFrom failed: Allowance of {spender} insufficient for {amount} tokens.");
             return false;
         }
 

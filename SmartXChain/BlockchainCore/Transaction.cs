@@ -117,7 +117,7 @@ public class Transaction
     ///     Automatically recalculated when relevant properties are updated.
     /// </summary>
     [JsonInclude]
-    internal decimal Gas { get; private set; }
+    internal decimal Gas { get; set; }
 
     /// <summary>
     ///     The name of the blockchain system associated with the transaction.
@@ -190,15 +190,22 @@ public class Transaction
     ///     Recalculates the gas required for the transaction based on its properties.
     /// </summary>
     private void RecalculateGas()
-    {
-        var calculator = new GasAndRewardCalculator
+    { 
+        if (Sender == Blockchain.SystemAddress)
         {
-            Data = Data,
-            Info = Info,
-            Sender = Sender
-        };
-        calculator.CalculateGas();
-        Gas = calculator.Gas;
+            Gas = 0;
+        }
+        else
+        {
+            var calculator = new GasAndRewardCalculator
+            {
+                Data = Data,
+                Info = Info,
+                Sender = Sender
+            };
+            calculator.CalculateGas();
+            Gas = calculator.Gas;
+        } 
     }
 
     /// <summary>
@@ -291,39 +298,42 @@ public class Transaction
     public static async Task<(bool, string)> Transfer(Blockchain? chain, string sender, string recipient, decimal amount,
         string privateKey,
         string info = "", string data = "")
-    { 
-        UpdateBalancesFromChain(chain);
-        var message = "";
-        if (!Balances.ContainsKey(sender) || Balances[sender] < amount)
-        {
-            message = $"Transfer failed: Insufficient balance in account '{sender}'.";
-            Logger.LogError(message);
-            return (false, message);
-        } 
-
-        var transferTransaction = new Transaction
-        {
-            Sender = recipient,
-            Recipient = sender,
-            Amount = amount,
-            Timestamp = DateTime.UtcNow,
-            Info = info,
-            Data = data,
-            TransactionType = TransactionTypes.NativeTransfer
-        };
-          
+    {
         if (chain != null)
         {
-            var success = await chain.AddTransaction(transferTransaction);
+            await chain.SettleFounder(sender); 
+
+            var message = "";
+            if (!Balances.ContainsKey(sender) || Balances[sender] < amount)
+            {
+                message = $"Transfer failed: Insufficient balance in account '{sender}'.";
+                Logger.LogError(message);
+                return (false, message);
+            }
+
+            var transferTransaction = new Transaction
+            {
+                Sender = sender,
+                Recipient = recipient,
+                Amount = amount,
+                Timestamp = DateTime.UtcNow,
+                Info = info,
+                Data = data,
+                TransactionType = TransactionTypes.NativeTransfer
+            };
+
+             var success = await chain.AddTransaction(transferTransaction);
+           
+            Balances[sender] -= amount;
+            Balances.TryAdd(recipient, 0);
+            Balances[recipient] += amount;
+
+            message = $"Transfer successful: {amount} tokens from {sender} to {recipient}.";
+            Logger.Log(message);
+            return (true, message);
         }
 
-        Balances[sender] -= amount;
-        Balances.TryAdd(recipient, 0);
-        Balances[recipient] += amount;
-
-        message = $"Transfer successful: {amount} tokens from {sender} to {recipient}.";
-        Logger.Log(message);
-        return (true, message);
+        return (false, "no blockchain");
     }
      
     /// <summary>

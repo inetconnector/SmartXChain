@@ -80,7 +80,7 @@ public sealed class RewardTransaction : Transaction
             Timestamp = DateTime.UtcNow,
             TransactionType = TransactionTypes.MinerReward
         };
-        if (chain != null) chain.AddTransaction(transferTransaction);
+        if (chain != null) _ = chain.AddTransaction(transferTransaction);
 
         // Update balances
         Balances[sender] -= amount;

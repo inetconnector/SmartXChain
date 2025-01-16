@@ -93,13 +93,13 @@ public class ERC20Extended : ERC20Token
     {
         if (!IsAuthenticated(owner, privateKey))
         {
-            Log($"Burn failed: Unauthorized action by '{owner}'.");
+            LogError($"Burn failed: Unauthorized action by '{owner}'.");
             return false;
         }
 
         if (!Balances.ContainsKey(owner) || Balances[owner] < amount)
         {
-            Log($"Burn failed: Insufficient balance in account '{owner}'.");
+            LogError($"Burn failed: Insufficient balance in account '{owner}'.");
             return false;
         }
 
@@ -124,7 +124,7 @@ public class ERC20Extended : ERC20Token
     {
         if (!IsAuthenticated(owner, privateKey) || owner != Owner)
         {
-            Log($"Mint failed: Unauthorized action by '{owner}'. Only the token owner can mint tokens.");
+            LogError($"Mint failed: Unauthorized action by '{owner}'. Only the token owner can mint tokens.");
             return false;
         }
 
@@ -148,7 +148,7 @@ public class ERC20Extended : ERC20Token
     {
         if (!IsAuthenticated(owner, privateKey) || owner != Owner)
         {
-            Log($"PauseTransfers failed: Unauthorized action by '{owner}'. Only the token owner can pause transfers.");
+            LogError($"PauseTransfers failed: Unauthorized action by '{owner}'. Only the token owner can pause transfers.");
             return;
         }
 
@@ -168,7 +168,7 @@ public class ERC20Extended : ERC20Token
     {
         if (!IsAuthenticated(owner, privateKey) || owner != Owner)
         {
-            Log(
+            LogError(
                 $"ResumeTransfers failed: Unauthorized action by '{owner}'. Only the token owner can resume transfers.");
             return;
         }
@@ -191,31 +191,31 @@ public class ERC20Extended : ERC20Token
     {
         if (TransfersPaused)
         {
-            Log("Transfer failed: Transfers are currently paused.");
+            LogError("Transfer failed: Transfers are currently paused.");
             return false;
         }
 
         if (FrozenAccounts != null && FrozenAccounts.Contains(from))
         {
-            Log($"Transfer failed: Account {from} is frozen.");
+            LogError($"Transfer failed: Account {from} is frozen.");
             return false;
         }
 
         if (!IsAuthenticated(from, privateKey))
         {
-            Log($"Transfer failed: Unauthorized action by '{from}'.");
+            LogError($"Transfer failed: Unauthorized action by '{from}'.");
             return false;
         }
 
         if (!Balances.ContainsKey(from) || Balances[from] < amount)
         {
-            Log($"Transfer failed: Insufficient balance in account '{from}'.");
+            LogError($"Transfer failed: Insufficient balance in account '{from}'.");
             return false;
         }
 
         if (from == to)
         {
-            Log($"Transfer failed: Cannot transfer to the same account '{from}'.");
+            LogError($"Transfer failed: Cannot transfer to the same account '{from}'.");
             return false;
         }
 
@@ -240,7 +240,7 @@ public class ERC20Extended : ERC20Token
     {
         if (!IsAuthenticated(owner, privateKey) || owner != Owner)
         {
-            Log($"FreezeAccount failed: Unauthorized action by '{owner}'. Only the token owner can freeze accounts.");
+            LogError($"FreezeAccount failed: Unauthorized action by '{owner}'. Only the token owner can freeze accounts.");
             return;
         }
 
@@ -261,7 +261,7 @@ public class ERC20Extended : ERC20Token
     {
         if (!IsAuthenticated(owner, privateKey) || owner != Owner)
         {
-            Log(
+            LogError(
                 $"UnfreezeAccount failed: Unauthorized action by '{owner}'. Only the token owner can unfreeze accounts.");
             return;
         }
@@ -293,7 +293,7 @@ public class ERC20Extended : ERC20Token
     {
         if (!IsAuthenticated(currentOwner, privateKey) || currentOwner != Owner)
         {
-            Log("Ownership transfer failed: Unauthorized action.");
+            LogError("Ownership transfer failed: Unauthorized action.");
             return;
         }
 
