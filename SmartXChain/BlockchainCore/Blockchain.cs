@@ -16,7 +16,8 @@ namespace SmartXChain.BlockchainCore;
 /// </summary>
 public class Blockchain
 {
-    public const string SystemAddress = "smartX0000000000000000000000000000000000000000";
+    public const string SystemAddress =  "smartX0000000000000000000000000000000000000000";
+    public const string UnknownAddress = "smartXFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF";
 
     [JsonInclude] private readonly int _difficulty;
 

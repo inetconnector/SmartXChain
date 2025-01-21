@@ -4,8 +4,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using NBitcoin;
-using Nethereum.Web3.Accounts;
 using SmartXChain.Utils;
+using Account = Nethereum.Web3.Accounts.Account;
 
 namespace SmartXChain.BlockchainCore;
 
@@ -23,7 +23,9 @@ public class Transaction
         Data,
         Server,
         GasConfiguration,
-        Founder
+        Founder,
+        Export,
+        Import
     }
 
     private string _data;
@@ -324,17 +326,185 @@ public class Transaction
             };
 
             var success = await chain.AddTransaction(transferTransaction);
+            if (success)
+            {
+                Balances[sender] -= amount;
+                Balances.TryAdd(recipient, 0);
+                Balances[recipient] += amount;
 
-            Balances[sender] -= amount;
-            Balances.TryAdd(recipient, 0);
-            Balances[recipient] += amount;
+                message = $"Transfer successful: {amount} tokens from {sender} to {recipient}.";
+                Logger.Log(message);
+                return (true, message);
+            }
 
-            message = $"Transfer successful: {amount} tokens from {sender} to {recipient}.";
-            Logger.Log(message);
-            return (true, message);
+            return (false, "Error: AddTransaction failed");
         }
 
         return (false, "no blockchain");
+    }
+    private record FileData
+    {
+        public Transaction Transaction { get; set; }
+        public string PrivateKey { get; set; }
+    }
+
+
+    /// <summary>
+    ///     Performs a transfer of tokens from the sender's account to a file.
+    ///     The transfer generates a public/private key pair for the file and records the transaction
+    ///     on the blockchain. The transaction is serialized into a file format.
+    /// </summary>
+    /// <param name="chain">The blockchain instance to which the transaction will be added.</param>
+    /// <param name="sender">The address of the sender initiating the transfer.</param>
+    /// <param name="amount">The amount of tokens to transfer.</param>
+    /// <param name="privateKey">The private key of the sender for authentication.</param>
+    /// <returns>
+    ///     A tuple containing:
+    ///     - success (bool): Indicates whether the transfer was successful.
+    ///     - message (string): A message describing the result of the transfer.
+    ///     - privateKeyForFile (string): The private key generated for the file.
+    ///     - fileContent (string): The serialized content of the transaction.
+    /// </returns>
+    public static async Task<(bool success, string message, string fileContent)>
+        TransferToFile(Blockchain? chain, string sender, decimal amount, string privateKey)
+    {
+        if (chain != null)
+        {
+            await chain.SettleFounder(sender);
+
+            var message = "";
+            if (!Balances.ContainsKey(sender) || Balances[sender] < amount)
+            {
+                message = $"Transfer failed: Insufficient balance in account '{sender}'.";
+                Logger.LogError(message);
+                return (false, message, "");
+            }
+
+            // Generate keys
+            using var rsa = new RSACryptoServiceProvider(2048);
+
+            var filePrivateKey = Convert.ToBase64String(rsa.ExportRSAPrivateKey());
+            var filePublicKey = Convert.ToBase64String(rsa.ExportRSAPublicKey());
+
+            var id = Guid.NewGuid();
+            var data = Encoding.ASCII.GetBytes($"{amount}-{filePrivateKey}-{id}");
+
+            byte[] signature;
+
+            // Sign data using the private key
+            using (var rsaSigner = new RSACryptoServiceProvider())
+            {
+                rsaSigner.ImportRSAPrivateKey(Convert.FromBase64String(filePrivateKey), out _);
+                signature = rsaSigner.SignData(data, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            }
+
+            var transferTransaction = new Transaction
+            {
+                Sender = sender,
+                Recipient = Blockchain.UnknownAddress,
+                Amount = amount,
+                Timestamp = DateTime.UtcNow,
+                Info = filePublicKey,
+                Data = Convert.ToBase64String(signature),
+                ID = id,
+                TransactionType = TransactionTypes.Export
+            };
+
+            var success = await chain.AddTransaction(transferTransaction,true);
+            if (success)
+            {
+                Balances[sender] -= amount;
+                Balances.TryAdd(Blockchain.UnknownAddress, 0);
+                Balances[Blockchain.UnknownAddress] += amount;
+
+                message = $"Transfer successful: {amount} tokens from {sender} to file.";
+                Logger.Log(message);
+                
+                var fileData = new FileData
+                {
+                    PrivateKey = filePrivateKey,
+                    Transaction = transferTransaction
+                };
+
+                var fileContent = JsonSerializer.Serialize(fileData);
+                return (true, message, fileContent);
+            }
+
+            return (false, "Error: AddTransaction failed", "" );
+        }
+
+        return (false, "no blockchain", "");
+    }
+
+
+    /// <summary>
+    ///     Imports transaction details from a file and applies the transaction to the blockchain.
+    /// </summary>
+    /// <param name="chain">The blockchain instance to apply the transaction to.</param>
+    /// <param name="fileContent">json transaction</param> 
+    /// <param name="recipient">The recipient account for the imported transaction.</param>
+    /// <returns>A tuple containing success status and a message.</returns>
+    public static async Task<(bool success, string message)> ImportFromFileToAccount(Blockchain? chain,
+        string fileContent,  string recipient)
+    {
+        if (chain == null) return (false, "No blockchain provided.");
+
+        try
+        {
+            // Deserialize JSON   
+            var fileData = JsonSerializer.Deserialize<FileData>(fileContent);
+            var transaction = fileData.Transaction;
+
+            if (transaction == null || transaction.Amount == 0) 
+                return (false, "Invalid transaction file");
+
+            foreach (var t in chain.GetTransactionsByAddress(Blockchain.UnknownAddress))
+                if (transaction.ID.ToString().ToUpper() == t.Info.ToUpper() &&
+                    transaction.ID.ToString().ToUpper() == t.Data.ToUpper())
+                    return (false, "file already imported to blockchain.");
+
+            foreach (var t in chain.GetTransactionsByAddress(Blockchain.UnknownAddress))
+                if (t.ID.Equals(transaction.ID) &&
+                    t.Info == transaction.Info &&
+                    t.Amount == transaction.Amount && t.TransactionType==TransactionTypes.Export)
+                {
+                    var data = Encoding.ASCII.GetBytes($"{t.Amount}-{fileData.PrivateKey}-{t.ID}");
+                    var signature =Convert.FromBase64String(t.Data);
+                    using var rsaVerifier = new RSACryptoServiceProvider();
+
+                    rsaVerifier.ImportRSAPublicKey(Convert.FromBase64String(transaction.Info), out _);
+                    if (!rsaVerifier.VerifyData(data, signature, HashAlgorithmName.SHA256,
+                            RSASignaturePadding.Pkcs1)) continue;
+
+                    //signature ok, transfer amount to recipient
+                    // Create transfer transaction
+                    var transferTransaction = new Transaction
+                    {
+                        Sender = Blockchain.UnknownAddress,
+                        Recipient = recipient,
+                        Amount = t.Amount,
+                        Timestamp = DateTime.UtcNow,
+                        Info = t.ID.ToString(),
+                        Data = t.ID.ToString(),
+                        TransactionType = TransactionTypes.Import
+                    };
+
+                    var success = await chain.AddTransaction(transferTransaction, true); 
+                    if (success)
+                    {
+                        Logger.Log(
+                            $"Import successful: {transaction.Amount} tokens transferred from file to {recipient}.");
+                        return (true, "Import successful.");
+                    }
+                }
+
+            return (false, "Failed to add transaction to blockchain.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("Error reading file content: " + ex.Message);
+            return (false, "Error processing the file content.");
+        }
     }
 
     /// <summary>

@@ -238,7 +238,8 @@ public class Logger
         var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
         var formattedMessage = $"{timestamp} - {message}";
 
-        formattedMessage= formattedMessage.Replace("smartX0000000000000000000000000000000000000000","System");
+        formattedMessage= formattedMessage.Replace("smartX0000000000000000000000000000000000000000","System")
+                                          .Replace("smartXFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF","Offline");
 
         // Print the message to the console, truncating if it exceeds 100 characters
         if (formattedMessage.Length > 110 && trim)

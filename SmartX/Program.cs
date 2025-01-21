@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using SmartXChain;
@@ -14,7 +15,7 @@ internal class Program
 {
     private static string? _privateKey = "";
 
-    private static string? PrivateKey
+    private static string PrivateKey
     {
         get
         {
@@ -25,7 +26,7 @@ internal class Program
             if (File.Exists(privateKeyFile)) return File.ReadAllText(privateKeyFile);
             Logger.Log($"PrivateKey not found at: {privateKeyFile}. Enter PrivateKey\n");
             _privateKey = Console.ReadLine();
-            return _privateKey;
+            return _privateKey + "";
         }
     }
 
@@ -42,7 +43,7 @@ internal class Program
         // Initialize application and start the blockchain server
         await InitializeApplicationAsync();
 
-        var (blockchainServer, startup) = await BlockchainServer.StartServerAsync();
+        var (_, startup) = await BlockchainServer.StartServerAsync();
 
         await RunConsoleMenuAsync(startup);
     }
@@ -112,6 +113,9 @@ internal class Program
                     case 'c':
                         Console.Clear();
                         break;
+                    case 'i':
+                        ImportAmountFromFile(startup);
+                        break;
                     case '1':
                         await RunCoinClassTesterAsync();
                         break;
@@ -172,7 +176,8 @@ internal class Program
         Logger.LogLine();
         Logger.Log("Enter mode:");
         Logger.Log("n: Show nodes");
-        Logger.Log("s: Send SCX Tokens");
+        Logger.Log("s: Send SCX Tokens / Export SCX Tokens to file");
+        Logger.Log("i: Import SCX Tokens from file");
         Logger.Log("c: Clear screen");
         Logger.Log("e: Erase wallet and local chain");
         if (Config.TestNet)
@@ -190,28 +195,103 @@ internal class Program
         Logger.LogLine();
     }
 
+    private static void ImportAmountFromFile(BlockchainServer.NodeStartupResult? startup)
+    {
+        Logger.LogLine("i: Import SCX tokens from file");
+
+        Logger.Log("Enter recipient address : ");
+        var recipient = Console.ReadLine();
+
+        Logger.Log("Enter fileName to read the SCX tokens from: ");
+        var fileName = Console.ReadLine();
+
+        if (string.IsNullOrWhiteSpace(recipient) || string.IsNullOrWhiteSpace(fileName))
+        {
+            Logger.LogError("Recipient address or file name is invalid.");
+            return;
+        }
+
+        if (!File.Exists(fileName))
+        {
+            Logger.LogError("The specified file does not exist.");
+            return;
+        }
+
+        try
+        {
+            // Read file content
+            var fileContent = File.ReadAllText(fileName);
+
+            // Execute ImportFromFileToAccount
+            var blockchain = startup?.Blockchain; // Assuming Blockchain is accessible through startup
+
+            if (blockchain == null)
+            {
+                Logger.LogError("Blockchain is not initialized.");
+                return;
+            }
+
+            Task.Run(async () =>
+            {
+                var (success, message) = await Transaction.ImportFromFileToAccount(startup.Blockchain, fileContent, recipient);
+
+                if (success)
+                {
+                    Logger.LogLine("Import successful: " + message);
+                }
+                else
+                {
+                    Logger.LogError("Import failed: " + message);
+                }
+            }).Wait();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("Error during import: " + ex.Message);
+        }
+    }
+
     private static async Task SendNativeTokens(BlockchainServer.NodeStartupResult? startup)
     {
         Logger.LogLine("s: Send SCX Tokens");
         var walletAddresses = SmartXWallet.LoadWalletAdresses();
 
-        Logger.Log("Enter recipient");
+        Logger.Log("Enter recipient address or <press enter> to export SCX tokens to file: ");
         var recipient = Console.ReadLine();
 
         Logger.Log("Enter SCX amount (i.e. 0.01)");
-        var amount = Convert.ToDecimal(Console.ReadLine());
-
-        Logger.Log("Enter info");
-        var info = Console.ReadLine();
-
-        if (amount > 0)
+        var scx = Console.ReadLine();
+        if (decimal.TryParse(scx, NumberStyles.Number, CultureInfo.CurrentCulture, out var result))
         {
-            Logger.Log($"Ready to send {amount} to {recipient} ? (y/n)");
-            if (Console.ReadLine() == "y")
+            var amount = Convert.ToDecimal(scx);
+
+            if (amount > 0)
             {
-                var success = await NativeSCXTransfer(startup.Blockchain, walletAddresses[0], recipient, amount,
-                    info, PrivateKey);
-                Logger.Log("Success: " + success);
+                if (!string.IsNullOrEmpty(recipient))
+                {
+                    Logger.Log("Enter data (optional): ");
+                    var data = Console.ReadLine() + "";
+
+                    //send to recipient
+                    Logger.Log($"Ready to send {amount} to {recipient} ? (y/n)");
+                    if (Console.ReadLine() == "y")
+                    {
+                        var success = startup != null && await NativeSCXTransfer(startup.Blockchain, walletAddresses[0], recipient, amount,
+                            data, PrivateKey);
+                        Logger.Log("Success: " + success);
+                    }
+                }
+                else
+                {
+                    Logger.Log("Enter filename to save scx tokens: ");
+                    var fileName = Console.ReadLine() + "";
+
+                    // Export the amount to the file
+                    var success = await NativeSCXExport(startup.Blockchain, walletAddresses[0], fileName, amount,
+                        PrivateKey);
+
+                    Logger.Log("Success: " + success);
+                }
             }
         }
     }
@@ -392,6 +472,45 @@ internal class Program
         return false;
     }
 
+    private static async Task<bool> NativeSCXExport(Blockchain? chain,
+        string sender,
+        string fileName,
+        decimal amount,
+        string privateKey)
+    {
+        try
+        {
+            // Perform native token transfer
+            if (!string.IsNullOrEmpty(sender) && !string.IsNullOrEmpty(privateKey))
+            {
+                var (transferred, message, fileContent) = await Transaction.TransferToFile(
+                    chain,
+                    sender,
+                    amount, PrivateKey);
+
+
+                if (transferred)
+                {
+                    File.WriteAllText(fileName, fileContent);
+                    Logger.Log($"Transferred SCX from {sender} to {fileName}", false);
+                }
+                else
+                {
+                    Logger.Log($"SCX could not be transferred from {sender} to {fileName}", false);
+                    Logger.Log($"{message}", false);
+                }
+
+                return transferred;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex, $"Transferring SCX from {sender} to {fileName} failed");
+        }
+
+        return false;
+    }
+
     private static void DisplayBlockchainState(BlockchainServer.NodeStartupResult? node)
     {
         Logger.LogLine("3: Blockchain state");
@@ -402,7 +521,7 @@ internal class Program
             {
                 foreach (var block in node.Blockchain.Chain)
                     Logger.Log($"Block {node.Blockchain.Chain.IndexOf(block)}: {block.Hash}");
-            } 
+            }
     }
 
     private static void DisplayWalletBalances(BlockchainServer.NodeStartupResult? node)
@@ -502,7 +621,7 @@ internal class Program
         {
             Logger.Log("Chain reboot canceled.");
             return false;
-        } 
+        }
 
         _ = BlockchainServer.RebootChainsAsync();
 
@@ -575,7 +694,7 @@ internal class Program
         if (!created) Logger.Log($"Contract {contract.Name} could not be created.");
 
         string[] inputs =
-        [ 
+        [
             $"var token = new ERC20Token(\"ERC20Token\", \"SXC\", 18, 10000000000, \"{ownerAddress}\");",
             $"token.RegisterUser(\"{ownerAddress}\", \"{PrivateKey}\");",
             $"token.Transfer(\"{ownerAddress}\", \"{walletAddresses[1]}\", 100, \"{PrivateKey}\");",
@@ -592,7 +711,7 @@ internal class Program
         //blockchain = Blockchain.Load(tmpFile);
 
         inputs =
-        [ 
+        [
             $"var token = new ERC20Token(\"ERC20Token\", \"SXC\", 18, 10000000000, \"{ownerAddress}\");",
             $"token.RegisterUser(\"{ownerAddress}\", \"{PrivateKey}\");",
             $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 25, \"{PrivateKey}\");",
@@ -616,7 +735,7 @@ internal class Program
         if (!created) Logger.Log($"Contract {contract} could not be created.");
 
         string[] inputs =
-        [ 
+        [
             $"var token = new ERC20Extended(\"ERC20Extended\", \"SXE\", 18, 10000000000, \"{ownerAddress}\");",
             $"token.RegisterUser(\"{ownerAddress}\", \"{PrivateKey}\");",
             $"token.Transfer(\"{ownerAddress}\", \"{walletAddresses[1]}\", 100, \"{PrivateKey}\");",
@@ -633,7 +752,7 @@ internal class Program
         //blockchain = Blockchain.Load(tmpFile);
 
         inputs =
-        [ 
+        [
             $"var token = new ERC20Extended(\"ERC20Extended\", \"SXE\", 18, 10000000000, \"{ownerAddress}\");",
             $"token.RegisterUser(\"{ownerAddress}\", \"{PrivateKey}\");",
             $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 25, \"{PrivateKey}\");",
@@ -648,7 +767,7 @@ internal class Program
         result = await ExecuteSmartContract(blockchain, contract, inputs);
 
         inputs =
-        [ 
+        [
             $"var token = new ERC20Extended(\"ERC20Extended\", \"SXE\", 18, 10000000000, \"{ownerAddress}\");",
             $"token.RegisterUser(\"{ownerAddress}\", \"WRONGKEY\");",
             $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 25, \"{PrivateKey}\");",
@@ -668,7 +787,7 @@ internal class Program
         if (!created) Logger.Log($"Contract {contract} could not be created");
 
         string[] inputs =
-        [ 
+        [
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
             "Logger.Log(\"[GoldCoin] \" + JsonSerializer.Serialize(token, new JsonSerializerOptions { WriteIndented = true }));",
             "Logger.LogLine(\"End GoldCoin Demo 1\");"
@@ -677,7 +796,7 @@ internal class Program
         var result = await ExecuteSmartContract(blockchain, contract, inputs);
 
         string[] transferInputs =
-        [ 
+        [
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
             $"token.RegisterUser(\"{minerAddress}\", \"{PrivateKey}\");",
             $"token.Transfer(\"{minerAddress}\", \"{wallet1Addresses[1]}\", 50000, \"{PrivateKey}\");",
@@ -688,7 +807,7 @@ internal class Program
         result = await ExecuteSmartContract(blockchain, contract, transferInputs);
 
         string[] approvalInputs =
-        [ 
+        [
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
             $"token.RegisterUser(\"{minerAddress}\", \"{PrivateKey}\");",
             $"token.Approve(\"{wallet1Addresses[1]}\", \"{wallet2Addresses[0]}\", 20000, \"{PrivateKey}\");",
@@ -700,7 +819,7 @@ internal class Program
         result = await ExecuteSmartContract(blockchain, contract, approvalInputs);
 
         string[] transferFromInputs =
-        [ 
+        [
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
             $"token.RegisterUser(\"{minerAddress}\", \"{PrivateKey}\");",
             $"token.TransferFrom(\"{wallet2Addresses[0]}\", \"{wallet1Addresses[1]}\", \"{wallet1Addresses[3]}\", 15000, \"{PrivateKey}\");",

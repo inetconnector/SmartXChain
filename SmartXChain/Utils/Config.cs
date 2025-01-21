@@ -289,7 +289,7 @@ public class Config
 
     public void GenerateServerKeys()
     {
-        using var rsa = RSA.Create(2048);
+        using var rsa = System.Security.Cryptography.RSA.Create(2048);
         PublicKey = Convert.ToBase64String(rsa.ExportRSAPublicKey());
         PrivateKey = Convert.ToBase64String(rsa.ExportRSAPrivateKey());
 
