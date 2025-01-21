@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Collections.Concurrent;
+using System.Text.Json.Serialization;
 
 /// <summary>
 ///     Extended ERC20 token class with additional features such as minting, burning, pausing transfers,
@@ -27,8 +28,8 @@ public class ERC20Extended : ERC20Token
         Symbol = symbol;
         Decimals = decimals;
         TotalSupply = initialSupply;
-        Balances = new Dictionary<string, decimal>();
-        Allowances = new Dictionary<string, Dictionary<string, decimal>>();
+        Balances = new ConcurrentDictionary<string, decimal>();
+        Allowances = new ConcurrentDictionary<string, ConcurrentDictionary<string, decimal>>();
 
         // Assign initial supply to the owner's balance
         Balances[owner] = initialSupply;

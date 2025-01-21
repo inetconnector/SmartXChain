@@ -14,8 +14,6 @@ public partial class BlockchainServer
     /// </summary>
     public partial class ApiController
     {
-        private int _blockCount;
-
         #region UNSECURED
 
         /// <summary>
@@ -45,7 +43,7 @@ public partial class BlockchainServer
             }
 
             if (Config.Default.Debug)
-                Logger.Log($"Sent transactions for user {user}");
+                Log($"Sent transactions for user {user}");
             await HttpContext.SendStringAsync(userTransactions, "application/json", Encoding.UTF8);
         }
 
@@ -76,7 +74,7 @@ public partial class BlockchainServer
             }
 
             if (Config.Default.Debug)
-                Logger.Log($"Sent contract code for {contract}");
+                Log($"Sent contract code for {contract}");
             await HttpContext.SendStringAsync(contractCode, "application/json", Encoding.UTF8);
         }
 
@@ -94,7 +92,7 @@ public partial class BlockchainServer
                 50);
 
             if (Config.Default.Debug)
-                Logger.Log($"Sent {contractNames.Count} contract names for filter '{search}'");
+                Log($"Sent {contractNames.Count} contract names for filter '{search}'");
             await HttpContext.SendStringAsync(JsonSerializer.Serialize(contractNames), "application/json",
                 Encoding.UTF8);
         }
@@ -102,18 +100,46 @@ public partial class BlockchainServer
         /// <summary>
         ///     Retrieves the current block count using an HTTP GET request.
         /// </summary>
-        [Route(HttpVerbs.Get, "/GetBlockCount")]
-        public async Task GetBlockCount()
+        [Route(HttpVerbs.Get, "/GetChainInfo")]
+        public async Task GetChainInfo()
         {
             if (Startup.Blockchain != null &&
                 Startup.Blockchain.Chain != null)
             {
-                _blockCount = Startup.Blockchain.Chain.Count;
                 if (Config.Default.Debug)
-                    Logger.Log($"GetBlockCount: {Startup.Blockchain.Chain.Count}");
+                    Log($"GetChainInfo: {Startup.Blockchain.Chain.Count}");
+
+
+                await HttpContext.SendStringAsync(JsonSerializer.Serialize(CreateChainInfo()), "text/plain",
+                    Encoding.UTF8);
+                return;
             }
 
-            await HttpContext.SendStringAsync(_blockCount.ToString(), "text/plain", Encoding.UTF8);
+            await HttpContext.SendStringAsync("", "text/plain", Encoding.UTF8);
+        }
+
+        public static ChainInfo CreateChainInfo(string message = "ChainInfo")
+        {
+            if (Startup.Blockchain != null && Startup.Blockchain.Chain != null)
+            {
+                var chainInfo = new ChainInfo
+                {
+                    Message = message,
+                    ChainID = Startup.Blockchain.ChainId,
+                    BlockCount = Startup.Blockchain.Chain.Count,
+                    LastHash = Startup.Blockchain.Chain.Last().Hash,
+                    FirstHash = Startup.Blockchain.Chain.First().Hash,
+                    LastDate = Startup.Blockchain.Chain.Last().Timestamp,
+                    URL = Config.Default.URL
+                };
+                return chainInfo;
+            }
+
+            return new ChainInfo
+            {
+                Message = message,
+                URL = Config.Default.URL
+            };
         }
 
         /// <summary>
@@ -138,7 +164,7 @@ public partial class BlockchainServer
                 return;
             }
 
-            if (Config.Default.Debug) Logger.Log($"Sent block {block}");
+            if (Config.Default.Debug) Log($"Sent block {block}");
 
             if (Startup.Blockchain != null && Startup.Blockchain.Chain != null)
             {
@@ -148,7 +174,7 @@ public partial class BlockchainServer
             }
             else
             {
-                Logger.LogError("Blockchain is empty");
+                LogError("Blockchain is empty");
             }
         }
 

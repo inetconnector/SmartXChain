@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Scripting;
+using SmartXChain.Utils;
 
 namespace SmartXChain.Contracts;
 
@@ -44,7 +45,7 @@ using System.IO;
         if (!CodeSecurityAnalyzer.IsCodeSafe(code, ref message))
             return ($"The code contains forbidden constructs and was not executed. Details: {message}", currentState);
 
-        var messages = new List<string>();
+        var messages = new ConcurrentList<string>();
         if (!CodeSecurityAnalyzer.AreCommandsSafe(inputs, ref messages))
             return (
                 $"The inputs contain forbidden constructs and the code was not executed. Details: {string.Join(", ", messages)}",

@@ -91,6 +91,7 @@ public class SmartContract
             else
                 result = (ex.Message + ex.InnerException.Message, currentState);
         }
+
         return result;
     }
 
@@ -108,10 +109,10 @@ public class SmartContract
     {
         var inheritContract = await AddInherits(blockchain, contractCode, ownerAddress);
 
-        var message = ""; 
+        var message = "";
         var contract =
             new SmartContract(ownerAddress, Serializer.SerializeToBase64(inheritContract), contractName);
-        
+
         var added = blockchain != null && await blockchain.AddSmartContract(blockchain, contract);
         return (contract, added);
     }

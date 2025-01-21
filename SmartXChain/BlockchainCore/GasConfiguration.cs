@@ -10,13 +10,6 @@ namespace SmartXChain.BlockchainCore;
 /// </summary>
 public sealed class GasConfiguration
 {
-    private static Lazy<GasConfiguration> _instance = new Lazy<GasConfiguration>(() => new GasConfiguration());
-
-    /// <summary>
-    ///     Singleton instance of  gas configuration.
-    /// </summary>
-    public static GasConfiguration Instance => _instance.Value;
-
     /// <summary>
     ///     Enum to represent configurable gas and reward parameters.
     /// </summary>
@@ -39,6 +32,13 @@ public sealed class GasConfiguration
         ContractDataLengthMin,
         ContractDataLengthGasFactor
     }
+
+    private static Lazy<GasConfiguration> _instance = new(() => new GasConfiguration());
+
+    /// <summary>
+    ///     Singleton instance of  gas configuration.
+    /// </summary>
+    public static GasConfiguration Instance => _instance.Value;
 
     [JsonInclude] public decimal BaseGasTransaction { get; set; } = 5;
     [JsonInclude] public decimal BaseGasContract { get; set; } = 10;
@@ -76,10 +76,13 @@ public sealed class GasConfiguration
         sb.AppendLine($"GasFactor: {GasFactor} - Scaling factor to adjust gas calculations.");
         sb.AppendLine($"CurrentNetworkLoadGT: {CurrentNetworkLoadGT} - Threshold for high network load.");
         sb.AppendLine($"CurrentNetworkLoadLT: {CurrentNetworkLoadLT} - Threshold for low network load.");
-        sb.AppendLine($"CurrentNetworkLoadGTMultiply: {CurrentNetworkLoadGTMultiply} - Multiplier for gas during high network load.");
-        sb.AppendLine($"CurrentNetworkLoadLTMultiply: {CurrentNetworkLoadLTMultiply} - Multiplier for gas during low network load.");
+        sb.AppendLine(
+            $"CurrentNetworkLoadGTMultiply: {CurrentNetworkLoadGTMultiply} - Multiplier for gas during high network load.");
+        sb.AppendLine(
+            $"CurrentNetworkLoadLTMultiply: {CurrentNetworkLoadLTMultiply} - Multiplier for gas during low network load.");
         sb.AppendLine($"ContractDataLengthMin: {ContractDataLengthMin} - Minimum data length threshold for contracts.");
-        sb.AppendLine($"ContractDataLengthGasFactor: {ContractDataLengthGasFactor} - Adjustment factor for gas based on contract length.");
+        sb.AppendLine(
+            $"ContractDataLengthGasFactor: {ContractDataLengthGasFactor} - Adjustment factor for gas based on contract length.");
         return sb.ToString();
     }
 

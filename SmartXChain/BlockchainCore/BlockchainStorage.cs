@@ -7,9 +7,59 @@ namespace SmartXChain.BlockchainCore;
 public static class BlockchainStorage
 {
     /// <summary>
-    /// Saves a block and its associated transactions into the SQLite database.
-    /// If the database or required tables do not exist, they are created.
-    /// This method ensures that the block data is stored or updated, and its transactions are inserted.
+    ///     Clears all data from the Blocks and Transactions tables in the SQLite database.
+    ///     Ensures the database remains intact but without stored data.
+    /// </summary>
+    /// <param name="blockchainPath">The file path to the blockchain storage directory.</param>
+    /// <param name="chainId">The identifier for the specific blockchain chain.</param>
+    /// <returns>True if the tables are successfully cleared; otherwise, false.</returns>
+    public static bool ClearDatabase(string blockchainPath, string chainId)
+    {
+        var databasePath = Path.Combine(blockchainPath, chainId + ".db");
+
+        try
+        {
+            // Check if the database exists
+            if (!File.Exists(databasePath))
+            {
+                Logger.LogError($"Database file does not exist {databasePath}");
+                return false;
+            }
+
+            using (var connection = new SQLiteConnection($"Data Source={databasePath};Version=3;"))
+            {
+                connection.Open();
+
+                // Clear data from the Transactions table
+                var clearTransactionsQuery = "DELETE FROM Transactions;";
+                using (var command = new SQLiteCommand(clearTransactionsQuery, connection))
+                {
+                    command.ExecuteNonQuery();
+                }
+
+                // Clear data from the Blocks table
+                var clearBlocksQuery = "DELETE FROM Blocks;";
+                using (var command = new SQLiteCommand(clearBlocksQuery, connection))
+                {
+                    command.ExecuteNonQuery();
+                }
+            }
+
+            Logger.Log("Database cleared successfully.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex, "Failed to clear database.");
+            return false;
+        }
+    }
+
+
+    /// <summary>
+    ///     Saves a block and its associated transactions into the SQLite database.
+    ///     If the database or required tables do not exist, they are created.
+    ///     This method ensures that the block data is stored or updated, and its transactions are inserted.
     /// </summary>
     /// <param name="block">The block object containing transactions and metadata to be saved.</param>
     /// <param name="blockchainPath">The file path to the blockchain storage directory.</param>
@@ -118,19 +168,18 @@ public static class BlockchainStorage
     }
 
     /// <summary>
-    /// Retrieves a specific block by its hash from the SQLite database.
+    ///     Retrieves a specific block by its hash from the SQLite database.
     /// </summary>
     /// <param name="hash">The hash of the block to be retrieved.</param>
     /// <param name="blockchainPath">The file path to the blockchain's storage directory.</param>
     /// <param name="chainId">The unique identifier for the blockchain.</param>
     /// <returns>
-    /// The block object if found, otherwise null.
+    ///     The block object if found, otherwise null.
     /// </returns>
     /// <remarks>
-    /// The method checks if the database exists and queries the Blocks table for a block matching the provided hash. 
-    /// If found, it reconstructs the block from its Base64-encoded data.
+    ///     The method checks if the database exists and queries the Blocks table for a block matching the provided hash.
+    ///     If found, it reconstructs the block from its Base64-encoded data.
     /// </remarks>
-
     public static Block? GetBlockByHash(string hash, string blockchainPath, string chainId)
     {
         var databasePath = Path.Combine(blockchainPath, chainId + ".db");
@@ -171,19 +220,19 @@ public static class BlockchainStorage
     }
 
     /// <summary>
-    /// Retrieves the code of a deployed smart contract from the blockchain database.
+    ///     Retrieves the code of a deployed smart contract from the blockchain database.
     /// </summary>
     /// <param name="contractName">The name of the contract to search for.</param>
     /// <param name="blockchainPath">The file path to the blockchain's storage directory.</param>
     /// <param name="chainId">The unique identifier of the blockchain chain.</param>
     /// <returns>
-    /// A string containing the contract code if found, or null if the contract does not exist
-    /// or an error occurs during the search.
+    ///     A string containing the contract code if found, or null if the contract does not exist
+    ///     or an error occurs during the search.
     /// </returns>
     /// <remarks>
-    /// This method looks for the contract name in the `SmartContracts` JSON field within the `Blocks` table.
-    /// If the contract name is found, its corresponding code is deserialized and returned.
-    /// Logs errors if the database file is missing or if the contract is not found.
+    ///     This method looks for the contract name in the `SmartContracts` JSON field within the `Blocks` table.
+    ///     If the contract name is found, its corresponding code is deserialized and returned.
+    ///     Logs errors if the database file is missing or if the contract is not found.
     /// </remarks>
     public static string? GetContractCode(string? contractName, string blockchainPath, string chainId)
     {
@@ -725,7 +774,7 @@ public static class BlockchainStorage
                             return new Block(transactions, blockReader["PreviousHash"].ToString())
                             {
                                 Timestamp = Convert.ToDateTime(blockReader["Timestamp"]),
-                                Nonce = Convert.ToInt32(blockReader["Nonce"]), 
+                                Nonce = Convert.ToInt32(blockReader["Nonce"]),
                                 Hash = blockReader["Hash"].ToString()
                             };
                         }

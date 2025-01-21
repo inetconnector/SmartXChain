@@ -12,6 +12,8 @@ public class Crypt
 
     private static readonly Lazy<string> _assemblyFingerprint = new(GenerateAssemblyFingerprint);
 
+    private static readonly ConcurrentDictionary<string, string> _dllFingerprints = new();
+
     public Crypt()
     {
         using var ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
@@ -24,7 +26,7 @@ public class Crypt
     public static string AssemblyFingerprint => _assemblyFingerprint.Value;
 
     /// <summary>
-    /// Generates Hash from a dll and stores it in local cache
+    ///     Generates Hash from a dll and stores it in local cache
     /// </summary>
     /// <param name="dllPath"></param>
     /// <returns></returns>
@@ -33,19 +35,18 @@ public class Crypt
     {
         if (_dllFingerprints.TryGetValue(dllPath, out var binaryFingerprint))
             return binaryFingerprint;
-        
+
         if (!File.Exists(dllPath)) throw new FileNotFoundException("DLL file not found.", dllPath);
 
         using var sha256 = SHA256.Create();
         using var stream = File.OpenRead(dllPath);
         var hash = sha256.ComputeHash(stream);
-        var fingerprint= Convert.ToBase64String(hash);
-         _dllFingerprints.TryAdd(dllPath, fingerprint);
-         
+        var fingerprint = Convert.ToBase64String(hash);
+        _dllFingerprints.TryAdd(dllPath, fingerprint);
+
         return fingerprint;
     }
 
-    private static ConcurrentDictionary<string, string> _dllFingerprints = new ConcurrentDictionary<string, string>();
     /// <summary>
     ///     Generates an HMAC signature for a message using a secret key.
     /// </summary>

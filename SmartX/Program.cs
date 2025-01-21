@@ -1,8 +1,6 @@
 using System.Diagnostics;
-using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
-using Nethereum.Signer;
 using SmartXChain;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Contracts;
@@ -149,6 +147,7 @@ internal class Program
                             Thread.Sleep(5000);
                             Functions.RestartApplication();
                         }
+
                         break;
                     case 'n':
                         DisplayNodes(startup);
@@ -314,12 +313,7 @@ internal class Program
             var sender = walletAddresses[0];
             var recipient = walletAddresses[1];
 
-            if (node.Blockchain != null && 
-                node.Blockchain.GetBalanceForAddress(sender) >= sendAmount)
-            {
-                Logger.LogLine($"Not enough SCX to send {sendAmount} to {recipient}");
-            }
-            else
+            if (node.Blockchain != null)
             {
                 //send 1000 scx transaction
                 await NativeSCXTransfer(
@@ -327,29 +321,34 @@ internal class Program
                     sender,
                     recipient,
                     (decimal)1000.0,
-                    "49.83278, 9.88167", 
-                    PrivateKey); 
+                    "49.83278, 9.88167",
+                    PrivateKey);
 
-                if (node.Blockchain != null)
-                    await node.Blockchain.MinePendingTransactions(walletAddresses[0]);
+                await node.Blockchain.MinePendingTransactions(walletAddresses[0]);
+
+
+                // Add demonstration tasks for ERC20, ERC20Extendedand and GoldCoin smart contracts
+                ERC20Example(sender, walletAddresses, node.Blockchain);
+                ERC20ExtendedExample(sender, walletAddresses, node.Blockchain);
+                GoldCoinExample(sender, walletAddresses, SmartXWallet.LoadWalletAdresses(), node.Blockchain);
+
+
+                Logger.LogLine("All operations completed.");
+
+                // Display Wallet Balances
+                DisplayWalletBalances(node);
             }
-
-            // Add demonstration tasks for ERC20, ERC20Extendedand and GoldCoin smart contracts
-            ERC20Example(sender, walletAddresses, node.Blockchain);
-            ERC20ExtendedExample(sender, walletAddresses, node.Blockchain);
-            GoldCoinExample(sender, walletAddresses, SmartXWallet.LoadWalletAdresses(), node.Blockchain);
-
-
-            Logger.LogLine("All operations completed.");
-
-            // Display Wallet Balances
-            DisplayWalletBalances(node);
+            else
+            {
+                Logger.LogError("Blockchain is null. SmartContractDemo cancelled.");
+            }
         }
         else
         {
             Logger.LogError("PrivateKey or node is null. SmartContractDemo cancelled.");
         }
-    }  
+    }
+
     private static async Task<bool> NativeSCXTransfer(Blockchain? chain,
         string sender,
         string recipient,
@@ -371,7 +370,7 @@ internal class Program
                     "native transfer",
                     data);
 
-                 
+
                 if (transferred)
                 {
                     Logger.Log($"Transferred SCX from {sender} to {recipient}", false);
@@ -500,9 +499,10 @@ internal class Program
         {
             Logger.Log("Chain reboot canceled.");
             return false;
-        }
+        } 
 
-        if (node != null) _ = node.Node.RebootChainsAsync();
+        _ = BlockchainServer.RebootChainsAsync();
+
         return true;
     }
 
@@ -572,8 +572,7 @@ internal class Program
         if (!created) Logger.Log($"Contract {contract.Name} could not be created.");
 
         string[] inputs =
-        [
-            "Logger.LogLine(\"ERC20 Demo 1\");",
+        [ 
             $"var token = new ERC20Token(\"ERC20Token\", \"SXC\", 18, 10000000000, \"{ownerAddress}\");",
             $"token.RegisterUser(\"{ownerAddress}\", \"{PrivateKey}\");",
             $"token.Transfer(\"{ownerAddress}\", \"{walletAddresses[1]}\", 100, \"{PrivateKey}\");",
@@ -590,8 +589,7 @@ internal class Program
         //blockchain = Blockchain.Load(tmpFile);
 
         inputs =
-        [
-            "Logger.LogLine(\"ERC20 Demo 2\");",
+        [ 
             $"var token = new ERC20Token(\"ERC20Token\", \"SXC\", 18, 10000000000, \"{ownerAddress}\");",
             $"token.RegisterUser(\"{ownerAddress}\", \"{PrivateKey}\");",
             $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 25, \"{PrivateKey}\");",
@@ -615,8 +613,7 @@ internal class Program
         if (!created) Logger.Log($"Contract {contract} could not be created.");
 
         string[] inputs =
-        [
-            "Logger.LogLine(\"ERC20Extended Demo 1\");",
+        [ 
             $"var token = new ERC20Extended(\"ERC20Extended\", \"SXE\", 18, 10000000000, \"{ownerAddress}\");",
             $"token.RegisterUser(\"{ownerAddress}\", \"{PrivateKey}\");",
             $"token.Transfer(\"{ownerAddress}\", \"{walletAddresses[1]}\", 100, \"{PrivateKey}\");",
@@ -633,8 +630,7 @@ internal class Program
         //blockchain = Blockchain.Load(tmpFile);
 
         inputs =
-        [
-            "Logger.LogLine(\"ERC20Extended Demo 2\");",
+        [ 
             $"var token = new ERC20Extended(\"ERC20Extended\", \"SXE\", 18, 10000000000, \"{ownerAddress}\");",
             $"token.RegisterUser(\"{ownerAddress}\", \"{PrivateKey}\");",
             $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 25, \"{PrivateKey}\");",
@@ -649,8 +645,7 @@ internal class Program
         result = await ExecuteSmartContract(blockchain, contract, inputs);
 
         inputs =
-        [
-            "Logger.LogLine(\"ERC20Extended Failure Demo \");",
+        [ 
             $"var token = new ERC20Extended(\"ERC20Extended\", \"SXE\", 18, 10000000000, \"{ownerAddress}\");",
             $"token.RegisterUser(\"{ownerAddress}\", \"WRONGKEY\");",
             $"token.Transfer(\"{walletAddresses[1]}\", \"{walletAddresses[2]}\", 25, \"{PrivateKey}\");",
@@ -670,8 +665,7 @@ internal class Program
         if (!created) Logger.Log($"Contract {contract} could not be created");
 
         string[] inputs =
-        [
-            "Logger.LogLine(\"GoldCoin Demo 1\");",
+        [ 
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
             "Logger.Log(\"[GoldCoin] \" + JsonSerializer.Serialize(token, new JsonSerializerOptions { WriteIndented = true }));",
             "Logger.LogLine(\"End GoldCoin Demo 1\");"
@@ -680,8 +674,7 @@ internal class Program
         var result = await ExecuteSmartContract(blockchain, contract, inputs);
 
         string[] transferInputs =
-        [
-            "Logger.LogLine(\"GoldCoin Demo 2 - transferInputs\");",
+        [ 
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
             $"token.RegisterUser(\"{minerAddress}\", \"{PrivateKey}\");",
             $"token.Transfer(\"{minerAddress}\", \"{wallet1Addresses[1]}\", 50000, \"{PrivateKey}\");",
@@ -692,8 +685,7 @@ internal class Program
         result = await ExecuteSmartContract(blockchain, contract, transferInputs);
 
         string[] approvalInputs =
-        [
-            "Logger.LogLine(\"GoldCoin Demo 3 - approvalInputs\");",
+        [ 
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
             $"token.RegisterUser(\"{minerAddress}\", \"{PrivateKey}\");",
             $"token.Approve(\"{wallet1Addresses[1]}\", \"{wallet2Addresses[0]}\", 20000, \"{PrivateKey}\");",
@@ -705,8 +697,7 @@ internal class Program
         result = await ExecuteSmartContract(blockchain, contract, approvalInputs);
 
         string[] transferFromInputs =
-        [
-            "Logger.LogLine(\"GoldCoin Demo 4 - transferFromInputs\");",
+        [ 
             $"var token = new GoldCoin(\"GoldCoin\", \"GLD\", 18, 1000000, \"{minerAddress}\");",
             $"token.RegisterUser(\"{minerAddress}\", \"{PrivateKey}\");",
             $"token.TransferFrom(\"{wallet2Addresses[0]}\", \"{wallet1Addresses[1]}\", \"{wallet1Addresses[3]}\", 15000, \"{PrivateKey}\");",

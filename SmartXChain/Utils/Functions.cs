@@ -6,7 +6,7 @@ namespace SmartXChain.Utils;
 public static class Functions
 {
     /// <summary>
-    /// Restarts the application
+    ///     Restarts the application
     /// </summary>
     public static void RestartApplication()
     {

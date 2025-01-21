@@ -23,7 +23,7 @@ public sealed class Block
     [JsonInclude] public List<Transaction> Transactions { get; }
     [JsonInclude] public string PreviousHash { get; set; }
     [JsonInclude] public string Hash { get; internal set; }
-    [JsonInclude] public int Nonce { get; internal set; } 
+    [JsonInclude] public int Nonce { get; internal set; }
 
     /// <summary>
     ///     Get a dictionary of SmartContract from the block
@@ -54,7 +54,7 @@ public sealed class Block
                         }
                         catch (Exception ex)
                         {
-                            Logger.LogException(ex,$"Failed to deserialize contract '{contractName}'");
+                            Logger.LogException(ex, $"Failed to deserialize contract '{contractName}'");
                         }
                 }
 
@@ -65,21 +65,10 @@ public sealed class Block
     [JsonIgnore] public string Base64Encoded => Convert.ToBase64String(GetBytes());
 
 
-    /// <summary>
-    ///     List<Transactions> which have approved the Transaction. Used by Tangle.cs
-    /// </summary>
+    /// List
+    /// <Transactions> which have approved the Transaction. Used by Tangle.cs</Transactions>
     [JsonInclude]
     public List<string> Approves { get; private set; } = new();
-
-    /// <summary>
-    ///     Validates the timestamp of the block to prevent spamming or delays.
-    /// </summary>
-    /// <returns>True if the timestamp is valid, otherwise false.</returns>
-    public bool ValidateTimestamp()
-    {
-        var currentTime = DateTime.UtcNow;
-        return Timestamp <= currentTime && Timestamp >= currentTime.AddMinutes(-10);
-    }
 
     /// <summary>
     ///     Calculates the hash of the block based on its properties.
@@ -170,7 +159,7 @@ public sealed class Block
         }
         catch (Exception e)
         {
-            Logger.LogException(e,"Block decompress failed.");
+            Logger.LogException(e, "Block decompress failed.");
         }
 
         return null;
@@ -210,7 +199,7 @@ public sealed class Block
             ["Timestamp"] = Timestamp,
             ["PreviousHash"] = PreviousHash,
             ["Hash"] = Hash,
-            ["Nonce"] = Nonce, 
+            ["Nonce"] = Nonce,
             // Serialize Transactions as JSON objects instead of strings
             ["Transactions"] = Transactions,
             ["SmartContracts"] = SmartContracts

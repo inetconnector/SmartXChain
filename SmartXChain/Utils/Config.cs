@@ -1,6 +1,5 @@
 ﻿using System.Security.Cryptography;
 using System.Text.RegularExpressions;
-using NBitcoin.Protocol;
 
 namespace SmartXChain.Utils;
 
@@ -102,7 +101,7 @@ public class Config
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, $"deleting config file"); 
+            Logger.LogException(ex, "deleting config file");
         }
 
         return false;

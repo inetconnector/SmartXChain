@@ -1,18 +1,18 @@
-using System.Collections.Concurrent; 
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions; 
+using System.Text.RegularExpressions;
 using SmartXChain.Contracts;
-using SmartXChain.Server;
 using SmartXChain.Utils;
-using SmartXChain.Validators; 
 using static SmartXChain.BlockchainCore.Transaction;
+using static SmartXChain.Server.BlockchainServer;
+using Node = SmartXChain.Validators.Node;
 
 namespace SmartXChain.BlockchainCore;
 
 /// <summary>
-/// SmartX Blockchain
+///     SmartX Blockchain
 /// </summary>
 public class Blockchain
 {
@@ -35,7 +35,11 @@ public class Blockchain
         MinerAdress = minerAdress;
 
         AddBlock(GenesisBlock(minerAdress));
+        Blockchains.Add(this);
     }
+
+    public static List<Blockchain> Blockchains { get; } = new();
+
 
     [JsonInclude] internal string ChainId { get; }
     [JsonInclude] internal string MinerAdress { get; }
@@ -53,48 +57,11 @@ public class Blockchain
             var contracts = new ConcurrentDictionary<string, SmartContract?>();
 
             if (Chain != null)
-                lock (Chain)
-                {
-                    foreach (var block in Chain)  
-                            foreach (var kvp in block.SmartContracts) contracts.TryAdd(kvp.Key, kvp.Value);
-                 
-                }
+                foreach (var block in Chain)
+                foreach (var kvp in block.SmartContracts)
+                    contracts.TryAdd(kvp.Key, kvp.Value);
 
             return contracts;
-        }
-    }
-
-    /// <summary>
-    ///     Retrieves the latest block in the blockchain.
-    /// </summary>
-    public Block? LatestBlock
-    {
-        get
-        {
-            if (Chain != null)
-                lock (Chain)
-                {
-                    return Chain.Last();
-                }
-
-            return null;
-        }
-    }
-
-    /// <summary>
-    ///     Retrieves the first block in the blockchain.
-    /// </summary>
-    public Block? FirstBlock
-    {
-        get
-        {
-            if (Chain != null)
-                lock (Chain)
-                {
-                    return Chain.First();
-                }
-
-            return null;
         }
     }
 
@@ -102,18 +69,19 @@ public class Blockchain
     ///     Creates the genesis block, which serves as the initial block in the blockchain.
     /// </summary>
     private Block? GenesisBlock(string minerAdress)
-    { 
-;        var genesisTransactions = new List<Transaction>();
+    {
+        ;
+        var genesisTransactions = new List<Transaction>();
 
         // Publish the server's IP address in a transaction on the blockchain
         var serverTransaction = new Transaction
         {
-            Sender = Blockchain.SystemAddress,
+            Sender = SystemAddress,
             Recipient = minerAdress,
             Data = Convert.ToBase64String(Encoding.ASCII.GetBytes(Config.Default.URL)), // Store data as Base64 string
             Info = "IP",
             Timestamp = DateTime.UtcNow,
-            TransactionType = Transaction.TransactionTypes.Server
+            TransactionType = TransactionTypes.Server
         };
         genesisTransactions.Add(serverTransaction);
 
@@ -122,10 +90,10 @@ public class Blockchain
         {
             Sender = SystemAddress,
             Recipient = minerAdress,
-            Data = GasConfiguration.Instance.ToBase64String(), 
+            Data = GasConfiguration.Instance.ToBase64String(),
             Info = "GasConfiguration",
             Timestamp = DateTime.UtcNow,
-            TransactionType = Transaction.TransactionTypes.GasConfiguration
+            TransactionType = TransactionTypes.GasConfiguration
         };
         genesisTransactions.Add(gasTransaction);
 
@@ -134,13 +102,14 @@ public class Blockchain
         {
             Amount = TotalSupply / 2
         };
-        Balances[minerAdress] = rewardTransaction.Amount; 
+        Balances[minerAdress] = rewardTransaction.Amount;
         genesisTransactions.Add(rewardTransaction);
 
-        var genesisBlock = new Block(genesisTransactions, "0"); 
+        var genesisBlock = new Block(genesisTransactions, "0") { Nonce = -1 };
+
         var hash = genesisBlock.CalculateHash();
         genesisBlock.Approves.Add(hash);
-   
+
         return genesisBlock;
     }
 
@@ -149,12 +118,6 @@ public class Blockchain
     /// </summary>
     internal bool AddBlock(Block? block, bool lockChain = true, bool mineBlock = true, int? index = null)
     {
-        if (!block.ValidateTimestamp())
-        {
-            Logger.LogError("Invalid timestamp. Block rejected.");
-            return false;
-        }
-
         if (mineBlock)
         {
             if (lockChain)
@@ -163,19 +126,32 @@ public class Blockchain
                     lock (Chain)
                     {
                         if (Chain.Count > 0)
-                            block.PreviousHash = Chain.Last().Hash;
-                        block.Mine(_difficulty);
-                        Chain.Add(block);
+                            if (block != null)
+                                block.PreviousHash = Chain.Last().Hash;
+                        if (block != null)
+                        {
+                            block.Mine(_difficulty);
+                            lock (Chain)
+                            {
+                                Chain.Add(block);
+                            }
+                        }
                     }
             }
             else if (Chain != null)
             {
                 if (Chain.Count > 0)
-                    block.PreviousHash = Chain.Last().Hash;
-                block.Mine(_difficulty);
+                    if (block != null)
+                        block.PreviousHash = Chain.Last().Hash;
+                if (block != null)
+                {
+                    block.Mine(_difficulty);
 
-                lock (Chain)
-                    Chain.Add(block);
+                    lock (Chain)
+                    {
+                        Chain.Add(block);
+                    }
+                }
             }
         }
         else if (index.HasValue && Chain != null && index.Value <= Chain.Count)
@@ -200,15 +176,17 @@ public class Blockchain
                     return false;
                 }
 
-                Chain.Insert(index.Value, block);
+                if (block != null) Chain.Insert(index.Value, block);
             }
         }
         else
         {
-            if (Chain != null && Chain.Count > 0 && Chain.Last().Hash == block.PreviousHash)
+            if (Chain != null && block != null && (Chain.Count == 0 || Chain.Last().Hash == block.PreviousHash))
             {
-                lock (Chain) 
-                    Chain.Add(block); 
+                lock (Chain)
+                {
+                    Chain.Add(block);
+                }
             }
             else
             {
@@ -217,12 +195,17 @@ public class Blockchain
             }
         }
 
-        Logger.Log("Block added to chain successfully: " + block.Hash);
+        if (block != null)
+        {
+            Logger.Log("Block added to chain successfully: " + block.Hash);
 
-        // Optimize: Index transactions for quick lookup
-        IndexTransactions(block);
+            // Optimize: Index transactions for quick lookup
+            IndexTransactions(block);
+            return BlockchainStorage.SaveBlock(block, Config.Default.BlockchainPath, ChainId);
+        }
 
-        return BlockchainStorage.SaveBlock(block, Config.Default.BlockchainPath, ChainId);
+        Logger.LogError("Block not added to chain. Block is null: ");
+        return false;
     }
 
     /// <summary>
@@ -231,8 +214,8 @@ public class Blockchain
     private async Task<bool> PayGas(string type, string sender, decimal gas)
     {
         if (gas > 0 && sender != SystemAddress)
-        { 
-            Balances.TryGetValue(sender, out var balance); 
+        {
+            Balances.TryGetValue(sender, out var balance);
             Logger.Log($"[Gas] {sender} has to pay {gas} for {type}");
 
             Balances.TryGetValue(sender, out balance);
@@ -251,44 +234,36 @@ public class Blockchain
                 Info = type,
                 TransactionType = TransactionTypes.Gas
             };
-             
-            var success = await AddTransaction(payGasTransaction,true);
+
+            var success = await AddTransaction(payGasTransaction, true);
             if (!success)
                 Logger.LogError($"Pay {gas} gas failed");
- 
-            if ((Balances[sender] - gas)<0)
+
+            if (Balances[sender] - gas < 0)
                 return false;
 
             Balances[sender] -= gas;
             Balances.TryAdd(SystemAddress, 0);
             Balances[SystemAddress] += gas;
         }
+
         return true;
     }
 
 
     /// <summary>
     ///     Checks if an address has already received a Founder Reward.
-    /// </summary> 
+    /// </summary>
     /// <param name="address">The address to verify.</param>
     /// <returns>True if the address has received a Founder Reward; otherwise, false.</returns>
     public bool HasReceivedFounderReward(string address)
     {
-        if (Chain == null || string.IsNullOrEmpty(address))
-        {
-            return false;
-        }
+        if (Chain == null || string.IsNullOrEmpty(address)) return false;
 
-        foreach (var block in  Chain)
-        {
-            foreach (var transaction in block.Transactions)
-            {
-                if (transaction.Recipient == address && transaction.TransactionType == TransactionTypes.Founder)
-                {
-                    return true;
-                }
-            }
-        }
+        foreach (var block in Chain)
+        foreach (var transaction in block.Transactions)
+            if (transaction.Recipient == address && transaction.TransactionType == TransactionTypes.Founder)
+                return true;
 
         return false;
     }
@@ -299,30 +274,22 @@ public class Blockchain
         const int initialReward = 10_000_000;
         const int maxFounders = 300_000_000 / initialReward; // Calculate maximum founders based on total reward pool
         int reward;
-        int founderIndex = Balances.Count;
+        var founderIndex = Balances.Count;
 
         if (founderIndex == 1)
-        {
             // First founder gets the full initial reward
             reward = initialReward;
-        }
         else if (founderIndex <= 10)
-        {
             // First 10 founders get the full initial reward
             reward = initialReward;
-        }
         else if (founderIndex <= maxFounders)
-        {
             // Founders beyond the first 10 get rewards decreasing logarithmically
             reward = (int)(initialReward / Math.Log(founderIndex));
-        }
         else
-        {
             // No reward for founders beyond the maximum
             reward = 0;
-        }
-         
-        if (reward > 0 && Balances[Blockchain.SystemAddress] >= reward)
+
+        if (reward > 0 && Balances[SystemAddress] >= reward)
         {
             if (!HasReceivedFounderReward(sender))
             {
@@ -331,7 +298,7 @@ public class Blockchain
                     Sender = SystemAddress,
                     Recipient = sender,
                     Amount = reward,
-                    Timestamp = DateTime.UtcNow, 
+                    Timestamp = DateTime.UtcNow,
                     TransactionType = TransactionTypes.Founder
                 };
 
@@ -339,18 +306,15 @@ public class Blockchain
                 if (!success)
                     Logger.LogError($"Founder {sender} reward of {founderIndex}.{reward} SCX failed");
                 else
-                {
                     Logger.Log($"Founder {sender} reward of {founderIndex}.{reward} SCX success");
-                }
             }
-
         }
         else if (reward > 0)
         {
             Logger.LogError($"Insufficient balance to reward founder {founderIndex} with {reward} SCX");
         }
     }
-     
+
     /// <summary>
     ///     Adds a transaction to the list of pending transactions.
     ///     Ensures that the transaction is signed and valid.
@@ -368,17 +332,20 @@ public class Blockchain
             Logger.Log($"Transaction {transaction.Name} not added. Recipient is missing");
             return false;
         }
-         
+
         transaction.SignTransaction(Crypt.Default.PrivateKey);
         var gas = transaction.Gas;
-         
-        if (gas > 0 && transaction.TransactionType!=TransactionTypes.Gas && transaction.TransactionType != TransactionTypes.Founder)
+
+        if (gas > 0 && transaction.TransactionType != TransactionTypes.Gas &&
+            transaction.TransactionType != TransactionTypes.Founder)
             if (!await PayGas("Transaction", transaction.Sender, gas))
                 return false;
 
         if (PendingTransactions != null)
-            lock (PendingTransactions) 
+            lock (PendingTransactions)
+            {
                 PendingTransactions.Add(transaction);
+            }
 
         if (mine) await MinePendingTransactions(transaction.Sender);
         return true;
@@ -390,7 +357,19 @@ public class Blockchain
     /// </summary>
     public async Task<bool> AddSmartContract(Blockchain? chain, SmartContract? contract)
     {
-        if (contract != null && !Regex.IsMatch(contract.Name, @"^[a-zA-Z0-9]+$"))
+        if (chain == null)
+        {
+            Logger.LogError("Blockchain instance is null.");
+            return false;
+        }
+
+        if (contract == null)
+        {
+            Logger.LogError("SmartContract instance is null.");
+            return false;
+        }
+
+        if (!Regex.IsMatch(contract.Name, @"^[a-zA-Z0-9]+$"))
         {
             Logger.Log(
                 $"Invalid Smart Contract name '{contract.Name}'. Names can only contain alphanumeric characters (a-z, A-Z, 0-9) without spaces.");
@@ -398,60 +377,50 @@ public class Blockchain
         }
 
         // Check if the contract with the same name already exists
-        if (contract != null && SmartContracts.ContainsKey(contract.Name))
+        if (SmartContracts.ContainsKey(contract.Name))
         {
             Logger.Log($"A Smart Contract with the name '{contract.Name}' already exists in the blockchain.");
             return false;
         }
-        string message = "";
+
+        var message = "";
         if (!CodeSecurityAnalyzer.IsCodeSafe(Serializer.DeserializeFromBase64<string>(contract.SerializedContractCode),
                 ref message))
         {
-            Logger.LogError($"The code contains forbidden constructs and was not executed. ");
+            Logger.LogError("The code contains forbidden constructs and was not executed.");
             Logger.LogError($"Details: {message}");
             return false;
         }
 
         if (await ReachCodeConsensus(contract))
         {
-            //"$$" + contract.Name in info of transaction defines a smart contract in data
-            if (contract != null)
+            // "$$" + contract.Name in info of transaction defines a smart contract in data
+            var contractTransaction = new Transaction
             {
-                var contractTransaction = new Transaction
-                {
-                    Sender = contract.Owner,
-                    Recipient = SystemAddress,
-                    Data = contract.SerializedContractCode,
-                    Info = "$$" + contract.Name,
-                    Timestamp = DateTime.UtcNow,
-                    TransactionType = TransactionTypes.ContractCode
-                };
+                Sender = contract.Owner,
+                Recipient = SystemAddress,
+                Data = contract.SerializedContractCode,
+                Info = "$$" + contract.Name,
+                Timestamp = DateTime.UtcNow,
+                TransactionType = TransactionTypes.ContractCode
+            };
 
-                if (chain != null)
-                    if (!await chain.AddTransaction(contractTransaction, true))
-                    {
-                        Logger.LogError($"Smart Contract '{contract.Name}' not added to the blockchain.");
-                        return false;
-                    }
+            if (!await chain.AddTransaction(contractTransaction, true))
+            {
+                Logger.LogError($"Smart Contract '{contract.Name}' not added to the blockchain.");
+                return false;
             }
 
-            if (contract != null)
-            {
-                if (FirstBlock != null)
-                    FirstBlock.SmartContracts.TryAdd(contract.Name, contract);
 
-                Logger.Log($"Smart Contract '{contract.Name}' added to the blockchain.");
-                return true;
-            }
+            Logger.Log($"Smart Contract '{contract.Name}' added to the blockchain.");
+            return true;
         }
-        else
-        {
-            if (contract != null)
-                Logger.Log($"No consensus reached for the Smart Contract '{contract.Name}'");
-        }
+
+        Logger.Log($"No consensus reached for the Smart Contract '{contract.Name}'");
 
         return false;
     }
+
 
     /// <summary>
     ///     Reaches consensus for a specific block using selected validators.
@@ -461,100 +430,74 @@ public class Blockchain
     ///     A tuple where the first value indicates if consensus was reached, and the second is a list of reward
     ///     addresses.
     /// </returns>
-    private async Task<(bool, List<string>)> ReachConsensus(Block? block)
+    private async Task<(bool, ConcurrentList<string>)> ReachConsensus(Block? block)
     {
-        Logger.Log($"Starting Snowman-Consensus for block: {block.Hash}");
-
-        // Dynamically select the number of validators based on block size
-        int selectionSize = block.Transactions.Count > 1000 ? 20 : 10; // Example: More validators for large blocks
-
-        // If there are fewer nodes than the desired number, select all available nodes
-        selectionSize = Math.Min(selectionSize, Node.CurrentNodeIPs.Count / 2);
-
-        // Select the validators (excluding own server address)
-        var selectedValidators = Node.CurrentNodeIPs
-            .Where(ip => !Config.Default.URL.Contains(ip)) // Exclude own server URL
-            .OrderBy(_ => Guid.NewGuid()) // Random selection
-            .Take(selectionSize) // Select the desired number of validators
-            .ToList();
-
-        Logger.Log($"Selected {selectedValidators.Count} validators from {Node.CurrentNodeIPs.Count} available nodes.");
-
-        // Calculate the required number of positive votes to reach consensus
-        var requiredVotes = selectedValidators.Count / 2 + 1;
-
-        // List of tasks for sending vote requests
-        var voteTasks = new List<Task<(bool, string)>>();
-
-        foreach (var validator in selectedValidators)
+        if (block != null)
         {
-            if (validator.Contains(Config.Default.URL))
-                continue;
-            voteTasks.Add(SendVoteRequestAsync(validator, block));
-        }
+            Logger.Log($"Starting Snowman-Consensus for block: {block.Hash}");
 
-        // Wait for all the vote results
-        var results = await Task.WhenAll(voteTasks);
+            // Dynamically select the number of validators based on block size
+            var selectionSize = block.Transactions.Count > 1000 ? 20 : 10; // Example: More validators for large blocks
 
-        // Count the number of positive votes
-        var positiveVotes = results.Count(result => result.Item1 && result.Item2.StartsWith("ok#"));
+            // If there are fewer nodes than the desired number, select all available nodes
+            selectionSize = Math.Min(selectionSize, Node.CurrentNodeIPs.Count / 2);
 
-        Logger.Log(positiveVotes >= requiredVotes
-            ? "Consensus reached. Block validated."
-            : "No consensus reached. Block discharge.");
+            if (Node.CurrentNodeIPs.Count == 1)
+                selectionSize = 1;
 
-        // Collect reward addresses from the positive vote results
-        var rewardAddresses = new List<string>();
-        foreach (var result in results)
-        {
-            var sp = result.Item2.Split('#');
-            if (sp.Length == 2 && sp[0] == "ok")
-                if (!rewardAddresses.Contains(sp[1]))
-                    rewardAddresses.Add(sp[1]);
-        }
+            // Select the validators (excluding own server address)
+            var selectedValidators = Node.CurrentNodeIPs
+                .Where(ip => !Config.Default.URL.Contains(ip)) // Exclude own server URL
+                .OrderBy(_ => Guid.NewGuid()) // Random selection
+                .Take(selectionSize) // Select the desired number of validators
+                .ToList();
 
-        // Return the consensus status and the list of reward addresses
-        return (positiveVotes >= requiredVotes, rewardAddresses);
-    }
+            Logger.Log(
+                $"Selected {selectedValidators.Count} validators from {Node.CurrentNodeIPs.Count} available nodes.");
 
+            if (selectedValidators.Count <= 0) return (false, new ConcurrentList<string>());
 
-    /// <summary>
-    ///     Sends a vote request to a target validator for a specific block.
-    /// </summary>
-    /// <param name="targetValidator">The address of the target validator.</param>
-    /// <param name="block">The block to be validated.</param>
-    /// <returns>
-    ///     A tuple where the first value indicates if the request was successful, and the second contains the response
-    ///     message.
-    /// </returns>
-    private async Task<(bool, string)> SendVoteRequestAsync(string targetValidator, Block? block)
-    {
-        try
-        {
-            var verifiedBlock = Block.FromBase64(block.Base64Encoded);
-            if (verifiedBlock != null)
+            // Calculate the required number of positive votes to reach consensus
+            var requiredVotes = selectedValidators.Count / 2 + 1;
+
+            // List of tasks for sending vote requests
+            var voteTasks = new List<Task<(bool, string)>>();
+
+            foreach (var validator in selectedValidators)
             {
-                var hash = block.Hash;
-                var calculatedHash = block.CalculateHash();
-                if (calculatedHash == hash)
-                {
-                    var message = $"Vote:{block.Base64Encoded}";
-                    Logger.Log($"Sending vote request to: {targetValidator}");
-                    var response = await SocketManager.GetInstance(targetValidator).SendMessageAsync(message);
-                    if (Config.Default.Debug)
-                        Logger.Log($"Response from {targetValidator}: {response}");
-                    return (response.Contains("ok"), response);
-                }
+                if (validator.Contains(Config.Default.URL))
+                    continue;
+                voteTasks.Add(SendVoteRequestAsync(validator, block));
             }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogException(ex, $"sending vote request"); 
+
+            // Wait for all the vote results
+            var results = await Task.WhenAll(voteTasks);
+
+            // Count the number of positive votes
+            var positiveVotes = results.Count(result => result.Item1 && result.Item2.StartsWith("ok#"));
+
+            Logger.Log(positiveVotes >= requiredVotes
+                ? "Consensus reached. Block validated."
+                : "No consensus reached. Block discharge.");
+
+            // Collect reward addresses from the positive vote results
+            var rewardAddresses = new ConcurrentList<string>();
+            foreach (var result in results)
+            {
+                var sp = result.Item2.Split('#');
+                if (sp.Length == 2 && sp[0] == "ok")
+                    if (!rewardAddresses.Contains(sp[1]))
+                        rewardAddresses.Add(sp[1]);
+            }
+
+            // Return the consensus status and the list of reward addresses
+            var consensus = positiveVotes >= requiredVotes;
+            return (consensus, rewardAddresses);
         }
 
-        Logger.LogError($"block.Verify failed from {targetValidator}");
-        return (false, "");
+        return (false, new ConcurrentList<string>());
     }
+
 
     /// <summary>
     ///     Executes the specified smart contract with the provided inputs.
@@ -587,7 +530,7 @@ public class Blockchain
 
             if (!await PayGas("Contract " + contract.Name, contract.Owner, contract.Gas))
                 return ("", currentSerializedState);
-       
+
             var (result, updatedSerializedState) = await contract.Execute(ModifyInput(inputs), currentSerializedState);
 
             // Serialize updated state back to the blockchain
@@ -599,7 +542,7 @@ public class Blockchain
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, $"executing Smart Contract '{contractName}'"); 
+            Logger.LogException(ex, $"executing Smart Contract '{contractName}'");
             return ("Execution failed", currentSerializedState);
         }
     }
@@ -741,7 +684,7 @@ public class Blockchain
                             }
                             catch (Exception ex)
                             {
-                                Logger.LogException(ex, $"Failed to deserialize contract data"); 
+                                Logger.LogException(ex, "Failed to deserialize contract data");
                                 return null;
                             }
                     }
@@ -750,7 +693,7 @@ public class Blockchain
         Logger.LogError($"SmartContract '{contractName}' not found in blockchain transactions.");
         return null;
     }
-     
+
     /// <summary>
     ///     Mines all pending transactions and adds them to the blockchain.
     ///     Includes consensus validation and reward distribution for miners and validators.
@@ -785,7 +728,7 @@ public class Blockchain
                                 return;
                             }
 
-                            transactionsToMine = PendingTransactions.ToList(); 
+                            transactionsToMine = PendingTransactions.ToList();
                         }
 
                     block = new Block(transactionsToMine, Chain.Last().Hash);
@@ -797,17 +740,21 @@ public class Blockchain
                 {
                     //add do chain after successful validation 
                     if (AddBlock(block, false))
-                    {  
-                        Broadcast(block);
+                    {
+                        var blocks = new List<Block> { block };
+
+                        // Broadcast the new block securely 
+                        _ = BroadcastBlockToPeers(Node.CurrentNodeIPs, JsonSerializer.Serialize(blocks), this);
+
                         if (PendingTransactions != null)
                             PendingTransactions.Clear();
                     }
-                     
+
                     //send a reward to the miner
                     var rewardTransaction = new RewardTransaction(this, Config.Default.MinerAddress);
 
                     await AddTransaction(rewardTransaction);
-                      
+
                     //send a reward to the validators
                     foreach (var address in rewardAddresses)
                     {
@@ -831,36 +778,6 @@ public class Blockchain
             Logger.LogError("The chain is not valid");
         }
     }
-
-
-
-    /// <summary>
-    ///     Broadcasts a given block to all peers in the network except the current node's IPs.
-    ///     Sends two types of broadcasts: one to push the list of servers and another to share the new block.
-    /// </summary>
-    /// <param name="block">The block to broadcast to the network.</param>
-    private void Broadcast(Block? block)
-    {
-        foreach (var peer in Node.CurrentNodeIPs)
-        {
-            if (peer.Contains(Config.Default.URL))
-                continue;
-
-            // Broadcast the list of servers securely
-            BlockchainServer.BroadcastToPeers(
-                new ConcurrentBag<string> { peer },
-                "PushServers",
-                string.Join(",", Node.CurrentNodeIPs).TrimEnd(','));
-
-            // Broadcast the new block securely
-            if (block != null)
-                BlockchainServer.BroadcastToPeers(
-                    new ConcurrentBag<string> { peer },
-                    "NewBlock",
-                    block.ToBase64());
-        }
-    }
-
 
     /// <summary>
     ///     Attempts to reach consensus for the provided smart contract across the network.
@@ -892,54 +809,24 @@ public class Blockchain
 
                 var positiveVotes = results.Count(result => result);
 
-                Logger.Log(positiveVotes >= requiredVotes
-                    ? $"Consensus reached for {contract.Name}. Code is safe."
-                    : $"No consensus reached for contract {contract.Name}. Code discarded.");
-
-                return positiveVotes >= requiredVotes;
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogException(ex, $"during consensus"); 
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    ///     Sends the serialized code of a smart contract to a server for verification.
-    /// </summary>
-    /// <param name="serverAddress">The address of the server for verification.</param>
-    /// <param name="contract">The smart contract to be verified.</param>
-    /// <returns>A boolean indicating whether the code verification was successful.</returns>
-    private async Task<bool> SendCodeForVerificationAsync(string serverAddress, SmartContract? contract)
-    {
-        try
-        {
-            if (contract != null)
-            {
-                var message = $"VerifyCode:{contract.SerializedContractCode}";
-                var response = await SocketManager.GetInstance(serverAddress).SendMessageAsync(message);
-                if (Config.Default.Debug)
+                if (positiveVotes >= requiredVotes)
                 {
-                    Logger.Log($"Code {contract.Name} sent to {serverAddress} for verification.");
-                    Logger.Log($"Response from server for code {contract.Name}: {response}", false);
+                    Logger.Log($"Consensus reached for {contract.Name}. Code is safe.");
+                    return true;
                 }
 
-                return response == "ok";
+                Logger.Log($"No consensus reached for contract {contract.Name}. Code discarded.");
+                return false;
             }
-
-            Logger.LogError($"sending code to {serverAddress} failed: contract is empty");
         }
         catch (Exception ex)
         {
-            if (contract != null)
-                Logger.LogException(ex, $"sending code {contract.Name} to {serverAddress} failed"); 
+            Logger.LogException(ex, "during consensus");
         }
 
         return false;
     }
+
 
     /// <summary>
     ///     Validates the entire blockchain by checking the hashes and links between blocks.
@@ -960,7 +847,7 @@ public class Blockchain
 
                     if (current.PreviousHash != previous.Hash)
                         return false;
-                }                
+                }
             }
 
 
@@ -979,7 +866,7 @@ public class Blockchain
             return;
 
         if (toBlock == -1 || toBlock >= Chain.Count) toBlock = Chain.Count - 1;
-         
+
         Logger.LogLine("CHAIN INFO");
         Logger.Log("Listing all blocks and their transactions:");
 
@@ -991,7 +878,7 @@ public class Blockchain
             Logger.Log($"Timestamp: {block.Timestamp}");
             Logger.Log($"Hash: {block.Hash}");
             Logger.Log($"Previous Hash: {block.PreviousHash}");
-            Logger.Log($"Nonce: {block.Nonce}"); 
+            Logger.Log($"Nonce: {block.Nonce}");
 
             if (showTransactions)
                 foreach (var transaction in block.Transactions)
@@ -1034,10 +921,7 @@ public class Blockchain
         {
             UpdateBalancesFromChain(this);
 
-            if (Balances.TryGetValue(address, out var balance))
-            {
-                return balance;
-            }
+            if (Balances.TryGetValue(address, out var balance)) return balance;
         }
         catch (Exception ex)
         {
@@ -1066,7 +950,7 @@ public class Blockchain
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, $"Failed to GetAllBalancesFromChain"); 
+            Logger.LogException(ex, "Failed to GetAllBalancesFromChain");
         }
 
         return balances;
@@ -1086,7 +970,7 @@ public class Blockchain
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, $"loading the blockchain"); 
+            Logger.LogException(ex, "loading the blockchain");
             throw;
         }
     }
@@ -1117,12 +1001,13 @@ public class Blockchain
 
             if (minerAddress != null && chainId != null)
             {
-                var blockchain = new Blockchain(minerAddress, chainId, difficulty);
-
-                blockchain.Chain = JsonSerializer.Deserialize<List<Block>>(innerChainElement.GetRawText());
-
-                blockchain.PendingTransactions =
-                    JsonSerializer.Deserialize<List<Transaction>>(root.GetProperty("PendingTransactions").GetRawText());
+                var blockchain = new Blockchain(minerAddress, chainId, difficulty)
+                {
+                    Chain = JsonSerializer.Deserialize<List<Block>>(innerChainElement.GetRawText()),
+                    PendingTransactions =
+                        JsonSerializer.Deserialize<List<Transaction>>(root.GetProperty("PendingTransactions")
+                            .GetRawText())
+                };
 
                 if (root.TryGetProperty("Balances", out var balancesJson))
                 {
@@ -1141,14 +1026,14 @@ public class Blockchain
                         foreach (var allowance in allowances)
                             Allowances[allowance.Key] = allowance.Value;
                 }
-                 
+
                 Logger.Log("Blockchain loaded successfully.");
                 return blockchain;
             }
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, $"loading the blockchain"); 
+            Logger.LogException(ex, "loading the blockchain");
             throw;
         }
 
@@ -1163,6 +1048,69 @@ public class Blockchain
     {
         return Convert.ToBase64String(GetBytes());
     }
+
+    /// <summary>
+    ///     Serializes a range of blocks to a Base64 string for storage or transmission.
+    /// </summary>
+    /// <param name="fromBlock">The starting block index (inclusive).</param>
+    /// <param name="toBlock">The ending block index (inclusive). If -1, includes all blocks from the start index.</param>
+    /// <returns>A Base64 string representation of the selected blocks.</returns>
+    public string GetBlocksAsBase64(int fromBlock, int toBlock)
+    {
+        if (Chain == null || Chain.Count == 0)
+            throw new InvalidOperationException("The blockchain is empty.");
+
+        if (fromBlock < 0 || fromBlock >= Chain.Count)
+            throw new ArgumentOutOfRangeException(nameof(fromBlock), "Invalid starting block index.");
+
+        if (toBlock == -1 || toBlock >= Chain.Count)
+            toBlock = Chain.Count - 1;
+
+        if (fromBlock > toBlock)
+            throw new ArgumentException("The starting block index cannot be greater than the ending block index.");
+
+        // Select the range of blocks
+        var blocks = Chain.GetRange(fromBlock, toBlock - fromBlock + 1);
+
+        // Serialize the selected blocks to JSON
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            IncludeFields = true
+        };
+        var jsonData = JsonSerializer.Serialize(blocks, options);
+
+        // Compress and convert to Base64
+        return Convert.ToBase64String(Compress.CompressString(jsonData));
+    }
+
+    /// <summary>
+    ///     Decodes a list<Block>
+    /// </summary>
+    /// <param name="base64Data"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentException"></exception>
+    /// <exception cref="InvalidOperationException"></exception>
+    public static List<Block> DecodeBlocksFromBase64(string base64Data)
+    {
+        if (string.IsNullOrWhiteSpace(base64Data))
+            throw new ArgumentException("Base64 data cannot be null or empty.", nameof(base64Data));
+
+        // Base64 dekodieren
+        var compressedData = Convert.FromBase64String(base64Data);
+
+        // Dekomprimieren
+        var jsonData = Compress.DecompressString(compressedData);
+
+        // Deserialisieren
+        var options = new JsonSerializerOptions
+        {
+            IncludeFields = true
+        };
+        return JsonSerializer.Deserialize<List<Block>>(jsonData, options)
+               ?? throw new InvalidOperationException("Failed to deserialize blocks.");
+    }
+
 
     /// <summary>
     ///     Creates a Blockchain object from a base64-encoded string representation.
@@ -1214,7 +1162,7 @@ public class Blockchain
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, $"saving the blockchain"); 
+            Logger.LogException(ex, "saving the blockchain");
         }
 
         return false;
@@ -1222,12 +1170,16 @@ public class Blockchain
 
     /// <summary>
     ///     Verifies the integrity of the blockchain by checking hashes and previous hashes.
+    ///     If the chain contains an invalid previous hash, it will be shortened to the last valid block.
     /// </summary>
     /// <returns>True if the blockchain is valid, otherwise false.</returns>
     internal bool IsValid()
     {
         var isValid = true;
+        var lastValidIndex = Chain?.Count - 1 ?? -1; // Start with the assumption that the entire chain is valid.
+
         if (Chain != null)
+        {
             Parallel.For(1, Chain.Count, (i, state) =>
             {
                 var currentBlock = Chain[i];
@@ -1238,6 +1190,7 @@ public class Blockchain
                 {
                     Logger.LogError($"Block {i} has an invalid hash.");
                     isValid = false;
+                    lastValidIndex = Math.Min(lastValidIndex, i - 1); // Update the last valid index
                     state.Stop(); // Stop further iterations if invalid
                 }
 
@@ -1246,9 +1199,18 @@ public class Blockchain
                 {
                     Logger.LogError($"Block {i} has an invalid previous hash.");
                     isValid = false;
+                    lastValidIndex = Math.Min(lastValidIndex, i - 1); // Update the last valid index
                     state.Stop(); // Stop further iterations if invalid
                 }
             });
+
+            // If the chain has invalid blocks, truncate it to the last valid block
+            if (!isValid && lastValidIndex >= 0)
+            {
+                Logger.LogWarning($"Truncating blockchain to the last valid block at index {lastValidIndex}.");
+                Chain = Chain.Take(lastValidIndex + 1).ToList();
+            }
+        }
 
         if (isValid && Config.Default.Debug)
             Logger.Log("Blockchain integrity verified successfully.");
@@ -1256,9 +1218,88 @@ public class Blockchain
         return isValid;
     }
 
+
+    /// <summary>
+    ///     Sends the blockchain in chunks to a peer.
+    /// </summary>
+    /// <param name="peer">The target peer to send the chain to.</param>
+    /// <param name="chunkSize">The number of blocks to include in each chunk.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    public async Task<bool> SendChainInChunks(string peer, ChainInfo? remoteChainInfo, int chunkSize = 10)
+    {
+        if (Chain != null)
+        {
+            //transfer blocks
+            var totalBlocks = Chain.Count;
+            var from = 0;
+
+            if (from <= totalBlocks)
+            {
+                Logger.Log($"Starting SendChainInChunks to {peer}. Total blocks: {totalBlocks}");
+
+                while (from <= totalBlocks)
+                {
+                    var to = Math.Min(from + chunkSize - 1, totalBlocks);
+
+                    // Get the chunk of blocks as Base64
+                    var chunk = GetBlocksAsBase64(from, to);
+                    var msg = ApiController.CreateChainInfo(chunk);
+
+                    // Send the chunk 
+                    var (success, response) =
+                        await SendSecureMessage(peer, "/api/NewBlocks", JsonSerializer.Serialize(msg));
+                    if (success)
+                    {
+                        if (Config.Default.Debug)
+                            Logger.Log($"Broadcast to {peer} successful. Response: {response}");
+
+                        var responseObject = JsonSerializer.Deserialize<ChainInfo>(response);
+                        if (responseObject == null)
+                            Logger.LogError("ChainInfo Deserialize failed: Invalid response structure");
+                        else //if (Config.Default.Debug)
+                            Logger.Log($"Remote chain count: {responseObject.URL} : {responseObject.BlockCount}");
+                    }
+                    else if (!success || string.IsNullOrEmpty(response))
+                    {
+                        Logger.LogError($"Broadcast SendChainInChunks blocks {from}-{to} to {peer} failed: {response}",
+                            false);
+                        return false;
+                    }
+
+                    if (Config.Default.Debug)
+                        Logger.Log(
+                            $"Broadcast SendChainInChunks blocks {from}-{to} to {peer} successful. Response: {response}");
+
+                    from += chunkSize; // Move to the next chunk
+                }
+
+                Logger.Log($"Completed SendChainInChunks to {peer}.");
+                return true;
+            }
+        }
+
+        Logger.LogError($"SendChainInChunks to {peer} failed.");
+        return false;
+    }
+
+    /// <summary>
+    ///     Clears the blockchain
+    /// </summary>
+    public void Clear()
+    {
+        if (Chain != null)
+            lock (Chain)
+            {
+                Chain.Clear();
+            }
+
+        BlockchainStorage.ClearDatabase(Config.Default.BlockchainPath, ChainId);
+        _transactionIndex.Clear();
+    }
+
     #region Index
 
-    private readonly Dictionary<string, List<Transaction>> _transactionIndex = new();
+    private readonly ConcurrentDictionary<string, List<Transaction>> _transactionIndex = new();
     private const int MaxTransactionsPerAddress = 1000;
     private const string ArchiveFilePath = "transaction_archive.json";
 
@@ -1287,8 +1328,10 @@ public class Blockchain
         {
             if (!_transactionIndex.ContainsKey(key)) _transactionIndex[key] = new List<Transaction>();
 
-            lock (_transactionIndex[key]) 
+            lock (_transactionIndex[key])
+            {
                 _transactionIndex[key].Add(tx);
+            }
 
             // Maintain the max size limit for the index
             if (_transactionIndex[key].Count > MaxTransactionsPerAddress) ArchiveOldTransactions(key);
@@ -1327,7 +1370,7 @@ public class Blockchain
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, $"archiving transactions for {address} failed"); 
+            Logger.LogException(ex, $"archiving transactions for {address} failed");
         }
     }
 
@@ -1356,7 +1399,7 @@ public class Blockchain
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, $"loading archived transactions for {address} failed"); 
+            Logger.LogException(ex, $"loading archived transactions for {address} failed");
         }
 
         return transactions;

@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.Net;
+﻿using System.Net;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -20,8 +19,8 @@ namespace SmartXChain.Server;
 /// </summary>
 public partial class BlockchainServer
 {
-    private const int HeartbeatTimeoutSeconds = 30; // Maximum time before a node is considered inactive 
-    private WebServer _server; 
+    private const int NodeTimeoutSeconds = 120; // Maximum time before a node is considered inactive 
+    private WebServer _server;
 
     /// <summary>
     ///     Initializes a new instance of the BlockchainServer class with specified external and internal IP addresses.
@@ -48,7 +47,7 @@ public partial class BlockchainServer
         FileSystem.CopyDirectory(Path.Combine(baseDirectory, "wwwroot"), str);
         var path = Path.Combine(str, "index.html");
         File.WriteAllText(path, ReplaceBody(File.ReadAllText(path)));
-         
+
         if (!Config.Default.SSL)
             _server = (WebServer)new WebServer(Configure).WithCors()
                 .WithLocalSessionManager()
@@ -71,7 +70,7 @@ public partial class BlockchainServer
 
         Logger.Log($"Server started at {Config.Default.URL}");
 
-        _server.StateChanged += (s, e) => 
+        _server.StateChanged += (s, e) =>
             $"WebServer New State - {e.NewState}".Info();
     }
 
@@ -147,7 +146,7 @@ public partial class BlockchainServer
             }
             catch (Exception ex)
             {
-                Logger.LogException(ex, $"starting server"); 
+                Logger.LogException(ex, "starting server");
             }
         });
         Startup = result;
@@ -171,13 +170,13 @@ public partial class BlockchainServer
             }
             catch (Exception ex)
             {
-                Logger.LogException(ex, $"loading existing chain from {chainPath}"); 
+                Logger.LogException(ex, $"loading existing chain from {chainPath}");
                 Logger.LogError($"{ex.Message}");
             }
         }
 
         return (server, result);
-    } 
+    }
 
     /// <summary>
     ///     Validates a node's signature using HMACSHA256 with the server's secret key.
@@ -223,7 +222,7 @@ public partial class BlockchainServer
 
         // Identify nodes that have exceeded the heartbeat timeout
         var inactiveNodes = Node.CurrentNodeIP_LastActive
-            .Where(kvp => (now - kvp.Value).TotalSeconds > HeartbeatTimeoutSeconds)
+            .Where(kvp => (now - kvp.Value).TotalSeconds > NodeTimeoutSeconds)
             .Select(kvp => kvp.Key)
             .ToList();
 
@@ -289,35 +288,5 @@ public partial class BlockchainServer
         var isCodeSafe = CodeSecurityAnalyzer.IsCodeSafe(code, ref codecheck);
 
         return isCodeSafe ? "ok" : $"failed: {codecheck}";
-    }
-
-    /// <summary>
-    ///     Handles heartbeat messages from nodes to update their last active timestamp.
-    /// </summary>
-    /// <param name="message">The heartbeat message containing the node address.</param>
-    private void HandleHeartbeat(string message)
-    {
-        const string prefix = "Heartbeat:";
-        if (!message.StartsWith(prefix))
-        {
-            Logger.Log("Invalid Heartbeat message received.");
-            return;
-        }
-
-        var nodeAddress = message.Substring(prefix.Length);
-
-        if (!Uri.IsWellFormedUriString(nodeAddress, UriKind.Absolute))
-        {
-            Logger.Log("Invalid node address in heartbeat received.");
-            return;
-        }
-
-        Node.AddNodeIP(nodeAddress);
-
-        if (Config.Default.Debug)
-            Logger.Log($"Heartbeat {nodeAddress} - {DateTime.Now} (HandleHeartbeat)");
-
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
     }
 }

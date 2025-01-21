@@ -59,7 +59,7 @@ public class Transaction
     /// </summary>
     [JsonInclude]
     internal static Dictionary<string, Dictionary<string, double>> Allowances { get; } = new();
- 
+
     /// <summary>
     ///     Stores TransactionType.
     /// </summary>
@@ -190,7 +190,7 @@ public class Transaction
     ///     Recalculates the gas required for the transaction based on its properties.
     /// </summary>
     private void RecalculateGas()
-    { 
+    {
         if (Sender == Blockchain.SystemAddress)
         {
             Gas = 0;
@@ -205,7 +205,7 @@ public class Transaction
             };
             calculator.CalculateGas();
             Gas = calculator.Gas;
-        } 
+        }
     }
 
     /// <summary>
@@ -216,7 +216,7 @@ public class Transaction
         try
         {
             using var ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-            ecdsa.ImportECPrivateKey(Convert.FromBase64String(privateKey), out _); 
+            ecdsa.ImportECPrivateKey(Convert.FromBase64String(privateKey), out _);
             var hash = SHA256.HashData(Encoding.UTF8.GetBytes(ToString()));
             var signature = ecdsa.SignHash(hash);
             Signature = Convert.ToBase64String(signature) + "|" + Crypt.AssemblyFingerprint;
@@ -245,7 +245,7 @@ public class Transaction
 
         return ecdsa.VerifyHash(hash, signatureBytes) && sp[1] == Crypt.AssemblyFingerprint;
     }
- 
+
     /// <summary>
     ///     Verifies the private key of a user against the stored address.
     /// </summary>
@@ -260,7 +260,7 @@ public class Transaction
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, "VerifyPrivateKey failed"); 
+            Logger.LogException(ex, "VerifyPrivateKey failed");
             return false;
         }
     }
@@ -295,13 +295,14 @@ public class Transaction
     /// <summary>
     ///     Transfers tokens with blockchain integration and optional metadata.
     /// </summary>
-    public static async Task<(bool, string)> Transfer(Blockchain? chain, string sender, string recipient, decimal amount,
+    public static async Task<(bool, string)> Transfer(Blockchain? chain, string sender, string recipient,
+        decimal amount,
         string privateKey,
         string info = "", string data = "")
     {
         if (chain != null)
         {
-            await chain.SettleFounder(sender); 
+            await chain.SettleFounder(sender);
 
             var message = "";
             if (!Balances.ContainsKey(sender) || Balances[sender] < amount)
@@ -322,8 +323,8 @@ public class Transaction
                 TransactionType = TransactionTypes.NativeTransfer
             };
 
-             var success = await chain.AddTransaction(transferTransaction);
-           
+            var success = await chain.AddTransaction(transferTransaction);
+
             Balances[sender] -= amount;
             Balances.TryAdd(recipient, 0);
             Balances[recipient] += amount;
@@ -335,12 +336,12 @@ public class Transaction
 
         return (false, "no blockchain");
     }
-     
+
     /// <summary>
     ///     Updates account balances from the blockchain's transaction history.
     /// </summary>
     internal static void UpdateBalancesFromChain(Blockchain? chain)
-    { 
+    {
         Balances.Clear();
         Balances[Blockchain.SystemAddress] = TotalSupply;
 
@@ -366,11 +367,11 @@ public class Transaction
         foreach (var account in Balances.Keys.ToList())
             if (Balances[account] < 0)
                 Balances[account] = 0;
-  
+
 
         Logger.Log("Balances updated successfully from the blockchain.");
     }
-     
+
     /// <summary>
     ///     Hashes the provided key using SHA-256.
     /// </summary>
@@ -379,7 +380,7 @@ public class Transaction
         using var sha256 = SHA256.Create();
         var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(key));
         return Convert.ToBase64String(hashedBytes);
-    } 
+    }
 
 
     /// <summary>

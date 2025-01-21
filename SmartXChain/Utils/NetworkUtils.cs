@@ -52,4 +52,21 @@ public class NetworkUtils
         // Match the input string against the regex pattern
         return Regex.IsMatch(httpIPPort, pattern, RegexOptions.IgnoreCase);
     }
+
+    public static string? ResolveUrlToIp(string url)
+    {
+        try
+        {
+            var uri = new Uri(url);
+
+            var addresses = Dns.GetHostAddresses(uri.Host);
+
+            if (addresses.Length > 0) return uri.Scheme + "://" + addresses[0] + ":" + uri.Port;
+        }
+        catch (Exception ex)
+        {
+        }
+
+        return url;
+    }
 }

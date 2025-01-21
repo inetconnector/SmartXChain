@@ -43,10 +43,9 @@ public sealed class RewardTransaction : Transaction
                 // Perform the transfer and update the reward property
                 if (Transfer(chain, Blockchain.SystemAddress, recipient, reward))
                     Reward = reward;
-
         }
     }
-     
+
     /// <summary>
     ///     Gets the reward amount distributed in this transaction.
     /// </summary>
@@ -87,7 +86,7 @@ public sealed class RewardTransaction : Transaction
         Balances.TryAdd(recipient, 0);
         Balances[recipient] += amount;
 
-        Logger.Log($"{TransactionType} transaction successful: {amount} tokens from {sender} to {recipient}.",false);
+        Logger.Log($"{TransactionType} transaction successful: {amount} tokens from {sender} to {recipient}.", false);
         return true;
     }
 }

@@ -1,7 +1,4 @@
 ﻿using System.Collections.Concurrent;
-using System.Net.Http.Headers;
-using System.Text;
-using System.Text.Json;
 using SmartXChain.Utils;
 
 namespace SmartXChain.Server;
@@ -110,89 +107,36 @@ public class SocketManager : IDisposable
     {
         try
         {
-            using var client = new HttpClient { BaseAddress = new Uri(_serverAddress) };
-            if (Config.Default.SSL)
-            {
-                var token = new AuthenticationHeaderValue("Bearer", BearerToken.GetToken());
-                client.DefaultRequestHeaders.Authorization = token;
-            }
-
-            Logger.Log($"Connecting to server: {_serverAddress}");
+            Logger.Log($"Estabilish connection to: {_serverAddress}");
 
             foreach (var (message, tcs) in _messageQueue.GetConsumingEnumerable(cancellationToken))
-                lock (_sendLock)
+                try
                 {
-                    var url = "";
-                    try
+                    // Determine the endpoint based on the message format
+                    var endpoint = "/api/" + message.Split(':')[0];
+
+                    // Log the message being processed
+                    if (Config.Default.Debug)
+                        Logger.Log($"Processing queued message: {message}");
+
+                    // Use the SecureCommunication utility to send the message and retrieve the response
+                    var (success, response) =
+                        await BlockchainServer.SendSecureMessage(_serverAddress, endpoint, message);
+
+                    if (success && !string.IsNullOrEmpty(response))
                     {
-                        // Fetch the peer's public key (with caching)
-                        var bobSharedKey = BlockchainServer.FetchPeerPublicKey(_serverAddress);
-                        if (bobSharedKey == null)
-                        {
-                            Logger.LogError($"Could not retrieve public key from: {_serverAddress} for message  {message}");
-                            tcs.TrySetResult($"ERROR: Could not retrieve public key from {_serverAddress} for message {message}");
-                            continue;
-                        }
-
-                        // Encrypt and sign the message
-                        var (encryptedMessage, iv, hmac) = SecurePeer.GetAlice(bobSharedKey)
-                            .EncryptAndSign(message);
-
-                        // Serialize the payload
-                        var payload = new
-                        {
-                            SharedKey = Convert.ToBase64String(SecurePeer.Alice.GetPublicKey()),
-                            EncryptedMessage = Convert.ToBase64String(encryptedMessage),
-                            IV = Convert.ToBase64String(iv),
-                            HMAC = Convert.ToBase64String(hmac)
-                        };
-
-                        var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8,
-                            "application/json");
-                        if (Config.Default.Debug)
-                            Logger.Log($"Sending queued message to server: {message}");
-
-                        url = "/api/" + message.Split(':')[0];
-
-                        // Send message to the server's REST endpoint
-                        var response = client.PostAsync(url, content).Result;
-
-                        if (response.IsSuccessStatusCode)
-                        {
-                            var responseString = response.Content.ReadAsStringAsync().Result;
-
-                            if (!string.IsNullOrEmpty(responseString))
-                            {
-                                var bobPayload =
-                                    JsonSerializer
-                                        .Deserialize<BlockchainServer.ApiController.SecurePayload>(responseString);
-                                if (bobPayload != null)
-                                {
-                                    var bob = SecurePeer.GetAlice(bobPayload.SharedKey);
-
-                                    responseString = bob.DecryptAndVerify(
-                                        Convert.FromBase64String(bobPayload.EncryptedMessage),
-                                        Convert.FromBase64String(bobPayload.IV),
-                                        Convert.FromBase64String(bobPayload.HMAC)
-                                    );
-                                }
-                            } 
-
-                            if (Config.Default.Debug)
-                                Logger.Log($"Received response: {responseString}");
-                            tcs.TrySetResult(responseString);
-                        }
-                        else
-                        { 
-                            Logger.LogError($"{response.StatusCode} - {response.ReasonPhrase}");
-                            tcs.TrySetResult($"ERROR: {response.StatusCode} - {response.ReasonPhrase}");
-                        }
+                        tcs.TrySetResult(response);
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        Logger.LogException(ex, $"send failed: {url}");
-                        tcs.TrySetException(ex);
+                        Logger.LogError($"Failed to send message to {_serverAddress}: {message}");
+                        tcs.TrySetResult($"ERROR: Failed to send message to {_serverAddress}");
                     }
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogException(ex, $"Critical error while processing message: {message}");
+                    tcs.TrySetException(ex);
                 }
         }
         catch (OperationCanceledException)

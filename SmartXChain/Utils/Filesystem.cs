@@ -12,7 +12,7 @@ namespace SmartXChain.Utils;
 public static class FileSystem
 {
     /// <summary>
-    /// Creates a zip file from a given directory
+    ///     Creates a zip file from a given directory
     /// </summary>
     /// <param name="sourceDirectory"></param>
     /// <param name="zipFilePath"></param>
@@ -20,13 +20,10 @@ public static class FileSystem
     public static bool CreateZipFromDirectory(string sourceDirectory, string zipFilePath)
     {
         if (Directory.Exists(sourceDirectory))
-        { 
-            if (File.Exists(zipFilePath))
-            {
-                File.Delete(zipFilePath);
-            }
-             
-            ZipFile.CreateFromDirectory(sourceDirectory, zipFilePath); 
+        {
+            if (File.Exists(zipFilePath)) File.Delete(zipFilePath);
+
+            ZipFile.CreateFromDirectory(sourceDirectory, zipFilePath);
             return true;
         }
 
@@ -36,22 +33,19 @@ public static class FileSystem
     public static byte[] ReadZipFileAsBytes(string zipFilePath)
     {
         if (File.Exists(zipFilePath))
-        {
             // Lese die ZIP-Datei in ein Byte-Array
             return File.ReadAllBytes(zipFilePath);
-        }
-        else
-        {
-            throw new FileNotFoundException($"Die ZIP-Datei {zipFilePath} wurde nicht gefunden.");
-        }
+
+        throw new FileNotFoundException($"Die ZIP-Datei {zipFilePath} wurde nicht gefunden.");
     }
+
     public static void CopyDirectory(string sourceDir, string targetDir)
     {
         if (!Directory.Exists(sourceDir))
         {
             Logger.LogError(sourceDir + " not found.");
             throw new DirectoryNotFoundException("ERROR: " + sourceDir + " not found.");
-        } 
+        }
 
         Directory.CreateDirectory(targetDir);
         foreach (var file in Directory.GetFiles(sourceDir))
@@ -68,7 +62,7 @@ public static class FileSystem
     }
 
     /// <summary>
-    /// Creates a backup of the current config and keys i.e. to ApplicationData\SmartXChain_Backup
+    ///     Creates a backup of the current config and keys i.e. to ApplicationData\SmartXChain_Backup
     /// </summary>
     public static void CreateBackup()
     {
@@ -89,13 +83,14 @@ public static class FileSystem
             Directory.Delete(appDir, true);
         }
     }
+
     private static void CreateBackup(string appDir)
     {
         try
         {
             var tmp = Path.GetTempFileName();
-            FileSystem.CreateZipFromDirectory(appDir, tmp);
-            var backupBytes = FileSystem.ReadZipFileAsBytes(tmp);
+            CreateZipFromDirectory(appDir, tmp);
+            var backupBytes = ReadZipFileAsBytes(tmp);
             var backupDir = appDir + "_Backup";
             Directory.CreateDirectory(backupDir);
             var backupFile = Path.Combine(backupDir, DateTime.Now.ToString("yyyy-MM-dd_HHmmss") + ".zip");
@@ -105,7 +100,7 @@ public static class FileSystem
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, $"Saving Backup failed");
+            Logger.LogException(ex, "Saving Backup failed");
         }
     }
 }

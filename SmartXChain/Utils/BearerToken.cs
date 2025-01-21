@@ -17,7 +17,7 @@ public static class BearerToken
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex,"GenerateToken failed");
+            Logger.LogException(ex, "GenerateToken failed");
         }
 
         return token;

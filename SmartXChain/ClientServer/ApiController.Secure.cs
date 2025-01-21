@@ -51,13 +51,16 @@ public partial class BlockchainServer
                 }
                 else
                 {
-                    Logger.LogError("Request payload is null.");
+                    LogError("Request payload is null.");
+
                     await SendSecureResponse("Error: Invalid request payload.", aliceSharedKey);
                 }
             }
             catch (Exception ex)
             {
-                Logger.LogException(ex, "handling secure request failed");
+                LogException(ex, "handling secure request failed");
+
+
                 if (bob != null)
                     await SendSecureResponse("Error: Request failed", aliceSharedKey);
             }
@@ -87,7 +90,7 @@ public partial class BlockchainServer
             }
             else
             {
-                Logger.LogError("SendSecureResponse failed. sender SharedKey is null.");
+                LogError("SendSecureResponse failed. sender SharedKey is null.");
             }
         }
 
@@ -110,12 +113,12 @@ public partial class BlockchainServer
 
             if (!ValidateSignature(nodeAddress, signature))
             {
-                Logger.Log($"ValidateSignature failed. Node not registered: {nodeAddress} Signature: {signature}");
+                Log($"ValidateSignature failed. Node not registered: {nodeAddress} Signature: {signature}");
                 return "";
             }
 
             Node.AddNodeIP(nodeAddress);
-            Logger.Log($"Node registered: {nodeAddress}");
+            Log($"Node registered: {nodeAddress}");
 
             return "ok";
         }
@@ -137,34 +140,19 @@ public partial class BlockchainServer
             }
         }
 
-        /// <summary>
-        ///     Handles heartbeat messages from nodes to update their last active timestamp.
-        /// </summary>
-        /// <param name="message">The heartbeat message containing the node address.</param>
-        private void HandleHeartbeat(string message)
+        private static void Log(string message)
         {
-            const string prefix = "Heartbeat:";
-            if (!message.StartsWith(prefix))
-            {
-                Logger.Log("Invalid Heartbeat message received.");
-                return;
-            }
+            Logger.Log("API: " + message);
+        }
 
-            var nodeAddress = message.Substring(prefix.Length);
+        private static void LogError(string message)
+        {
+            Logger.LogError("API: " + message);
+        }
 
-            if (!Uri.IsWellFormedUriString(nodeAddress, UriKind.Absolute))
-            {
-                Logger.Log("Invalid node address in heartbeat received.");
-                return;
-            }
-
-            Node.AddNodeIP(nodeAddress);
-
-            if (Config.Default.Debug)
-                Logger.Log($"Heartbeat {nodeAddress} - {DateTime.Now} (HandleHeartbeat)");
-
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
+        private static void LogException(Exception exception, string message)
+        {
+            Logger.LogException(exception, "API: " + message);
         }
 
         /// <summary>
@@ -177,7 +165,7 @@ public partial class BlockchainServer
             const string prefix = "Vote:";
             if (!message.StartsWith(prefix))
             {
-                Logger.Log("Invalid Vote message received.");
+                Log("Invalid Vote message received.");
                 return "";
             }
 
@@ -194,47 +182,10 @@ public partial class BlockchainServer
             }
             catch (Exception e)
             {
-                Logger.Log($"Invalid Vote message received. {e.Message}");
+                Log($"Invalid Vote message received. {e.Message}");
             }
 
             return "";
-        }
-
-        /// <summary>
-        ///     Retrieves a list of active nodes, removing any that are inactive based on heartbeat timestamps.
-        /// </summary>
-        /// <param name="message">A dummy message for compatibility (not used).</param>
-        /// <returns>A comma-separated list of active node addresses.</returns>
-        private string HandleNodes(string message)
-        {
-            RemoveInactiveNodes();
-
-            if (Node.CurrentNodeIPs.Count > 0)
-            {
-                var nodes = string.Join(",", Node.CurrentNodeIPs.Where(node => !string.IsNullOrWhiteSpace(node)));
-                return nodes.TrimEnd(',');
-            }
-
-            return "";
-        }
-
-        /// <summary>
-        ///     Removes inactive nodes that have exceeded the heartbeat timeout from the registry.
-        /// </summary>
-        private static void RemoveInactiveNodes()
-        {
-            var now = DateTime.UtcNow;
-
-            var inactiveNodes = Node.CurrentNodeIP_LastActive
-                .Where(kvp => (now - kvp.Value).TotalSeconds > HeartbeatTimeoutSeconds)
-                .Select(kvp => kvp.Key)
-                .ToList();
-
-            foreach (var node in inactiveNodes)
-            {
-                Node.RemoveNodeIP(node);
-                Logger.Log($"Node removed: {node} (Inactive)");
-            }
         }
 
 
@@ -277,11 +228,11 @@ public partial class BlockchainServer
                 await HttpContext.SendStringAsync(responseBase64, "text/plain", Encoding.UTF8);
 
                 if (Config.Default.Debug)
-                    Logger.Log($"Public key served: {publicKeyBase64}");
+                    Log($"Public key served: {publicKeyBase64}");
             }
             catch (Exception ex)
             {
-                Logger.LogException(ex, "Error serving public key.");
+                LogException(ex, "Error serving public key.");
                 HttpContext.Response.StatusCode = 500;
                 await HttpContext.SendStringAsync("Error: Unable to serve public key.", "text/plain", Encoding.UTF8);
             }
@@ -305,7 +256,6 @@ public partial class BlockchainServer
             });
         }
 
-
         /// <summary>
         ///     Handles the reboot of a node in the blockchain network securely.
         /// </summary>
@@ -316,11 +266,11 @@ public partial class BlockchainServer
             {
                 if (Config.Default.ChainId == "{3683DDE3-C2D3-4565-8E1C-50C8E0E2AAC2}")
                 {
-                    Logger.Log("Reboot not initiated.");
+                    Log("Reboot not initiated.");
                     return Task.FromResult(""); // No action taken
                 }
 
-                Logger.Log($"Reboot initiated for {Config.Default.ChainId}");
+                Log($"Reboot initiated for {Config.Default.ChainId}");
                 Functions.RestartApplication();
                 return Task.FromResult("ok");
             });
@@ -334,30 +284,34 @@ public partial class BlockchainServer
         {
             await HandleSecureRequest(message =>
             {
-                if (message.Contains(".")) // Indicates the presence of IP addresses
+                var now = DateTime.UtcNow;
+
+                var inactiveNodes = Node.CurrentNodeIP_LastActive
+                    .Where(kvp => (now - kvp.Value).TotalSeconds > NodeTimeoutSeconds)
+                    .Select(kvp => kvp.Key)
+                    .ToList();
+
+                foreach (var node in inactiveNodes)
                 {
-                    var result = HandleNodes(message);
-
-                    if (Config.Default.Debug && result.Length > 0)
-                        Logger.Log($"Nodes: {result}");
-
-                    return Task.FromResult(result);
+                    Node.RemoveNodeIP(node);
+                    Log($"Node removed: {node} (Inactive)");
                 }
 
-                return Task.FromResult(""); // No valid IPs found
-            });
-        }
+                var nodesString = "";
 
-        /// <summary>
-        ///     Handles heartbeat pings from nodes in the network securely.
-        /// </summary>
-        [Route(HttpVerbs.Post, "/Heartbeat")]
-        public async Task Heartbeat()
-        {
-            await HandleSecureRequest(async message =>
-            {
-                HandleHeartbeat(message);
-                return "ok";
+                if (Node.CurrentNodeIPs.Count > 0)
+                {
+                    var nodes = string.Join(",", Node.CurrentNodeIPs.Where(node => !string.IsNullOrWhiteSpace(node)));
+                    nodesString = nodes.TrimEnd(',');
+                }
+
+                var responseInfo = CreateChainInfo(nodesString);
+                var result = JsonSerializer.Serialize(responseInfo);
+
+                if (Config.Default.Debug && result.Length > 0)
+                    Log($"Nodes: {result}");
+
+                return Task.FromResult(result);
             });
         }
 
@@ -371,79 +325,93 @@ public partial class BlockchainServer
         }
 
         /// <summary>
-        ///     Retrieves the entire blockchain in Base64 format.
+        ///     Processes a new block or a list of blocks received by the server and adds them to the blockchain if valid.
         /// </summary>
-        [Route(HttpVerbs.Post, "/GetChain")]
-        public async Task GetChain()
+        [Route(HttpVerbs.Post, "/NewBlocks")]
+        public async Task NewBlocks()
         {
-            await HandleSecureRequest(message =>
+            await HandleSecureRequest(async message =>
             {
-                if (Startup?.Blockchain != null)
-                {
-                    var chainData = Startup.Blockchain.ToBase64();
-                    return Task.FromResult(chainData);
-                }
-
-                return Task.FromResult("Error: Blockchain data unavailable.");
-            });
-        }
-
-
-        /// <summary>
-        ///     Processes a new block received by the server and adds it to the blockchain if valid.
-        /// </summary>
-        [Route(HttpVerbs.Post, "/NewBlock")]
-        public async Task NewBlock()
-        {
-            await HandleSecureRequest(message =>
-            {
-                Block? newBlock = null;
-
                 try
                 {
-                    newBlock = Block.FromBase64(message);
+                    var responseInfo = CreateChainInfo("Error: Block(s) rejected");
+
+                    if (Startup.Blockchain != null && Startup.Blockchain.Chain != null)
+                    {
+                        var allBlocksAdded = true;
+                        lock (Startup.Blockchain.Chain)
+                        {
+                            var chainInfo = JsonSerializer.Deserialize<ChainInfo>(message);
+
+                            if (chainInfo != null)
+                            {
+                                var blocks = Blockchain.DecodeBlocksFromBase64(chainInfo.Message);
+                                foreach (var block in blocks)
+                                {
+                                    if (block.Nonce == -1)
+                                        if (Startup.Blockchain.Chain != null)
+                                            Startup.Blockchain.Clear();
+
+                                    if (!Startup.Blockchain.AddBlock(block, false, false))
+                                    {
+                                        allBlocksAdded = false;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        responseInfo.Message = allBlocksAdded ? "ok" : "Error: One or more blocks rejected";
+                    }
+
+                    return await Task.FromResult(JsonSerializer.Serialize(responseInfo));
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogException(ex, $"ERROR: {ex.Message}\n{ex.StackTrace}");
+                    LogException(ex, $"ERROR: {ex.Message}\n{ex.StackTrace}");
+                    return await Task.FromResult("Error: Unexpected server error");
                 }
-
-                if (newBlock != null && Startup.Blockchain != null &&
-                    Startup.Blockchain.AddBlock(newBlock, true, false))
-                    return Task.FromResult("ok");
-                return Task.FromResult("Error: Block rejected.");
             });
         }
+
 
         /// <summary>
-        ///     Pushes a new blockchain to the server securely.
-        ///     Replaces the existing blockchain if the incoming chain is valid and longer.
+        ///     Provides the current block count in the blockchain securely.
+        ///     Decrypts the incoming message, processes it, and responds securely.
         /// </summary>
-        [Route(HttpVerbs.Post, "/PushChain")]
-        public async Task PushChain()
+        [Route(HttpVerbs.Post, "/ChainInfo")]
+        public async Task ChainInfo()
         {
-            await HandleSecureRequest(serializedChain =>
+            await HandleSecureRequest(message =>
             {
-                var incomingChain = Blockchain.FromBase64(serializedChain);
+                if (Config.Default.Debug) Log($"Decrypted BlockCount message: {message}");
 
-                if (Startup.Blockchain != null && Startup.Blockchain.SmartContracts.Count == 0 && 
-                    Startup.Blockchain.Chain != null)
-                    lock (Startup.Blockchain.Chain)
+                if (Startup.Blockchain?.Chain != null)
+                {
+                    if (!string.IsNullOrEmpty(message))
                     {
-                        if (incomingChain != null &&
-                            incomingChain.Chain != null &&
-                            incomingChain.Chain.Count > Startup.Blockchain.Chain.Count &&
-                            incomingChain.IsValid())
+                        ChainInfo chainInfo = null;
+                        try
                         {
-                            Startup.Blockchain = incomingChain;
-                            Node.SaveBlockChain(incomingChain, Startup.Node);
-                            return Task.FromResult("ok");
+                            chainInfo = JsonSerializer.Deserialize<ChainInfo>(message.Substring("ChainInfo:".Length));
                         }
+                        catch (Exception ex)
+                        {
+                            Logger.LogException(ex, "ChainInfo deserialize failed: Invalid response structure");
+                        }
+
+                        if (chainInfo != null)
+                            Node.AddNodeIP(chainInfo.URL);
                     }
 
-                return Task.FromResult("Error: Invalid or outdated chain.");
+                    return Task.FromResult(JsonSerializer.Serialize(CreateChainInfo()));
+                }
+
+                return Task.FromResult("");
+                ;
             });
         }
+
 
         /// <summary>
         ///     Retrieves a block's details securely using an HTTP GET request by block number.
@@ -469,43 +437,8 @@ public partial class BlockchainServer
                 }
 
                 var blockData = Startup.Blockchain.Chain?[block];
-                if (Config.Default.Debug) Logger.Log($"Sent block {block}");
+                if (Config.Default.Debug) Log($"Sent block {block}");
                 return Task.FromResult(blockData?.ToString() ?? "ERROR: Block data unavailable.");
-            });
-        }
-
-        /// <summary>
-        ///     Provides the current block count in the blockchain securely.
-        ///     Decrypts the incoming message, processes it, and responds securely.
-        /// </summary>
-        [Route(HttpVerbs.Post, "/BlockCount")]
-        public async Task BlockCount()
-        {
-            await HandleSecureRequest(message =>
-            {
-                if (Config.Default.Debug) Logger.Log($"Decrypted BlockCount message: {message}");
-
-                // Update block count if necessary
-                if (Startup.Blockchain?.Chain != null && _blockCount != Startup.Blockchain.Chain.Count)
-                {
-                    _blockCount = Startup.Blockchain.Chain.Count;
-                    if (Config.Default.Debug) Logger.Log($"Updated BlockCount: {_blockCount}");
-                }
-
-                // Process message for node synchronization
-                if (message.Contains(':'))
-                {
-                    var parts = message.Split(':');
-                    if (parts.Length == 5)
-                    {
-                        var remoteBlockCount = Convert.ToInt64(parts[^1]);
-                        var remoteServer = $"{parts[1]}:{parts[2]}:{parts[3]}";
-                        if (remoteBlockCount < _blockCount && NetworkUtils.IsValidServer(remoteServer))
-                            Node.AddNodeIP(remoteServer);
-                    }
-                }
-
-                return Task.FromResult(_blockCount.ToString());
             });
         }
 
@@ -518,36 +451,14 @@ public partial class BlockchainServer
         {
             await HandleSecureRequest(message =>
             {
-                if (Config.Default.Debug) Logger.Log($"Decrypted VerifyCode message: {message}");
+                if (Config.Default.Debug) Log($"Decrypted VerifyCode message: {message}");
 
                 var result = HandleVerifyCode(message);
-                if (Config.Default.Debug) Logger.Log($"VerifyCode Result: {result}");
+                if (Config.Default.Debug) Log($"VerifyCode Result: {result}");
                 return Task.FromResult(result);
             });
         }
 
-        /// <summary>
-        ///     Handles the addition of new servers to the network securely.
-        ///     Decrypts the incoming message, processes the server addition, and responds securely.
-        /// </summary>
-        [Route(HttpVerbs.Post, "/PushServers")]
-        public async Task PushServers()
-        {
-            await HandleSecureRequest(message =>
-            {
-                if (Config.Default.Debug) Logger.Log($"Decrypted PushServers message: {message}");
-
-                var serverAdded = false;
-                foreach (var server in message.Split(','))
-                    if (server.StartsWith("http://") && !Node.CurrentNodeIPs.Contains(server))
-                    {
-                        Node.AddNodeIP(server);
-                        serverAdded = true;
-                    }
-
-                return Task.FromResult(serverAdded ? "ok" : "");
-            });
-        }
 
         /// <summary>
         ///     Validates the integrity of the blockchain securely.
@@ -559,7 +470,7 @@ public partial class BlockchainServer
             await HandleSecureRequest(_ =>
             {
                 var isValid = Startup.Blockchain != null && Startup.Blockchain.IsValid();
-                if (Config.Default.Debug) Logger.Log($"Blockchain validation result: {isValid}");
+                if (Config.Default.Debug) Log($"Blockchain validation result: {isValid}");
                 return Task.FromResult(isValid ? "ok" : "error");
             });
         }

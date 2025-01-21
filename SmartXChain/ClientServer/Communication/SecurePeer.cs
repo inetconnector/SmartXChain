@@ -27,6 +27,7 @@ public class SecurePeer
     ///     Default SecurePeer instance
     /// </summary>
     public static SecurePeer Alice => AliceSecurePeer.Value;
+
     public static SecurePeer Bob => BobSecurePeer.Value;
 
     public static SecurePeer GetAlice(string bobSharedKey)

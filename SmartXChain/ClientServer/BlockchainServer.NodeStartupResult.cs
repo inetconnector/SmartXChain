@@ -1,6 +1,4 @@
-﻿using System.Text;
-using SmartXChain.BlockchainCore;
-using SmartXChain.Utils;
+﻿using SmartXChain.BlockchainCore;
 using SmartXChain.Validators;
 
 namespace SmartXChain.Server;
@@ -26,7 +24,7 @@ public partial class BlockchainServer
         // 3. Background task to synchronize with peer servers
         Task.Run(() => SynchronizeWithPeers());
     }
-     
+
     /// <summary>
     ///     Starts a new node on the blockchain and initializes the blockchain for that node.
     /// </summary>

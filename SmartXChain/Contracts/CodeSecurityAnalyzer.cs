@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SmartXChain.BlockchainCore;
+using SmartXChain.Utils;
 
 namespace SmartXChain.Contracts;
 
@@ -11,13 +12,13 @@ public class CodeSecurityAnalyzer
     {
         Blockchain.SystemAddress,
         "System.Collections.Generic",
+        "System.Collections.Concurrent",
         "System.Security.Cryptography",
         "System.Text",
         "System.Text.Json",
         "System.IO.Compression",
         "System.Linq",
         "System.Threading",
-        "System.Threading.Tasks",
         "System.Threading.Tasks",
         "SmartXChain.Utils",
         "System.Diagnostics",
@@ -76,7 +77,7 @@ public class CodeSecurityAnalyzer
     {
         "\\|\\|", ".*\\$.*", "<script>", "eval\\(", "\\bexec\\b"
     };
-      
+
     private static string RemoveBaseClassesSection(string code)
     {
         var pattern = @"/// ---------BEGIN BASE CLASSES----------[\s\S]*?/// ---------END BASE CLASSES----------";
@@ -87,7 +88,7 @@ public class CodeSecurityAnalyzer
     {
         // Preprocess the code to remove comments 
         code = RemoveBaseClassesSection(code);
-        code = RemoveComments(code); 
+        code = RemoveComments(code);
 
         var tree = CSharpSyntaxTree.ParseText(code);
         var root = tree.GetRoot();
@@ -243,9 +244,9 @@ public class CodeSecurityAnalyzer
         return noMultiLineComments;
     }
 
-    public static bool AreCommandsSafe(string[] codeCommands, ref List<string> messages)
+    public static bool AreCommandsSafe(string[] codeCommands, ref ConcurrentList<string> messages)
     {
-        messages = new List<string>();
+        messages = new ConcurrentList<string>();
 
         foreach (var command in codeCommands)
         {

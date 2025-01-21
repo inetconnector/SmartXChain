@@ -1,10 +1,9 @@
 ﻿using System.Collections.Concurrent;
-using System.Net.Http.Headers;
-using System.Reflection;
-using System.Text;
 using System.Text.Json;
+using SmartXChain.BlockchainCore;
+using SmartXChain.Contracts;
 using SmartXChain.Utils;
-using SmartXChain.Validators;
+using Node = SmartXChain.Validators.Node;
 
 namespace SmartXChain.Server;
 
@@ -23,7 +22,7 @@ public partial class BlockchainServer
     /// </summary>
     private void DiscoverAndRegisterWithPeers()
     {
-        var validPeers = new ConcurrentBag<string>();
+        var validPeers = new ConcurrentList<string>();
 
         try
         {
@@ -42,13 +41,12 @@ public partial class BlockchainServer
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, $"processing static peers"); 
+            Logger.LogException(ex, "processing static peers");
         }
     }
 
     /// <summary>
-    ///     Continuously synchronizes with peer servers to update the list of active nodes.
-    ///     Secure communication is ensured using encryption and signing.
+    ///     Refactored SynchronizeWithPeers to utilize SecureCommunication and process responses.
     /// </summary>
     private async Task SynchronizeWithPeers()
     {
@@ -58,76 +56,53 @@ public partial class BlockchainServer
             {
                 if (peer == Config.Default.URL)
                     continue;
-                try
-                {
-                    // Fetch the peer's public key (with caching)
-                    var bobSharedKey = FetchPeerPublicKey(peer);
 
-                    // Prepare secure payload
-                    if (bobSharedKey != null)
+                var (success, response) = await SendSecureMessage(peer, "/api/Nodes", "");
+
+                if (success && !string.IsNullOrEmpty(response))
+                    try
                     {
-                        var (encryptedMessage, iv, hmac) = SecurePeer.GetAlice(bobSharedKey)
-                            .EncryptAndSign("");
-                        var payload = new
+                        var responseObject = JsonSerializer.Deserialize<ChainInfo>(response);
+                        if (responseObject != null)
                         {
-                            SharedKey = Convert.ToBase64String(SecurePeer.Alice.GetPublicKey()),
-                            EncryptedMessage = Convert.ToBase64String(encryptedMessage),
-                            IV = Convert.ToBase64String(iv),
-                            HMAC = Convert.ToBase64String(hmac)
-                        };
+                            if (Config.Default.Debug)
+                                Logger.Log($"SynchronizeWithPeers  {peer} Result: {responseObject.Message}");
 
-                        // Initialize HTTP client for communication with the peer
-                        using var client = new HttpClient();
-                        client.BaseAddress = new Uri(peer);
-                        if (Config.Default.SSL)
-                            client.DefaultRequestHeaders.Authorization =
-                                new AuthenticationHeaderValue("Bearer", BearerToken.GetToken());
+                            foreach (var node in responseObject.Message.Split(','))
+                                Node.AddNodeIP(node);
 
-                        // Send an empty secure request to the /api/Nodes endpoint
-                        var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8,
-                            "application/json");
-                        var response = await client.PostAsync("/api/Nodes", content);
-
-                        // If the response is successful, update the list of registered nodes
-                        if (response.IsSuccessStatusCode)
-                        {
-                            var responseBody = await response.Content.ReadAsStringAsync();
-
-                            foreach (var node in responseBody.Split(','))
-                                if (node.Contains("http"))
-                                    Node.AddNodeIP(node);
+                            foreach (var chain in Blockchain.Blockchains)
+                                if (chain.Chain != null &&
+                                    (responseObject.BlockCount < chain.Chain.Count ||
+                                     (responseObject.BlockCount == chain.Chain.Count &&
+                                      responseObject.LastHash != chain.Chain.Last().Hash &&
+                                      responseObject.FirstHash != chain.Chain.First().Hash &&
+                                      responseObject.LastDate > chain.Chain.Last().Timestamp)
+                                    ))
+                                    await chain.SendChainInChunks(peer, responseObject);
                         }
                         else
                         {
-                            Logger.LogError($"Synchronizing with peer {peer} failed with {response.StatusCode} ");
+                            Logger.LogError("ChainInfo Deserialize failed: Invalid response structure");
                         }
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        Logger.LogError($"Synchronizing with peer {peer} failed");
-                        Logger.LogError($"Could not retrieve public key from: {peer}");
+                        Logger.LogException(ex, $"Failed to parse or update nodes from peer {peer}");
                     }
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogException(ex, $"Synchronizing with peer {peer} failed");
-                }
-
+                else
+                    Logger.LogError($"Synchronization with peer {peer} failed or returned no response.");
             }
 
-            // Wait for 20 seconds before the next synchronization cycle
-            await Task.Delay(20000);
+            await Task.Delay(30000);
         }
     }
-     
+
     /// <summary>
-    ///     Broadcasts a message to a list of peer servers, targeting a specific API endpoint command.
-    ///     Messages are securely encrypted and signed. Fetches the public key for each peer dynamically.
+    ///     Refactored BroadcastBlockToPeers to utilize SecureCommunication and log responses.
     /// </summary>
-    /// <param name="serversList">List of peer server URLs to send the message to.</param>
-    /// <param name="command">The API command to invoke on each peer server.</param>
-    /// <param name="message">The message content to be sent to the peers.</param>
-    public static async Task BroadcastToPeers(ConcurrentBag<string> serversList, string command, string message)
+    public static async Task BroadcastBlockToPeers(ConcurrentList<string> serversList, string message,
+        Blockchain blockchain)
     {
         var semaphore = new SemaphoreSlim(Config.Default.MaxParallelConnections);
 
@@ -139,63 +114,47 @@ public partial class BlockchainServer
             await semaphore.WaitAsync();
             try
             {
-                var url = "";
-                try
+                var compressedMessage = Convert.ToBase64String(Compress.CompressString(message));
+                var msg = ApiController.CreateChainInfo(compressedMessage);
+
+                var (success, response) =
+                    await SendSecureMessage(peer, "/api/NewBlocks", JsonSerializer.Serialize(msg));
+
+                if (success)
                 {
-                    var bobSharedKey = FetchPeerPublicKey(peer);
-
-                    // Encrypt and sign the message
-                    if (bobSharedKey != null)
+                    if (!string.IsNullOrEmpty(response))
                     {
-                        var (encryptedMessage, iv, hmac) =
-                            SecurePeer.GetAlice(bobSharedKey).EncryptAndSign(message);
-
-                        // Serialize message for transport
-                        var payload = new
-                        {
-                            SharedKey = Convert.ToBase64String(SecurePeer.Alice.GetPublicKey()),
-                            EncryptedMessage = Convert.ToBase64String(encryptedMessage),
-                            IV = Convert.ToBase64String(iv),
-                            HMAC = Convert.ToBase64String(hmac)
-                        };
-
-                        // Initialize HTTP client for communication with the peer
-                        using var client = new HttpClient { BaseAddress = new Uri(peer) };
-                        if (Config.Default.SSL)
-                            client.DefaultRequestHeaders.Authorization =
-                                new AuthenticationHeaderValue("Bearer", BearerToken.GetToken());
-
-                        // Prepare the message content to send to the specified API endpoint
-                        var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8,
-                            "application/json");
-                        url = $"/api/{command}";
-
-                        // Log the broadcast request details
                         if (Config.Default.Debug)
-                            Logger.Log($"BroadcastToPeers async: {url}\n{content}");
-                        var response = await client.PostAsync(url, content);
+                            Logger.Log($"Broadcast to {peer} successful. Response: {response}");
 
-                        // If the response is successful, log the response content
-                        if (response.IsSuccessStatusCode)
+                        var responseObject = JsonSerializer.Deserialize<ChainInfo>(response);
+                        if (responseObject != null)
                         {
-                            var responseString = await response.Content.ReadAsStringAsync();
                             if (Config.Default.Debug)
-                                Logger.Log($"BroadcastToPeers response: {responseString}");
+                                Logger.Log($"Broadcast to {peer} Result: {responseObject.Message}");
+
+                            else if (responseObject.Message.ToLower().Contains("error"))
+                                if (blockchain.Chain != null &&
+                                    (responseObject.BlockCount < blockchain.Chain.Count ||
+                                     (responseObject.BlockCount == blockchain.Chain.Count &&
+                                      responseObject.LastHash != blockchain.Chain.Last().Hash &&
+                                      responseObject.LastDate > blockchain.Chain.Last().Timestamp)
+                                    ))
+                                    await blockchain.SendChainInChunks(peer, responseObject);
                         }
                         else
                         {
-                            // Log an error message if the response status indicates failure 
-                            Logger.LogError($"BroadcastToPeers {response.StatusCode} - {response.ReasonPhrase}");
+                            Logger.LogError("ChainInfo Deserialize failed: Invalid response structure");
                         }
                     }
                     else
                     {
-                        Logger.LogError($"Could not retrieve public key from: {peer}");
+                        Logger.LogError($"Broadcast to {peer} failed. Response is null.");
                     }
                 }
-                catch (Exception ex)
+                else
                 {
-                    Logger.LogException(ex, $"BroadcastToPeers {url} failed");
+                    Logger.LogError($"Broadcast to {peer} failed. SendSecureMessage failed");
                 }
             }
             finally
@@ -206,73 +165,171 @@ public partial class BlockchainServer
 
         await Task.WhenAll(tasks);
     }
-     
+
+
     /// <summary>
-    ///     Fetches the public key of a peer for establishing secure communication.
-    ///     Checks the cache first to avoid redundant fetching.
+    ///     Retrieves the list of registered nodes from a specific server.
     /// </summary>
-    /// <param name="peer">The URL of the peer.</param>
-    /// <returns>The public key of the peer as a byte array, or null if retrieval fails.</returns>
-    public static byte[]? FetchPeerPublicKey(string peer)
+    /// <param name="serverAddress">The address of the server to query for registered nodes.</param>
+    /// <returns>A list of node addresses retrieved from the server.</returns>
+    public static async Task<List<string>> GetRegisteredNodesAsync(string serverAddress)
     {
-        // Check the cache first
-        if (PublicKeyCache.TryGetValue(peer, out var cachedKey))
-            return cachedKey;
+        var ret = new List<string>();
+        if (serverAddress.Contains(Config.Default.URL))
+            return ret;
 
         try
         {
-            using var client = new HttpClient { BaseAddress = new Uri(peer) };
-            var response = client.GetAsync("/api/GetPublicKey").Result;
+            var response = await SocketManager.GetInstance(serverAddress).SendMessageAsync("Nodes");
 
-            if (response.IsSuccessStatusCode)
+            if (response.ToLower().Contains("error"))
             {
-                var responseBase64 = response.Content.ReadAsStringAsync().Result;
-                var responseJson = Encoding.UTF8.GetString(Convert.FromBase64String(responseBase64));
+                Logger.LogError($"Timeout from server {serverAddress}: {response}");
+                Node.RemoveNodeIP(serverAddress);
+                return ret;
+            }
 
-                // Deserialize the JSON structure
-                var responseObject = JsonSerializer.Deserialize<ResponseObject>(responseJson);
-                if (responseObject == null)
-                    throw new Exception("Invalid response structure");
-
-                // Extract the values
-                var publicKey = Convert.FromBase64String(responseObject.PublicKey);
-                var dllFingerprint = responseObject.DllFingerprint;
-                var chainId = responseObject.ChainID;
-
-                if (dllFingerprint != Crypt.GenerateFileFingerprint(Assembly.GetExecutingAssembly().Location))
+            var responseObject = JsonSerializer.Deserialize<ChainInfo>(response);
+            if (responseObject == null)
+            {
+                Logger.LogError("ChainInfo Deserialize failed: Invalid response structure");
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(responseObject.Message))
                 {
-                    if (!Config.ChainName.ToLower().Contains("test"))
-                    {
-                        Logger.LogError($"Failed to fetch public key (DLL fingerprint mismatch): {peer}");
-                        return null;
-                    }
+                    if (Config.Default.Debug)
+                        Logger.Log($"No new nodes received from {serverAddress}");
+                    return ret;
                 }
 
-                if (chainId != Config.Default.ChainId)
-                {
-                    Logger.LogError($"ChainId mismatch: {peer}");
-                    return null;
-                } 
+                foreach (var nodeAddress in responseObject.Message.Split(','))
+                    if (!string.IsNullOrEmpty(nodeAddress))
+                        ret.Add(nodeAddress);
 
-                // Cache the fetched public key
-                PublicKeyCache[peer] = publicKey;
 
-                return publicKey;
+                if (Config.Default.Debug)
+                    Logger.Log($"Active nodes from server {serverAddress}: {responseObject.Message}");
             }
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, $"Failed to fetch public key from peer: {peer}");
+            Logger.LogException(ex,
+                $"GetRegisteredNodesAsync: retrieving registered nodes from {serverAddress} failed");
         }
 
-        RemoveInactiveNodes();
-        return null;
+        return ret;
     }
 
-    private class ResponseObject
+
+    /// <summary>
+    ///     Reboot client chains
+    /// </summary>
+    /// <returns></returns>
+    public static async Task RebootChainsAsync()
     {
-        public string PublicKey { get; set; } = string.Empty;
-        public string DllFingerprint { get; set; } = string.Empty;
-        public string ChainID { get; set; } = string.Empty;
+        if (Config.TestNet)
+            foreach (var serverAddress in Node.CurrentNodeIPs)
+            {
+                if (serverAddress == Config.Default.URL)
+                    continue;
+
+                try
+                {
+                    var response = await SocketManager.GetInstance(serverAddress)
+                        .SendMessageAsync($"RebootChain:{serverAddress}");
+
+                    if (Config.Default.Debug)
+                    {
+                        Logger.Log($"RebootChain sent to {serverAddress}");
+                        Logger.Log($"Response from server {serverAddress}: {response}");
+                    }
+
+                    if (!string.IsNullOrEmpty(response))
+                        Logger.LogError($"No response received from {serverAddress}");
+                    else
+                        Logger.Log($"Shutdown initiated {serverAddress}");
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogException(ex, $"RebootChainsAsync: sending Shutdown command to {serverAddress} failed");
+                }
+            }
+    }
+
+    /// <summary>
+    ///     Sends a vote request to a target validator for a specific block.
+    /// </summary>
+    /// <param name="targetValidator">The address of the target validator.</param>
+    /// <param name="block">The block to be validated.</param>
+    /// <returns>
+    ///     A tuple where the first value indicates if the request was successful, and the second contains the response
+    ///     message.
+    /// </returns>
+    internal static async Task<(bool, string)> SendVoteRequestAsync(string targetValidator, Block? block)
+    {
+        try
+        {
+            if (block != null)
+            {
+                var verifiedBlock = Block.FromBase64(block.Base64Encoded);
+                if (verifiedBlock != null)
+                {
+                    var hash = block.Hash;
+                    var calculatedHash = block.CalculateHash();
+                    if (calculatedHash == hash)
+                    {
+                        var message = $"Vote:{block.Base64Encoded}";
+                        Logger.Log($"Sending vote request to: {targetValidator}");
+                        var response = await SocketManager.GetInstance(targetValidator).SendMessageAsync(message);
+                        if (Config.Default.Debug)
+                            Logger.Log($"Response from {targetValidator}: {response}");
+                        return (response.Contains("ok"), response);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex, "sending vote request");
+        }
+
+        Logger.LogError($"block.Verify failed from {targetValidator}");
+        return (false, "");
+    }
+
+
+    /// <summary>
+    ///     Sends the serialized code of a smart contract to a server for verification.
+    /// </summary>
+    /// <param name="serverAddress">The address of the server for verification.</param>
+    /// <param name="contract">The smart contract to be verified.</param>
+    /// <returns>A boolean indicating whether the code verification was successful.</returns>
+    internal static async Task<bool> SendCodeForVerificationAsync(string serverAddress, SmartContract? contract)
+    {
+        try
+        {
+            if (contract != null)
+            {
+                var message = $"VerifyCode:{contract.SerializedContractCode}";
+                var response = await SocketManager.GetInstance(serverAddress).SendMessageAsync(message);
+                if (Config.Default.Debug)
+                {
+                    Logger.Log($"Code {contract.Name} sent to {serverAddress} for verification.");
+                    Logger.Log($"Response from server for code {contract.Name}: {response}", false);
+                }
+
+                return response == "ok";
+            }
+
+            Logger.LogError($"sending code to {serverAddress} failed: contract is empty");
+        }
+        catch (Exception ex)
+        {
+            if (contract != null)
+                Logger.LogException(ex, $"sending code {contract.Name} to {serverAddress} failed");
+        }
+
+        return false;
     }
 }

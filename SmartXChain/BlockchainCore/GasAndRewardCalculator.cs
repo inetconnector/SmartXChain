@@ -1,9 +1,14 @@
-﻿using System.Text.Json.Serialization;
-
-namespace SmartXChain.BlockchainCore;
+﻿namespace SmartXChain.BlockchainCore;
 
 internal sealed class GasAndRewardCalculator
-{ 
+{
+    internal static decimal CurrentNetworkLoadGT = (decimal)0.75;
+    internal static decimal CurrentNetworkLoadLT = (decimal)0.25;
+    internal static decimal CurrentNetworkLoadGTMultiply = (decimal)1.2;
+    internal static decimal CurrentNetworkLoadLTMultiply = (decimal)0.8;
+    internal static decimal ContractDataLengthMin = 1000;
+    internal static decimal ContractDataLengthGasFactor = (decimal)1.5;
+
     /// <summary>
     ///     Gets or sets the calculated gas value.
     /// </summary>
@@ -51,13 +56,6 @@ internal sealed class GasAndRewardCalculator
             Gas = (int)(Gas * CurrentNetworkLoadLTMultiply);
     }
 
-    internal static decimal CurrentNetworkLoadGT = (decimal)0.75; 
-    internal static decimal CurrentNetworkLoadLT = (decimal)0.25;
-    internal static decimal CurrentNetworkLoadGTMultiply = (decimal)1.2;
-    internal static decimal CurrentNetworkLoadLTMultiply = (decimal)0.8;
-    internal static decimal ContractDataLengthMin = (decimal)1000;
-    internal static decimal ContractDataLengthGasFactor = (decimal)1.5;
-  
     /// <summary>
     ///     Calculates the gas required for a smart contract transaction based on the length
     ///     of the serialized contract code, with adjustments for code size and network load.
@@ -67,7 +65,7 @@ internal sealed class GasAndRewardCalculator
         var code = SerializedContractCode;
         var dataLength = string.IsNullOrEmpty(code) ? 0 : code.Length;
 
-        Gas = GasConfiguration.Instance.BaseGasContract + dataLength * 
+        Gas = GasConfiguration.Instance.BaseGasContract + dataLength *
             GasConfiguration.Instance.GasPerCharacter / GasConfiguration.Instance.GasFactor;
 
         if (dataLength > ContractDataLengthMin)
@@ -91,7 +89,8 @@ internal sealed class GasAndRewardCalculator
         if (Transaction.Balances.ContainsKey(address) && Transaction.Balances[address] == 0)
             return GasConfiguration.Instance.MinerInitialReward;
 
-        var reward = GasConfiguration.Instance.MinerInitialReward * (decimal)Math.Pow((double)GasConfiguration.Instance.MinerDecayFactor, walletCount);
+        var reward = GasConfiguration.Instance.MinerInitialReward *
+                     (decimal)Math.Pow((double)GasConfiguration.Instance.MinerDecayFactor, walletCount);
         return Math.Max(reward, GasConfiguration.Instance.MinerMinimumReward);
     }
 
@@ -103,7 +102,8 @@ internal sealed class GasAndRewardCalculator
     /// <returns>The calculated reward for the validator.</returns>
     public decimal CalculateValidatorReward(int walletCount)
     {
-        var reward = GasConfiguration.Instance.ValidatorInitialReward * (decimal)Math.Pow((double)GasConfiguration.Instance.ValidatorDecayFactor, walletCount);
+        var reward = GasConfiguration.Instance.ValidatorInitialReward *
+                     (decimal)Math.Pow((double)GasConfiguration.Instance.ValidatorDecayFactor, walletCount);
         return Math.Max(reward, GasConfiguration.Instance.ValidatorMinimumReward);
     }
 }

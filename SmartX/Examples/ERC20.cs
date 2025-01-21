@@ -1,4 +1,5 @@
-﻿using System.Security.Cryptography;
+﻿using System.Collections.Concurrent;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
 
@@ -14,8 +15,8 @@ public class ERC20Token : Contract
     /// </summary>
     public ERC20Token()
     {
-        Balances = new Dictionary<string, decimal>();
-        Allowances = new Dictionary<string, Dictionary<string, decimal>>(); 
+        Balances = new ConcurrentDictionary<string, decimal>();
+        Allowances = new ConcurrentDictionary<string, ConcurrentDictionary<string, decimal>>(); 
     }
 
     /// <summary>
@@ -33,8 +34,8 @@ public class ERC20Token : Contract
         Symbol = symbol;
         Decimals = decimals;
         TotalSupply = initialSupply;
-        Balances = new Dictionary<string, decimal>();
-        Allowances = new Dictionary<string, Dictionary<string, decimal>>();
+        Balances = new ConcurrentDictionary<string, decimal>();
+        Allowances = new ConcurrentDictionary<string, ConcurrentDictionary<string, decimal>>();
          
         // Assign initial supply to the owner's balance
         Balances[owner] = initialSupply; 
@@ -63,16 +64,15 @@ public class ERC20Token : Contract
     ///     Internal dictionary storing the balance of each account.
     /// </summary>
     [JsonInclude]
-    public Dictionary<string, decimal> Balances { get; internal set; }
+    public ConcurrentDictionary<string, decimal> Balances { get; internal set; }
 
     /// <summary>
     ///     Internal dictionary managing allowances where a spender can spend on behalf of an owner.
     /// </summary>
     [JsonInclude]
-    public Dictionary<string, Dictionary<string, decimal>> Allowances { get; internal set; }
+    public ConcurrentDictionary<string, ConcurrentDictionary<string, decimal>> Allowances { get; internal set; }
 
-
-
+     
     /// <summary>
     ///     Exposes a read-only view of account balances.
     /// </summary>
@@ -174,7 +174,7 @@ public class ERC20Token : Contract
             return false;
         }
 
-        if (!Allowances.ContainsKey(owner)) Allowances[owner] = new Dictionary<string, decimal>();
+        if (!Allowances.ContainsKey(owner)) Allowances[owner] = new ConcurrentDictionary<string, decimal>();
         Allowances[owner][spender] = amount;
 
         Log($"Approval successful: {spender} can spend {amount} tokens from {owner}.");
