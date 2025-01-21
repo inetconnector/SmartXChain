@@ -398,8 +398,11 @@ internal class Program
 
         // Show current state of the blockchain
         if (node != null && node.Blockchain != null && node.Blockchain.Chain != null)
-            foreach (var block in node.Blockchain.Chain)
-                Logger.Log($"Block {node.Blockchain.Chain.IndexOf(block)}: {block.Hash}");
+            lock (node.Blockchain.Chain)
+            {
+                foreach (var block in node.Blockchain.Chain)
+                    Logger.Log($"Block {node.Blockchain.Chain.IndexOf(block)}: {block.Hash}");
+            } 
     }
 
     private static void DisplayWalletBalances(BlockchainServer.NodeStartupResult? node)

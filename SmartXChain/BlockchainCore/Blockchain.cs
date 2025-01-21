@@ -235,7 +235,7 @@ public class Blockchain
                 TransactionType = TransactionTypes.Gas
             };
 
-            var success = await AddTransaction(payGasTransaction, true);
+            var success = await AddTransaction(payGasTransaction);
             if (!success)
                 Logger.LogError($"Pay {gas} gas failed");
 
@@ -1253,11 +1253,14 @@ public class Blockchain
                         if (Config.Default.Debug)
                             Logger.Log($"Broadcast to {peer} successful. Response: {response}");
 
-                        var responseObject = JsonSerializer.Deserialize<ChainInfo>(response);
-                        if (responseObject == null)
-                            Logger.LogError("ChainInfo Deserialize failed: Invalid response structure");
-                        else //if (Config.Default.Debug)
-                            Logger.Log($"Remote chain count: {responseObject.URL} : {responseObject.BlockCount}");
+                        if (response != null)
+                        {
+                            var responseObject = JsonSerializer.Deserialize<ChainInfo>(response);
+                            if (responseObject == null)
+                                Logger.LogError("ChainInfo Deserialize failed: Invalid response structure");
+                            else //if (Config.Default.Debug)
+                                Logger.Log($"Remote chain count: {responseObject.URL} : {responseObject.BlockCount}");
+                        }
                     }
                     else if (!success || string.IsNullOrEmpty(response))
                     {
