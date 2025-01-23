@@ -10,15 +10,11 @@ public class SecurePeer
 {
     private static readonly Lazy<SecurePeer> AliceSecurePeer = new(() => new SecurePeer());
     private static readonly Lazy<SecurePeer> BobSecurePeer = new(() => new SecurePeer());
-    private readonly ECDiffieHellmanCng _diffieHellman;
+    private readonly ECDiffieHellman _diffieHellman;
 
     public SecurePeer()
     {
-        _diffieHellman = new ECDiffieHellmanCng
-        {
-            KeyDerivationFunction = ECDiffieHellmanKeyDerivationFunction.Hash,
-            HashAlgorithm = CngAlgorithm.Sha256
-        };
+        _diffieHellman = ECDiffieHellman.Create(); // Use a cross-platform compatible ECDiffieHellman
     }
 
     public byte[] SharedKey { get; private set; }
@@ -60,7 +56,7 @@ public class SecurePeer
     /// <returns>Public key as byte array</returns>
     public byte[] GetPublicKey()
     {
-        return _diffieHellman.PublicKey.ToByteArray();
+        return _diffieHellman.PublicKey.ExportSubjectPublicKeyInfo(); // Export the public key in standard format
     }
 
     /// <summary>
@@ -69,7 +65,9 @@ public class SecurePeer
     /// <param name="otherPublicKey">The public key of the other peer</param>
     public void ComputeSharedKey(byte[] otherPublicKey)
     {
-        SharedKey = _diffieHellman.DeriveKeyMaterial(CngKey.Import(otherPublicKey, CngKeyBlobFormat.EccPublicBlob));
+        using var otherKey = ECDiffieHellman.Create();
+        otherKey.ImportSubjectPublicKeyInfo(otherPublicKey, out _); // Import the peer's public key
+        SharedKey = _diffieHellman.DeriveKeyMaterial(otherKey.PublicKey); // Derive the shared secret
     }
 
     /// <summary>
