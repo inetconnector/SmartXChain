@@ -63,7 +63,14 @@ public partial class BlockchainServer
 
         //if (!Config.Default.Debug)
         {
-            Swan.Logging.Logger.UnregisterLogger<ConsoleLogger>();
+            try
+            {
+                Swan.Logging.Logger.UnregisterLogger<ConsoleLogger>();
+            }
+            catch (Exception e)
+            { 
+            }
+         
             //Terminal.Settings.DefaultColor = ConsoleColor.Green;
         }
         _server.RunAsync();

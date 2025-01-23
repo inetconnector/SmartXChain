@@ -39,9 +39,17 @@ public class Config
         // Check if a config exists in the startup directory and not in AppData
         if (File.Exists(startupConfigPath) && !File.Exists(appDataConfigPath))
         {
+#if ANDROID
+            using var stream = Android.App.Application.Context.Assets.Open(ConfigFileName);
+            using var fileStream = File.Create(appDataConfigPath);
+            stream.CopyTo(fileStream);
+
+            Logger.Log("Initial configuration file copied from Assets to AppData.");
+#else
             // Copy the startup config to AppData
             File.Copy(startupConfigPath, appDataConfigPath);
             Logger.Log("Initial configuration file copied from startup directory to AppData.");
+#endif
         }
 
         var configFilePath = Path.Combine(appDirectory, ConfigFileName());
@@ -273,7 +281,7 @@ public class Config
         };
     }
 
-    private static string ConfigFileName()
+    public static string ConfigFileName()
     {
         return ChainName == "SmartXChain" ? "config.txt" : "config.testnet.txt";
     }
@@ -284,12 +292,13 @@ public class Config
             chainName = ChainName;
 
         var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        return Path.Combine(appDataPath, chainName);
+        var appDir=Path.Combine(appDataPath, chainName); 
+        return appDir;
     }
 
     public void GenerateServerKeys()
     {
-        using var rsa = System.Security.Cryptography.RSA.Create(2048);
+        using var rsa = RSA.Create(2048);
         PublicKey = Convert.ToBase64String(rsa.ExportRSAPublicKey());
         PrivateKey = Convert.ToBase64String(rsa.ExportRSAPrivateKey());
 
@@ -395,5 +404,97 @@ public class Config
                     Logger.Log($"Invalid Peer URL: {peerValue}");
             }
         }
+    }/// <summary>
+     ///     Adds a new peer to the configuration file if it does not already exist.
+     /// </summary>
+     /// <param name="peerUrl">The URL of the peer to add.</param>
+     /// <returns>True if the peer was successfully added; otherwise, false.</returns>
+    public bool AddPeer(string peerUrl)
+    {
+        if (string.IsNullOrWhiteSpace(peerUrl) || !Regex.IsMatch(peerUrl, @"^https?://[\w\-.]+(:\d+)?$"))
+        {
+            Logger.Log($"Invalid peer URL: {peerUrl}");
+            return false;
+        }
+
+        if (Peers.Contains(peerUrl))
+        {
+            Logger.Log($"Peer already exists: {peerUrl}");
+            return false;
+        }
+
+        Peers.Add(peerUrl);
+
+        var filePath = Path.Combine(AppDirectory(), ConfigFileName());
+        if (!File.Exists(filePath))
+        {
+            Logger.Log($"Config file not found: {filePath}");
+            return false;
+        }
+
+        var lines = File.ReadAllLines(filePath).ToList();
+        var peersSectionIndex = lines.FindIndex(l => l.Trim().Equals("[Peers]", StringComparison.OrdinalIgnoreCase));
+
+        if (peersSectionIndex >= 0)
+        {
+            lines.Insert(peersSectionIndex + 1, peerUrl);
+        }
+        else
+        {
+            lines.Add("");
+            lines.Add("[Peers]");
+            lines.Add(peerUrl);
+        }
+
+        File.WriteAllLines(filePath, lines);
+        Logger.Log($"Peer added: {peerUrl}");
+        return true;
     }
+
+    /// <summary>
+    ///     Removes an existing peer from the configuration file if it exists.
+    /// </summary>
+    /// <param name="peerUrl">The URL of the peer to remove.</param>
+    /// <returns>True if the peer was successfully removed; otherwise, false.</returns>
+    public bool RemovePeer(string peerUrl)
+    {
+        if (string.IsNullOrWhiteSpace(peerUrl))
+        {
+            Logger.Log("Invalid peer URL provided for removal.");
+            return false;
+        }
+
+        if (!Peers.Remove(peerUrl))
+        {
+            Logger.Log($"Peer not found: {peerUrl}");
+            return false;
+        }
+
+        var filePath = Path.Combine(AppDirectory(), ConfigFileName());
+        if (!File.Exists(filePath))
+        {
+            Logger.Log($"Config file not found: {filePath}");
+            return false;
+        }
+
+        var lines = File.ReadAllLines(filePath).ToList();
+        var peersSectionIndex = lines.FindIndex(l => l.Trim().Equals("[Peers]", StringComparison.OrdinalIgnoreCase));
+
+        if (peersSectionIndex >= 0)
+        {
+            var updatedPeers = lines.Skip(peersSectionIndex + 1)
+                .TakeWhile(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("["))
+                .Where(l => !l.Equals(peerUrl, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            lines = lines.Take(peersSectionIndex + 1).Concat(updatedPeers).ToList();
+            File.WriteAllLines(filePath, lines);
+            Logger.Log($"Peer removed: {peerUrl}");
+            return true;
+        }
+
+        Logger.Log($"Peer section not found in the config file.");
+        return false;
+    }
+
 }

@@ -19,9 +19,13 @@ public sealed class Block
         Hash = CalculateHash();
     }
 
-    [JsonInclude] public DateTime Timestamp { get; set; } = DateTime.MinValue;
-    [JsonInclude] public List<Transaction> Transactions { get; }
-    [JsonInclude] public string PreviousHash { get; set; }
+    public Block()
+    { 
+    }
+
+    [JsonInclude] public DateTime Timestamp { get; internal set; } = DateTime.MinValue;
+    [JsonInclude] public List<Transaction> Transactions { get; internal set; }
+    [JsonInclude] public string PreviousHash { get; internal set; }
     [JsonInclude] public string Hash { get; internal set; }
     [JsonInclude] public int Nonce { get; internal set; }
 

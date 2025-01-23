@@ -1,0 +1,37 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:SmartXapp"
+             x:Class="SmartXapp.MainPage"
+             BackgroundColor="{DynamicResource PageBackgroundColor}">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="20" Spacing="15">
+            <Label Text="SmartXApp Blockchain Manager"
+                   FontSize="24"
+                   HorizontalOptions="Center" />
+
+            <Button Text="Initialize Blockchain" Clicked="OnInitializeBlockchainClicked" />
+            <Button Text="Import SCX Tokens" Clicked="OnImportSCXTokensClicked" />
+            <Button Text="Send SCX Tokens" Clicked="OnSendSCXTokensClicked" />
+            <Button Text="Show Blockchain State" Clicked="OnDisplayBlockchainStateClicked" />
+            <Button Text="Show Wallet Balances" Clicked="OnDisplayWalletBalancesClicked" />
+            <Button Text="Upload Smart Contract" Clicked="OnUploadSmartContractClicked" />
+            <Button Text="Run Smart Contract Demo" Clicked="OnRunSmartContractDemoClicked" />
+            <Button Text="Config" Clicked="OnConfigButtonClicked" />
+
+            <Label Text="SmartXApp Logger"
+                   FontSize="24"
+                   HorizontalOptions="Center" />
+
+            <Editor x:Name="LogEditor"
+                    IsReadOnly="True"
+                    HeightRequest="400"
+                    AutoSize="TextChanges"
+                    BackgroundColor="Black"
+                    TextColor="White"
+                    FontSize="14" />
+        </VerticalStackLayout>
+ 
+    </ScrollView> 
+</ContentPage>

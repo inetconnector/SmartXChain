@@ -57,6 +57,12 @@ public class Transaction
     public Guid ID { get; internal set; }
 
     /// <summary>
+    ///     Represents the parent Block
+    /// </summary>
+    [JsonInclude]
+    internal string ParentBlock { get; set; }
+
+    /// <summary>
     ///     Holds the allowances for transactions between accounts.
     /// </summary>
     [JsonInclude]
@@ -67,6 +73,8 @@ public class Transaction
     /// </summary>
     [JsonInclude]
     internal TransactionTypes TransactionType { get; set; }
+
+     
 
     /// <summary>
     ///     Holds the balance of each account.
@@ -88,6 +96,7 @@ public class Transaction
             RecalculateGas();
         }
     }
+
 
     /// <summary>
     ///     Represents the recipient's address for the transaction.

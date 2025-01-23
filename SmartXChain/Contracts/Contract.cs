@@ -227,6 +227,7 @@ public class Authenticate : Logger
 /// </summary>
 public class Logger
 {
+    public static event Action<string>? OnLog;
     /// <summary>
     ///     Logs a message to the console with a timestamp, excluding specific messages based on predefined filters.
     /// </summary>
@@ -246,6 +247,8 @@ public class Logger
             Console.WriteLine(formattedMessage.Substring(0, 110) + "...");
         else
             Console.WriteLine(formattedMessage);
+
+        OnLog?.Invoke(formattedMessage);
     }
 
     /// <summary>

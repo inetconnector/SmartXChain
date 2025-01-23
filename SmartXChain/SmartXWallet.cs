@@ -142,6 +142,7 @@ public class SmartXWallet
     {
         try
         {
+            Directory.CreateDirectory(Config.AppDirectory());
             var path = Path.Combine(Config.AppDirectory(), fileName);
 
             // Write the content to the file securely
