@@ -28,14 +28,7 @@ public partial class BlockchainServer
         {
             foreach (var peer in Config.Default.Peers)
                 if (!string.IsNullOrEmpty(peer) && peer.StartsWith("http"))
-                {
-                    if (peer == Config.Default.URL) continue;
-                    if (!Node.CurrentNodeIPs.Contains(peer))
-                    {
-                        Node.CurrentNodeIPs.Add(peer);
-                        validPeers.Add(peer);
-                    }
-                }
+                    Node.AddNodeIP(peer);
 
             Logger.Log($"Static peers discovered: {string.Join(", ", validPeers.Count)}");
         }
@@ -52,63 +45,75 @@ public partial class BlockchainServer
     {
         while (true)
         {
-            foreach (var peer in Node.CurrentNodeIPs)
-            {
-                if (peer == Config.Default.URL)
-                    continue;
-
-                var (success, response) = await SendSecureMessage(peer, "/api/Nodes", "");
-
-                if (success && !string.IsNullOrEmpty(response))
-                    try
-                    {
-                        var responseObject = JsonSerializer.Deserialize<ChainInfo>(response);
-                        if (responseObject != null)
-                        {
-                            if (Config.Default.Debug)
-                                Logger.Log($"SynchronizeWithPeers  {peer} Result: {responseObject.Message}");
-
-                            foreach (var node in responseObject.Message.Split(','))
-                                Node.AddNodeIP(node);
-
-                            foreach (var chain in Blockchain.Blockchains)
-                                if (chain.Chain != null &&
-                                    (responseObject.BlockCount < chain.Chain.Count ||
-                                     (responseObject.BlockCount == chain.Chain.Count &&
-                                      responseObject.LastHash != chain.Chain.Last().Hash &&
-                                      responseObject.FirstHash != chain.Chain.First().Hash &&
-                                      responseObject.LastDate > chain.Chain.Last().Timestamp)
-                                    ))
-                                    await chain.SendChainInChunks(peer, responseObject);
-                        }
-                        else
-                        {
-                            Logger.LogError("ChainInfo Deserialize failed: Invalid response structure");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.LogException(ex, $"Failed to parse or update nodes from peer {peer}");
-                    }
-                else
-                    Logger.LogError($"Synchronization with peer {peer} failed or returned no response.");
-            }
-
+            await Sync();
             await Task.Delay(30000);
         }
     }
 
+    public static async Task Sync()
+    {
+        foreach (var peer in Node.CurrentNodeIPs)
+        {
+            if (peer == Config.Default.URL)
+                continue;
+
+            var (success, response) = await SendSecureMessage(peer, "/api/Nodes", Config.Default.URL);
+
+            if (success && !string.IsNullOrEmpty(response))
+                try
+                {
+                    var responseObject = JsonSerializer.Deserialize<ChainInfo>(response);
+                    if (responseObject != null)
+                    {
+                        if (Config.Default.Debug)
+                            Logger.Log($"SynchronizeWithPeers  {peer} Result: {responseObject.Message}");
+
+                        foreach (var node in responseObject.Message.Split(','))
+                            Node.AddNodeIP(node);
+
+                        foreach (var chain in Blockchain.Blockchains)
+                            if (chain.Chain != null)
+                            {
+                                if (responseObject.FirstHash == chain.Chain.First().Hash &&
+                                    Startup.Blockchain != null && Startup.Blockchain.IsValid())
+                                {
+                                    if (responseObject.BlockCount > chain.Chain.Count)
+                                        await GetRemoteChain(responseObject, chain, chain.Chain.Count);
+                                }
+                                else
+                                {
+                                    await GetRemoteChain(responseObject, chain, 0);
+                                }
+                            }
+                    }
+                    else
+                    {
+                        Logger.LogError("ChainInfo Deserialize failed: Invalid response structure");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogException(ex, $"Failed to parse or update nodes from peer {peer}");
+                }
+            else
+                Logger.LogError($"Synchronization with peer {peer} failed or returned no response.");
+        }
+    }
+
+
     /// <summary>
     ///     Refactored BroadcastBlockToPeers to utilize SecureCommunication and log responses.
     /// </summary>
-    public static async Task BroadcastBlockToPeers(ConcurrentList<string> serversList, string message,
+    public static async Task BroadcastBlockToPeers(ConcurrentList<string> serversList, List<Block> blocks,
         Blockchain blockchain)
     {
+        var message = JsonSerializer.Serialize(blocks);
+
         var semaphore = new SemaphoreSlim(Config.Default.MaxParallelConnections);
 
         var tasks = serversList.Select(async peer =>
         {
-            if (peer.Contains(Config.Default.URL))
+            if (peer.Contains(Config.Default.URL) || peer.Contains(Config.Default.ResolvedURL))
                 return;
 
             await semaphore.WaitAsync();
@@ -132,15 +137,6 @@ public partial class BlockchainServer
                         {
                             if (Config.Default.Debug)
                                 Logger.Log($"Broadcast to {peer} Result: {responseObject.Message}");
-
-                            else if (responseObject.Message.ToLower().Contains("error"))
-                                if (blockchain.Chain != null &&
-                                    (responseObject.BlockCount < blockchain.Chain.Count ||
-                                     (responseObject.BlockCount == blockchain.Chain.Count &&
-                                      responseObject.LastHash != blockchain.Chain.Last().Hash &&
-                                      responseObject.LastDate > blockchain.Chain.Last().Timestamp)
-                                    ))
-                                    await blockchain.SendChainInChunks(peer, responseObject);
                         }
                         else
                         {
@@ -166,6 +162,43 @@ public partial class BlockchainServer
         await Task.WhenAll(tasks);
     }
 
+    private static async Task GetRemoteChain(ChainInfo responseObject, Blockchain chain, int fromBlock)
+    {
+        if (chain.Chain == null)
+            return;
+
+        for (var block = fromBlock; block < responseObject.BlockCount; block++)
+        {
+            var (success, response) =
+                await SendSecureMessage(responseObject.URL, "/api/GetBlock/" + block, Config.Default.URL);
+
+            if (success && !string.IsNullOrEmpty(response))
+                try
+                {
+                    var chainInfo = JsonSerializer.Deserialize<ChainInfo>(response);
+                    if (chainInfo != null && Startup.Blockchain != null)
+                    {
+                        if (Config.Default.Debug)
+                            Logger.Log($"GetBlock {block} from {responseObject.URL} Result: {responseObject.Message}");
+
+                        if (!string.IsNullOrEmpty(chainInfo.Message))
+                        {
+                            var newBlock = Block.FromBase64(chainInfo.Message)!;
+                            if (newBlock.Nonce == -1)
+                                if (Startup.Blockchain.Chain != null)
+                                    Startup.Blockchain.Clear();
+
+                            Startup.Blockchain.AddBlock(newBlock, false);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogException(ex, $"Failed to GetBlock {block} from {responseObject.URL} ");
+                }
+        }
+    }
+
 
     /// <summary>
     ///     Retrieves the list of registered nodes from a specific server.
@@ -175,7 +208,7 @@ public partial class BlockchainServer
     public static async Task<List<string>> GetRegisteredNodesAsync(string serverAddress)
     {
         var ret = new List<string>();
-        if (serverAddress.Contains(Config.Default.URL))
+        if (serverAddress.Contains(Config.Default.URL) || serverAddress.Contains(Config.Default.ResolvedURL))
             return ret;
 
         try

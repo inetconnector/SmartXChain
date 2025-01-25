@@ -41,7 +41,7 @@ public partial class BlockchainServer
 
                     if (responseObject.DllFingerprint !=
                         Crypt.GenerateFileFingerprint(Assembly.GetExecutingAssembly().Location) &&
-                        !Config.ChainName.ToLower().Contains("test"))
+                        !Config.ChainName.ToString().ToLower().Contains("test"))
                     {
                         Logger.LogError($"DLL fingerprint mismatch: {peer}");
                         return null;
@@ -49,7 +49,7 @@ public partial class BlockchainServer
 
                     if (responseObject.ChainID != Config.Default.ChainId)
                     {
-                        Logger.LogError($"ChainId mismatch: {peer}");
+                        Logger.LogError($"ChainId mismatch: '{peer}' %  '{Config.Default.ChainId}'");
                         return null;
                     }
 

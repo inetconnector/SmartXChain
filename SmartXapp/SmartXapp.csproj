@@ -116,12 +116,6 @@
 		<!-- Raw Assets (also remove the "Resources\Raw" prefix) -->
 		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
 	</ItemGroup>
-
-	<ItemGroup>
-	  <Compile Remove="Examples\ERC20.cs" />
-	  <Compile Remove="Examples\ERC20Extended.cs" />
-	  <Compile Remove="Examples\GoldCoin.cs" />
-	</ItemGroup>
 	<ItemGroup>
 	  <None Remove="license.txt" /> 
 	</ItemGroup> 
@@ -159,13 +153,15 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Folder Include="Examples\" />
-	</ItemGroup>
-
-	<ItemGroup>
 	  <MauiXaml Update="EditConfigPage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Update="Resources\Raw\index.html">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
 	</ItemGroup>
 
 </Project>

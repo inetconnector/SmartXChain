@@ -1,3 +1,4 @@
+using System.Resources;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -27,7 +28,9 @@ public sealed class Block
     [JsonInclude] public List<Transaction> Transactions { get; internal set; }
     [JsonInclude] public string PreviousHash { get; internal set; }
     [JsonInclude] public string Hash { get; internal set; }
-    [JsonInclude] public int Nonce { get; internal set; }
+    [JsonInclude] public string Issuer { get; internal set; }
+    [JsonInclude] public string IssuerURL { get; internal set; }
+    [JsonInclude] public int Nonce { get; internal set; } 
 
     /// <summary>
     ///     Get a dictionary of SmartContract from the block
@@ -100,6 +103,8 @@ public sealed class Block
         if (difficulty == 0)
         {
             Hash = CalculateHash();
+            Issuer = Config.Default.MinerAddress;
+            IssuerURL = Config.Default.ResolvedURL;
         }
         else
         {
@@ -113,19 +118,7 @@ public sealed class Block
 
         Logger.Log($"Block mined: {Hash}");
     }
-
-    /// <summary>
-    ///     Extracts discovery server addresses from the transactions in the block.
-    /// </summary>
-    /// <returns>An array of strings containing discovery server addresses.</returns>
-    public string[] GetDiscoveryServers()
-    {
-        return Transactions
-            .Where(t => t.Data.StartsWith("RegisterDiscoveryServer"))
-            .Select(t => t.Data.Split(':')[1])
-            .ToArray();
-    }
-
+     
     /// <summary>
     ///     Serializes the block into a compressed byte array.
     /// </summary>

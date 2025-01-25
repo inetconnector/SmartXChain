@@ -1,15 +1,11 @@
 ﻿using System.Net;
-using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
 using EmbedIO;
 using EmbedIO.BearerToken;
 using EmbedIO.WebApi;
 using SmartXChain.BlockchainCore;
-using SmartXChain.Contracts;
 using SmartXChain.Utils;
 using Swan.Logging;
-using Node = SmartXChain.Validators.Node;
 
 namespace SmartXChain.Server;
 
@@ -42,24 +38,18 @@ public partial class BlockchainServer
 
     public void StartMainServer()
     {
-        var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
-        var str = Path.Combine(Config.AppDirectory(), "wwwroot");
-        FileSystem.CopyDirectory(Path.Combine(baseDirectory, "wwwroot"), str);
-        var path = Path.Combine(str, "index.html");
-        File.WriteAllText(path, ReplaceBody(File.ReadAllText(path)));
-
         if (!Config.Default.SSL)
-            _server = (WebServer)new WebServer(Configure).WithCors()
+            _server = new WebServer(Configure).WithCors()
                 .WithLocalSessionManager()
                 .WithWebApi("/api", m => m.WithController<ApiController>())
-                .WithStaticFolder("/", str, true);
+                .WithStaticFolder("/", FileSystem.WWWRoot, true);
         else
             _server = (WebServer)new WebServer(Configure).WithCors()
                 .WithBearerToken("/api", Crypt.AssemblyFingerprint.Substring(0, 40),
                     new BasicAuthorizationServerProvider())
                 .WithLocalSessionManager()
                 .WithWebApi("/api", m => m.WithController<ApiController>())
-                .WithStaticFolder("/", str, true);
+                .WithStaticFolder("/", FileSystem.WWWRoot, true);
 
         //if (!Config.Default.Debug)
         {
@@ -68,9 +58,9 @@ public partial class BlockchainServer
                 Swan.Logging.Logger.UnregisterLogger<ConsoleLogger>();
             }
             catch (Exception e)
-            { 
+            {
             }
-         
+
             //Terminal.Settings.DefaultColor = ConsoleColor.Green;
         }
         _server.RunAsync();
@@ -79,16 +69,6 @@ public partial class BlockchainServer
 
         _server.StateChanged += (s, e) =>
             $"WebServer New State - {e.NewState}".Info();
-    }
-
-    private string ReplaceBody(string html)
-    {
-        var stringBuilder = new StringBuilder();
-
-        stringBuilder.AppendLine($"Chain-ID: {Config.Default.ChainId}<br>");
-        stringBuilder.AppendLine($"Miner: {Config.Default.MinerAddress}");
-
-        return html.Replace("@body", stringBuilder.ToString());
     }
 
     private void Configure(WebServerOptions o)
@@ -183,117 +163,5 @@ public partial class BlockchainServer
         }
 
         return (server, result);
-    }
-
-    /// <summary>
-    ///     Validates a node's signature using HMACSHA256 with the server's secret key.
-    /// </summary>
-    /// <param name="nodeAddress">The node address being validated.</param>
-    /// <param name="signature">The provided signature to validate.</param>
-    /// <returns>True if the signature is valid; otherwise, false.</returns>
-    private bool ValidateSignature(string nodeAddress, string signature)
-    {
-        using (var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(Config.Default.ChainId)))
-        {
-            var computedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(nodeAddress));
-            var computedSignature = Convert.ToBase64String(computedHash);
-
-            return computedSignature == signature;
-        }
-    }
-
-    /// <summary>
-    ///     Retrieves a list of active nodes, removing any that are inactive based on heartbeat timestamps.
-    /// </summary>
-    /// <param name="message">A dummy message for compatibility (not used).</param>
-    /// <returns>A comma-separated list of active node addresses.</returns>
-    private static string HandleNodes(string message)
-    {
-        RemoveInactiveNodes();
-
-        if (Node.CurrentNodeIPs.Count > 0)
-        {
-            var nodes = string.Join(",", Node.CurrentNodeIPs.Where(node => !string.IsNullOrWhiteSpace(node)));
-            return nodes.TrimEnd(',');
-        }
-
-        return "";
-    }
-
-    /// <summary>
-    ///     Removes inactive nodes that have exceeded the heartbeat timeout from the registry.
-    /// </summary>
-    private static void RemoveInactiveNodes()
-    {
-        var now = DateTime.UtcNow;
-
-        // Identify nodes that have exceeded the heartbeat timeout
-        var inactiveNodes = Node.CurrentNodeIP_LastActive
-            .Where(kvp => (now - kvp.Value).TotalSeconds > NodeTimeoutSeconds)
-            .Select(kvp => kvp.Key)
-            .ToList();
-
-        // Remove inactive nodes from the registry
-        foreach (var node in inactiveNodes)
-        {
-            Node.RemoveNodeIP(node);
-            Logger.Log($"Node removed: {node} (Inactive)");
-        }
-    }
-
-    /// <summary>
-    ///     Processes a vote message, validating its block and returning a response if successful.
-    /// </summary>
-    /// <param name="message">The vote message containing block data in Base64 format.</param>
-    /// <returns>"ok" with miner address if the vote is valid, or an error message otherwise.</returns>
-    private string HandleVote(string message)
-    {
-        const string prefix = "Vote:";
-        if (!message.StartsWith(prefix))
-        {
-            Logger.Log("Invalid Vote message received.");
-            return "";
-        }
-
-        try
-        {
-            var base64 = message.Substring(prefix.Length);
-            var block = Block.FromBase64(base64);
-            if (block != null)
-            {
-                var hash = block.Hash;
-                var calculatedHash = block.CalculateHash();
-                if (calculatedHash == hash) return "ok#" + Config.Default.MinerAddress;
-            }
-        }
-        catch (Exception e)
-        {
-            Logger.Log($"Invalid Vote message received. {e.Message}");
-        }
-
-        return "";
-    }
-
-    /// <summary>
-    ///     Verifies code by decompressing and validating it against security rules.
-    /// </summary>
-    /// <param name="message">The verification message containing compressed Base64 code.</param>
-    /// <returns>"ok" if the code is safe, or an error message if validation fails.</returns>
-    private static string HandleVerifyCode(string message)
-    {
-        const string prefix = "VerifyCode:";
-        if (!message.StartsWith(prefix))
-        {
-            Logger.Log("Invalid verification request received.");
-            return "";
-        }
-
-        var compressedBase64Data = message.Substring(prefix.Length);
-        var code = Compress.DecompressString(Convert.FromBase64String(compressedBase64Data));
-
-        var codecheck = "";
-        var isCodeSafe = CodeSecurityAnalyzer.IsCodeSafe(code, ref codecheck);
-
-        return isCodeSafe ? "ok" : $"failed: {codecheck}";
     }
 }

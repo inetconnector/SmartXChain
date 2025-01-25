@@ -102,7 +102,7 @@ public class SmartXWallet
                 return false;
             }
 
-            var appDir = Config.AppDirectory();
+            var appDir = FileSystem.AppDirectory;
             var file = Path.Combine(appDir, "mnemonic.txt");
             if (File.Exists(file))
                 File.Delete(file);
@@ -142,8 +142,8 @@ public class SmartXWallet
     {
         try
         {
-            Directory.CreateDirectory(Config.AppDirectory());
-            var path = Path.Combine(Config.AppDirectory(), fileName);
+            Directory.CreateDirectory(FileSystem.AppDirectory);
+            var path = Path.Combine(FileSystem.AppDirectory, fileName);
 
             // Write the content to the file securely
             File.WriteAllText(path, content);
@@ -165,7 +165,7 @@ public class SmartXWallet
     {
         try
         {
-            var path = Path.Combine(Config.AppDirectory(), fileName);
+            var path = Path.Combine(FileSystem.AppDirectory, fileName);
 
             if (!File.Exists(path))
             {

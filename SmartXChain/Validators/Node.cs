@@ -91,7 +91,7 @@ public class Node
         // Filter out the local node's own IP address
         ipList = ipList
             .Where(ip => !ip.Contains(Config.Default.URL) &&
-                         !ip.Contains(Config.Default.URL)).ToList();
+                         !ip.Contains(Config.Default.ResolvedURL)).ToList();
 
         // Register with a discovery server
         await node.RegisterWithDiscoveryAsync(ipList);
@@ -108,8 +108,7 @@ public class Node
                         var nodeIPList = await GetRegisteredNodesAsync(server);
 
                         foreach (var nodeIP in nodeIPList)
-                            if (!string.IsNullOrEmpty(nodeIP) && !CurrentNodeIPs.Contains(nodeIP))
-                                CurrentNodeIPs.Add(nodeIP);
+                            AddNodeIP(nodeIP); 
                     }
                 }
                 catch (Exception ex)
@@ -150,10 +149,9 @@ public class Node
     {
         lock (CurrentNodeIPs)
         {
-            if (Config.Default.Peers.Contains(ip))
-            {
-                return;
-            }
+            if (Config.Default.Peers.Contains(ip)) 
+                return; 
+
             if (CurrentNodeIPs.Contains(ip))
             {
                 var tempList = new List<string>();
@@ -174,26 +172,53 @@ public class Node
         } 
     }
 
+
     /// <summary>
-    ///     and updates CurrentNodeIP_LastActive
+    ///     Adds a node IP and updates CurrentNodeIP_LastActive, ensuring no duplicates (URLs or IPs).
     /// </summary>
-    /// <param name="server"></param>
+    /// <param name="server">The server URL</param>
     public static void AddNodeIP(string server)
     {
-        if (NetworkUtils.IsValidServer(server))
+        // Resolve the server URL to its IP
+        var resolvedServerIp = NetworkUtils.ResolveUrlToIp(server);
+         
+        if (string.IsNullOrEmpty(resolvedServerIp))
         {
-            CurrentNodeIP_LastActive.TryAdd(server, DateTime.UtcNow);
-            CurrentNodeIP_LastActive[server] = DateTime.UtcNow;
-
-            if (!CurrentNodeIPs.Contains(server))
+            if (Config.Default.Debug)
             {
-                CurrentNodeIPs.Add(server);
-                if (Config.Default.Debug)
-                    Logger.Log($"New server added: {server} ");
+                Logger.Log($"Failed to resolve IP for server: {server}");
             }
-               
-        } 
+            return;
+        }
+         
+        foreach (var node in CurrentNodeIPs)
+        {
+            var resolvedNodeIp = NetworkUtils.ResolveUrlToIp(node);
+
+            if (resolvedServerIp == resolvedNodeIp)
+            {
+                if (resolvedNodeIp!=server && CurrentNodeIPs.Contains(resolvedNodeIp))
+                {
+                    RemoveNodeIP(resolvedNodeIp);
+                    CurrentNodeIPs.Add(server); 
+                    CurrentNodeIP_LastActive[server] = DateTime.UtcNow;
+                }
+                return; 
+            }
+        }
+         
+        if (NetworkUtils.IsValidServer(server))
+        { 
+            CurrentNodeIP_LastActive[server] = DateTime.UtcNow; 
+            CurrentNodeIPs.Add(server);
+
+            if (Config.Default.Debug)
+            {
+                Logger.Log($"New server added: {server}");
+            }
+        }
     }
+
 
     /// <summary>
     ///     Registers the node with discovery servers.

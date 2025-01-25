@@ -24,8 +24,21 @@ public static class BlockchainStorage
 
             using (var db = new SQLiteConnection(databasePath))
             {
-                db.DeleteAll<Block>();
-                db.DeleteAll<Transaction>();
+                try
+                {
+                    db.DeleteAll<Block>();
+                }
+                catch (Exception e)
+                { 
+                }
+           
+                try
+                {
+                    db.DeleteAll<Transaction>();
+                }
+                catch (Exception e)
+                { 
+                }  
             }
 
             Logger.Log("Database cleared successfully.");
@@ -60,7 +73,7 @@ public static class BlockchainStorage
         public string ApprovesJson { get; set; } 
     }
     /// <summary>
-    ///     Speichert einen Block und seine Transaktionen in der Datenbank.
+    ///     Saves block and transactions to database.
     /// </summary>
     public static bool SaveBlock(Block block, string blockchainPath, string chainId)
     {
@@ -103,13 +116,12 @@ public static class BlockchainStorage
 
                 db.InsertOrReplace(dbBlock);
             }
-
-            Logger.Log("Block und Transaktionen erfolgreich gespeichert.");
+             
             return true;
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, "Fehler beim Speichern des Blocks.");
+            Logger.LogException(ex, $"Error saving block {block.Hash}");
             return false;
         }
     }

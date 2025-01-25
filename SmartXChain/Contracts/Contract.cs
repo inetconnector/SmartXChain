@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using SmartXChain.Utils;
 using System.Threading.Tasks;
+using System.Net.Http;
 
 /// ---------BEGIN BASE CLASSES----------
 public class Contract:Authenticate
@@ -119,9 +120,7 @@ public class Contract:Authenticate
     public void LogException(Exception ex, string message = "", bool trim = false)
     {
         Logger.LogException(ex, $"[{Name}] {message}");
-    }
-
-
+    } 
 }
 /// <summary>
 ///     Authentication for Contracts
@@ -279,10 +278,14 @@ public class Logger
     public static void LogLine(string message="", int totalWidth=80)
     {
         if (totalWidth > 200)
+#if ANDROID
+            totalWidth = 80;
+#else            
             totalWidth = 200;
+#endif
 
-        // Trim the message to handle cases with only whitespace
-        message = message.Trim();
+            // Trim the message to handle cases with only whitespace
+            message = message.Trim();
 
         if (string.IsNullOrEmpty(message))
         {

@@ -1,6 +1,7 @@
 ﻿using Microsoft.Maui.Controls;
 using SmartXChain.Utils;
 using System.Diagnostics;
+using FileSystem = SmartXChain.Utils.FileSystem;
 
 namespace SmartXapp;
 
@@ -8,8 +9,14 @@ public partial class MainPage : ContentPage
 {
     public MainPage()
     {
-        InitializeComponent(); 
+        InitializeComponent();
         Logger.OnLog += AddLogMessage;
+
+        Task.Run(async () =>
+        {
+            await BlockchainHelper.InitializeApplicationAsync();
+            var (_, startup) = await BlockchainHelper.StartServerAsync(); 
+        });
     }
 
     private void AddLogMessage(string message)
@@ -21,17 +28,7 @@ public partial class MainPage : ContentPage
         });
     }
 
-    private async void OnInitializeBlockchainClicked(object sender, EventArgs e)
-    {
-        // Initialize blockchain logic
-        await BlockchainHelper.InitializeApplicationAsync();
-        //await DisplayAlert("Initialization", "Blockchain initialized successfully.", "OK");
-
-        // Start the blockchain server
-        var (_, startup) = await BlockchainHelper.StartServerAsync();
-        //await DisplayAlert("Server Start", "Blockchain server started successfully.", "OK");
-    } 
-    private async void OnImportSCXTokensClicked(object sender, EventArgs e)
+ async void OnImportSCXTokensClicked(object sender, EventArgs e)
     {
         // Logic to import SCX tokens
         await BlockchainHelper.ImportAmountFromFile();
@@ -85,20 +82,19 @@ public partial class MainPage : ContentPage
         await DisplayAlert("Smart Contract Demo", "Smart contract demo ran successfully.", "OK");
     }
     private async void OnConfigButtonClicked(object? sender, EventArgs e)
-    {
-        var configFilePath = Path.Combine(Config.AppDirectory(), Config.ConfigFileName());
-        var configContent = File.ReadAllText(configFilePath);
+    { 
+        var configContent = File.ReadAllText(FileSystem.ConfigFile);
 
         var editConfigPage = new EditConfigPage(configContent);
         editConfigPage.ConfigSaved += async editedConfig =>
         {
             if (!string.IsNullOrEmpty(editedConfig))
             {
-                var directoryPath = Path.GetDirectoryName(configFilePath);
+                var directoryPath = Path.GetDirectoryName(FileSystem.ConfigFile);
                 if (!string.IsNullOrEmpty(directoryPath) && !Directory.Exists(directoryPath)) 
                     Directory.CreateDirectory(directoryPath);  
 
-                File.WriteAllText(configFilePath, editedConfig);
+                File.WriteAllText(FileSystem.ConfigFile, editedConfig);
 
                 var restartConfirmed = await DisplayAlert("Restart Required", "The application needs to restart to apply changes. Restart now?", "Yes", "No");
                 if (restartConfirmed)
@@ -121,7 +117,14 @@ public partial class MainPage : ContentPage
                 FileName = startupPath,
                 UseShellExecute = true
             });
-            Application.Current.Quit();
+            Thread.Sleep(500);
+            if (Application.Current != null) Application.Current.Quit();
         }
+    }
+
+    private void OnExtendedLoggingClicked(object? sender, EventArgs e)
+    {
+        Config.Default.SetProperty(Config.ConfigKey.Debug,
+            (!Config.Default.Debug).ToString());
     }
 }

@@ -6,6 +6,7 @@ using EmbedIO;
 using EmbedIO.Routing;
 using EmbedIO.WebApi;
 using SmartXChain.BlockchainCore;
+using SmartXChain.Contracts;
 using SmartXChain.Utils;
 using Node = SmartXChain.Validators.Node;
 
@@ -286,10 +287,21 @@ public partial class BlockchainServer
             {
                 var now = DateTime.UtcNow;
 
+                foreach (var peer in message.Split(','))
+                    if (!Node.CurrentNodeIPs.Contains(peer) && peer.Contains("."))
+                        Node.AddNodeIP(peer);
+
                 var inactiveNodes = Node.CurrentNodeIP_LastActive
                     .Where(kvp => (now - kvp.Value).TotalSeconds > NodeTimeoutSeconds)
                     .Select(kvp => kvp.Key)
                     .ToList();
+
+                if (inactiveNodes.Contains(Config.Default.URL)) 
+                    inactiveNodes.Remove(Config.Default.URL);
+
+                foreach (var peer in Config.Default.Peers.Where(peer => 
+                             inactiveNodes.Contains(peer)))
+                    inactiveNodes.Remove(peer); 
 
                 foreach (var node in inactiveNodes)
                 {
@@ -324,6 +336,7 @@ public partial class BlockchainServer
             await HandleSecureRequest(message => Task.FromResult(HandleVote(message)));
         }
 
+
         /// <summary>
         ///     Processes a new block or a list of blocks received by the server and adds them to the blockchain if valid.
         /// </summary>
@@ -352,7 +365,7 @@ public partial class BlockchainServer
                                         if (Startup.Blockchain.Chain != null)
                                             Startup.Blockchain.Clear();
 
-                                    if (!Startup.Blockchain.AddBlock(block, false, false))
+                                    if (!Startup.Blockchain.AddBlock(block, false))
                                     {
                                         allBlocksAdded = false;
                                         break;
@@ -418,27 +431,40 @@ public partial class BlockchainServer
         ///     The block's details are encrypted before sending.
         /// </summary>
         /// <param name="blockString">The block number as a string.</param>
-        [Route(HttpVerbs.Get, "/GetBlock/{block}")]
+        [Route(HttpVerbs.Post, "/GetBlock/{blockString}")]
         public async Task GetBlock(string blockString)
         {
-            await HandleSecureRequest(_ =>
+            ChainInfo responseInfo;
+
+            await HandleSecureRequest(async _ =>
             {
                 if (!int.TryParse(blockString, out var block))
                 {
                     HttpContext.Response.StatusCode = 400;
-                    return Task.FromResult($"ERROR: Invalid block number: {blockString}");
+
+                    responseInfo = CreateChainInfo($"ERROR: Invalid block number: {blockString}");
+                    return await Task.FromResult(JsonSerializer.Serialize(responseInfo));
                 }
 
                 if (Startup.Blockchain == null || block < 0 ||
                     (Startup.Blockchain.Chain != null && block >= Startup.Blockchain.Chain.Count))
                 {
                     HttpContext.Response.StatusCode = 404;
-                    return Task.FromResult($"ERROR: Block {block} not found.");
+
+                    responseInfo = CreateChainInfo($"ERROR: Block {block} not found.");
+                    return await Task.FromResult(JsonSerializer.Serialize(responseInfo));
                 }
 
-                var blockData = Startup.Blockchain.Chain?[block];
-                if (Config.Default.Debug) Log($"Sent block {block}");
-                return Task.FromResult(blockData?.ToString() ?? "ERROR: Block data unavailable.");
+                var blockData = "";
+                if (Startup.Blockchain != null && Startup.Blockchain.IsValid())
+                    blockData = Startup.Blockchain.Chain?[block].ToBase64();
+
+                if (Config.Default.Debug)
+                    Log($"Get block {block}");
+
+
+                responseInfo = CreateChainInfo(blockData ?? "ERROR: Block data unavailable.");
+                return await Task.FromResult(JsonSerializer.Serialize(responseInfo));
             });
         }
 
@@ -453,12 +479,28 @@ public partial class BlockchainServer
             {
                 if (Config.Default.Debug) Log($"Decrypted VerifyCode message: {message}");
 
-                var result = HandleVerifyCode(message);
+                const string prefix = "VerifyCode:";
+                var result = "";
+
+                if (!message.StartsWith(prefix))
+                {
+                    Logger.Log("Invalid verification request received.");
+                }
+                else
+                {
+                    var compressedBase64Data = message.Substring(prefix.Length);
+                    var code = Compress.DecompressString(Convert.FromBase64String(compressedBase64Data));
+
+                    var codecheck = "";
+                    var isCodeSafe = CodeSecurityAnalyzer.IsCodeSafe(code, ref codecheck);
+
+                    result = isCodeSafe ? "ok" : $"failed: {codecheck}";
+                }
+
                 if (Config.Default.Debug) Log($"VerifyCode Result: {result}");
                 return Task.FromResult(result);
             });
         }
-
 
         /// <summary>
         ///     Validates the integrity of the blockchain securely.

@@ -1,10 +1,21 @@
 ﻿using System.Diagnostics;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace SmartXChain.Utils;
 
 public static class Functions
 {
+    public static string ReplaceBody(string html)
+    {
+        var stringBuilder = new StringBuilder();
+
+        stringBuilder.AppendLine($"Chain-ID: {Config.Default.ChainId}<br>");
+        stringBuilder.AppendLine($"Miner: {Config.Default.MinerAddress}");
+
+        return html.Replace("@body", stringBuilder.ToString());
+    }
+
     /// <summary>
     ///     Restarts the application
     /// </summary>

@@ -4,7 +4,8 @@ using SmartXChain.BlockchainCore;
 using SmartXChain.Contracts;
 using SmartXChain.Server;
 using SmartXChain.Utils;
-using FileSystem = SmartXChain.Utils.FileSystem;
+using static SmartXChain.Utils.Config;
+using FileSystem = Microsoft.Maui.Storage.FileSystem;
 
 namespace SmartXapp;
 
@@ -12,55 +13,104 @@ public static class BlockchainHelper
 {
     private static (BlockchainServer?, BlockchainServer.NodeStartupResult?) _startupServer;
 
-    private static BlockchainServer.NodeStartupResult _startup;
+    private static BlockchainServer.NodeStartupResult? _startup;
 
-    public static string PrivateKey => Config.Default.PrivateKey;
+    public static string PrivateKey => Default.PrivateKey;
 
 
     public static async Task InitializeApplicationAsync()
     {
         Logger.LogLine("Initializing application...");
 
-        Config.ChainName = "SmartXChain_Testnet";
-        Logger.Log($"ChainName has been set to '{Config.ChainName}'.");
+        ChainName = ChainNames.SmartXChain_Testnet;
+        var port = 5556;
+        SmartXChain.Utils.FileSystem.CreateBackup();
+         
+        Logger.Log($"ChainName has been set to '{ChainName}'.");
+        var configFile = SmartXChain.Utils.FileSystem.ConfigFile;
+        var configContent = "";
 
-        //if (string.IsNullOrEmpty(Config.Default.URL))
-        {            
-            FileSystem.CreateBackup();
-            Config.Default.SetProperty(Config.ConfigKey.ChainId, "{B800C2F0-13A1-4066-843A-060D18B4DD8D}");
-            Config.Default.SetProperty(Config.ConfigKey.URL, "http://k5mfq628y54zjuxw.myfritz.net:5556");
-            Config.Default.SetProperty(Config.ConfigKey.MaxParallelConnections, "10");
-            Config.Default.AddPeer("http://netregservice.com:5556");
+        await CopyFileFromAssets("ERC20.cs", SmartXChain.Utils.FileSystem.ContractsDir);
+        await CopyFileFromAssets("ERC20Extended.cs", SmartXChain.Utils.FileSystem.ContractsDir);
+        await CopyFileFromAssets("GoldCoin.cs", SmartXChain.Utils.FileSystem.ContractsDir);
+     
+        //copy defaults
+        if (!File.Exists(configFile) || Config.TestNet)
+        {
+            if (ChainName == ChainNames.SmartXChain_Testnet)
+                configContent = await GetFileFromAssets("config.testnet.txt");
+            else if (ChainName == ChainNames.SmartXChain) 
+                configContent = await GetFileFromAssets("config.txt");
+             
+            File.WriteAllText(configFile, configContent); 
         }
+        Config.Default.ReloadConfig();
 
-        if (string.IsNullOrEmpty(Config.Default.MinerAddress))
+
+        //htm
+        await CopyFileFromAssets("index.html", SmartXChain.Utils.FileSystem.AppDirectory);
+        var indexhtmSrc = Path.Combine(SmartXChain.Utils.FileSystem.AppDirectory, "index.html");
+        var indexhtmDest = Path.Combine(SmartXChain.Utils.FileSystem.WWWRoot, "index.html");
+        if (File.Exists(indexhtmSrc))
+        {
+            var html = Functions.ReplaceBody(File.ReadAllText(indexhtmSrc));
+            File.WriteAllText(indexhtmDest, html);
+        }
+         
+        //get public IP
+        var publicIP = await NetworkUtils.GetPublicIPAsync(debug: true);
+        Default.SetProperty(ConfigKey.URL, $"http://{publicIP}:{port}");
+
+        Logger.Log($"Current Node: {ConfigKey.URL}");
+        foreach (var peer in Config.Default.Peers) 
+            Logger.Log($"Current Peer: {peer}");
+       
+        Logger.Log($"Current Chain: {Config.Default.ChainId}");
+       
+        //generate wallet
+        if (string.IsNullOrEmpty(Default.MinerAddress))
         {
             SmartXWallet.GenerateWallet();
-            Config.Default.ReloadConfig();
+            Default.ReloadConfig();
         }
 
-        if (string.IsNullOrEmpty(Config.Default.PublicKey)) Config.Default.GenerateServerKeys();
-
+        //generate server keys
+        if (string.IsNullOrEmpty(Default.PublicKey)) Default.GenerateServerKeys();
         SetWebserverCertificate();
 
         await Task.CompletedTask;
     }
 
+    private static async Task CopyFileFromAssets(string fileName, string targetDirectory)
+    {
+        await using var s = await FileSystem.OpenAppPackageFileAsync(fileName);
+        using var r = new StreamReader(s);
+        var file = r.ReadToEnd();
+        File.WriteAllText(Path.Combine(targetDirectory,fileName), file);
+    }
+
+    private static async Task<string> GetFileFromAssets(string fileName)
+    {
+        await using var s = await FileSystem.OpenAppPackageFileAsync(fileName);
+        using var r = new StreamReader(s);
+        var file = r.ReadToEnd();
+        return file;
+    }
     private static void SetWebserverCertificate()
     {
-        if (Config.Default.URL.ToLower().StartsWith("https"))
+        if (Default.URL.ToLower().StartsWith("https"))
         {
-            if (!string.IsNullOrEmpty(Config.Default.SSLCertificate) && File.Exists(Config.Default.SSLCertificate))
+            if (!string.IsNullOrEmpty(Default.SSLCertificate) && File.Exists(Default.SSLCertificate))
             {
                 BlockchainServer.WebserverCertificate =
-                    CertificateManager.GetCertificate(Config.Default.SSLCertificate);
+                    CertificateManager.GetCertificate(Default.SSLCertificate);
             }
             else
             {
-                var name = Config.ChainName;
+                var name = ChainName.ToString();
                 var certManager = new CertificateManager(
-                    name, Config.AppDirectory(), $"{name}.pfx", name);
-                var certPath = certManager.GenerateCertificate(Config.Default.URL);
+                    name, SmartXChain.Utils.FileSystem.AppDirectory, $"{name}.pfx", name);
+                var certPath = certManager.GenerateCertificate(Default.URL);
 
                 if (!certManager.IsCertificateInstalled())
                     certManager.InstallCertificate(certPath);
@@ -213,7 +263,7 @@ public static class BlockchainHelper
             "Smart Contract Demo");
 
 
-        var ERC20 = Path.Combine(Microsoft.Maui.Storage.FileSystem.AppDataDirectory,
+        var ERC20 = Path.Combine(FileSystem.AppDataDirectory,
             "ERC20.cs");
 
         if (File.Exists(ERC20))

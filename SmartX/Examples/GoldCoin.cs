@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 ///     Represents a GoldCoin token that adjusts its supply dynamically based on the gold price.
 ///     Inherits from the ERC20Extended class.
 /// </summary>
-public class GoldCoin : ERC20Extended
+public class GoldCoin : ERC20Extended, IERC20Token
 {
     private static readonly HttpClient HttpClient = new();
 

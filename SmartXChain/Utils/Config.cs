@@ -27,32 +27,9 @@ public class Config
 
     private static readonly Lazy<Config> _defaultInstance = new(() =>
     {
-        var startupDirectory = AppDomain.CurrentDomain.BaseDirectory;
-
-        // Ensure the AppData directory exists
-        var appDirectory = AppDirectory();
-        Directory.CreateDirectory(appDirectory);
-
-        var appDataConfigPath = Path.Combine(appDirectory, ConfigFileName());
-        var startupConfigPath = Path.Combine(startupDirectory, ConfigFileName());
-
-        // Check if a config exists in the startup directory and not in AppData
-        if (File.Exists(startupConfigPath) && !File.Exists(appDataConfigPath))
-        {
-#if ANDROID
-            using var stream = Android.App.Application.Context.Assets.Open(ConfigFileName);
-            using var fileStream = File.Create(appDataConfigPath);
-            stream.CopyTo(fileStream);
-
-            Logger.Log("Initial configuration file copied from Assets to AppData.");
-#else
-            // Copy the startup config to AppData
-            File.Copy(startupConfigPath, appDataConfigPath);
-            Logger.Log("Initial configuration file copied from startup directory to AppData.");
-#endif
-        }
-
-        var configFilePath = Path.Combine(appDirectory, ConfigFileName());
+        var configFilePath = SmartXChain.Utils.FileSystem.ConfigFile;
+        FileInfo fi = new FileInfo(configFilePath);
+        Directory.CreateDirectory(fi.DirectoryName); 
         return new Config(configFilePath);
     });
 
@@ -64,12 +41,8 @@ public class Config
     {
         Peers = new List<string>();
 
-        // Set default blockchain path in AppData
-        var blockchainDirectory = Path.Combine(AppDirectory(), "Blockchain");
-        Directory.CreateDirectory(blockchainDirectory); // Ensure directory exists
-        SetBlockchainPath(blockchainDirectory);
-
         LoadConfig(filePath);
+        SetBlockchainPath(FileSystem.BlockchainDirectory);
     }
 
     public string ChainId { get; private set; }
@@ -79,6 +52,7 @@ public class Config
     public string WalletPrivateKey { get; private set; }
     public List<string> Peers { get; }
     public string URL { get; private set; }
+    public string ResolvedURL => NetworkUtils.ResolveUrlToIp(Config.Default.URL);
     public string SecurityProtocol { get; private set; }
     public bool Debug { get; private set; }
     public string BlockchainPath { get; private set; }
@@ -87,9 +61,21 @@ public class Config
     public string PublicKey { get; private set; }
     public string PrivateKey { get; private set; }
 
-    public static bool TestNet => ChainName == "SmartXChain_Testnet";
+    public enum ChainNames
+    {
+        SmartXChain_Testnet,
+        SmartXChain
+    }
+    public static bool TestNet
+    {
+        get => ChainName == ChainNames.SmartXChain_Testnet;
+        set =>
+            ChainName = value ? ChainNames.SmartXChain_Testnet : 
+                ChainNames.SmartXChain;
+    }
+
     public static Config Default => _defaultInstance.Value;
-    public static string ChainName { get; set; } = "SmartXChain";
+    public static ChainNames ChainName { get; set; } = ChainNames.SmartXChain_Testnet;
 
     /// <summary>
     ///     Deletes the configuration file.
@@ -99,7 +85,7 @@ public class Config
     {
         try
         {
-            var configFilePath = Path.Combine(AppDirectory(), ConfigFileName());
+            var configFilePath = SmartXChain.Utils.FileSystem.ConfigFile;
             if (File.Exists(configFilePath))
             {
                 File.Delete(configFilePath);
@@ -120,7 +106,7 @@ public class Config
     /// </summary>
     public void ReloadConfig()
     {
-        var configFilePath = Path.Combine(AppDirectory(), ConfigFileName());
+        var configFilePath = SmartXChain.Utils.FileSystem.ConfigFile;
         if (!File.Exists(configFilePath))
         {
             Logger.Log("Config file not found during reload.");
@@ -140,8 +126,7 @@ public class Config
         MaxParallelConnections = 10;
         URL = "";
 
-        LoadConfig(configFilePath);
-        Logger.Log("Configuration reloaded successfully.");
+        LoadConfig(configFilePath);  
     }
 
     /// <summary>
@@ -167,7 +152,7 @@ public class Config
             return;
         }
 
-        var filePath = Path.Combine(AppDirectory(), ConfigFileName());
+        var filePath = SmartXChain.Utils.FileSystem.ConfigFile;
         var keyName = key.ToString();
         var section = GetSectionForKey(key);
 
@@ -212,7 +197,7 @@ public class Config
     /// <returns>The value of the property, or null if not found.</returns>
     public string? GetProperty(ConfigKey key)
     {
-        var filePath = Path.Combine(AppDirectory(), ConfigFileName());
+        var filePath = SmartXChain.Utils.FileSystem.ConfigFile;
 
         if (!File.Exists(filePath))
         {
@@ -281,28 +266,13 @@ public class Config
         };
     }
 
-    public static string ConfigFileName()
-    {
-        return ChainName == "SmartXChain" ? "config.txt" : "config.testnet.txt";
-    }
-
-    public static string AppDirectory(string chainName = "")
-    {
-        if (string.IsNullOrWhiteSpace(chainName))
-            chainName = ChainName;
-
-        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var appDir=Path.Combine(appDataPath, chainName); 
-        return appDir;
-    }
-
     public void GenerateServerKeys()
     {
         using var rsa = RSA.Create(2048);
         PublicKey = Convert.ToBase64String(rsa.ExportRSAPublicKey());
         PrivateKey = Convert.ToBase64String(rsa.ExportRSAPrivateKey());
 
-        var filePath = Path.Combine(AppDirectory(), ConfigFileName());
+        var filePath = SmartXChain.Utils.FileSystem.ConfigFile;
 
         if (!File.Exists(filePath)) File.WriteAllText(filePath, "[Server]\n");
 
@@ -425,7 +395,7 @@ public class Config
 
         Peers.Add(peerUrl);
 
-        var filePath = Path.Combine(AppDirectory(), ConfigFileName());
+        var filePath = SmartXChain.Utils.FileSystem.ConfigFile;
         if (!File.Exists(filePath))
         {
             Logger.Log($"Config file not found: {filePath}");
@@ -470,7 +440,7 @@ public class Config
             return false;
         }
 
-        var filePath = Path.Combine(AppDirectory(), ConfigFileName());
+        var filePath = SmartXChain.Utils.FileSystem.ConfigFile;
         if (!File.Exists(filePath))
         {
             Logger.Log($"Config file not found: {filePath}");
@@ -496,5 +466,4 @@ public class Config
         Logger.Log($"Peer section not found in the config file.");
         return false;
     }
-
 }

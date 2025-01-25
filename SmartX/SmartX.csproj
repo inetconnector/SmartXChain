@@ -25,6 +25,7 @@
 
 	<ItemGroup>
 	  <None Remove="config.testnet.txt" />
+	  <None Remove="index.html" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -33,6 +34,9 @@
 		</Content>
 		<Content Include="config.txt">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</Content>
+		<Content Include="index.html">
+		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</Content>
 	</ItemGroup>
 

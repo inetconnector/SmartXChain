@@ -68,5 +68,48 @@ public class NetworkUtils
         }
 
         return url;
+    } 
+    public static async Task<string> GetPublicIPAsync(IEnumerable<string> customIpServices = null, bool debug = false)
+    {
+        // Default list of public IP services for fallback
+        var defaultIpServiceUrls = new[]
+        {
+            "https://api.ipify.org",
+            "https://checkip.amazonaws.com",
+            "https://ifconfig.me/ip",
+            "https://icanhazip.com"
+        };
+
+        // Combine custom services (if any) with the default list
+        var ipServiceUrls = customIpServices?.Any() ?? false
+            ? customIpServices.Concat(defaultIpServiceUrls)
+            : defaultIpServiceUrls;
+
+        foreach (var ipServiceUrl in ipServiceUrls)
+            try
+            {
+                using (var httpClient = new HttpClient())
+                {
+                    if (debug)
+                        Console.WriteLine($"Trying {ipServiceUrl}...");
+
+                    // Attempt to retrieve the IP address
+                    var publicIP = await httpClient.GetStringAsync(ipServiceUrl);
+
+                    // Trim to ensure no extra whitespace
+                    publicIP = publicIP.Trim();
+
+                    Console.WriteLine($"\nPublic IP Address retrieved: {publicIP}");
+                    IP = publicIP;
+                    return publicIP;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to retrieve IP from {ipServiceUrl}: {ex.Message}");
+            }
+
+        // If all services fail, throw an exception
+        throw new Exception("Unable to retrieve the public IP address. All services (custom and fallback) failed.");
     }
 }

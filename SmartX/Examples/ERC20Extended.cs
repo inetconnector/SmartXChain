@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 ///     Extended ERC20 token class with additional features such as minting, burning, pausing transfers,
 ///     freezing accounts, and transferring ownership.
 /// </summary>
-public class ERC20Extended : ERC20Token
+public class ERC20Extended : ERC20Token, IERC20Token
 {
     /// <summary>
     ///     Default constructor for the ERC20Extended class.
@@ -22,19 +22,19 @@ public class ERC20Extended : ERC20Token
     /// <param name="decimals">Number of decimal places for the token.</param>
     /// <param name="initialSupply">Initial supply of tokens.</param>
     /// <param name="owner">Address of the token owner.</param>
-    public ERC20Extended(string name, string symbol, uint decimals, decimal initialSupply, string owner)
+    public ERC20Extended(string name, string symbol, uint decimals, decimal initialSupply, string owner) : base(name, symbol, decimals, initialSupply, owner)
     {
         Name = name;
-        Symbol = symbol;
-        Decimals = decimals;
-        TotalSupply = initialSupply;
-        Balances = new ConcurrentDictionary<string, decimal>();
-        Allowances = new ConcurrentDictionary<string, ConcurrentDictionary<string, decimal>>();
-
+ 
         // Assign initial supply to the owner's balance
         Balances[owner] = initialSupply;
         Owner = owner;
     }
+    /// <summary>
+    ///     Total supply of tokens in the contract.
+    /// </summary>
+    [JsonInclude]
+    public new decimal TotalSupply { get; private set; }
 
     /// <summary>
     ///     List of accounts that are frozen and cannot perform transfers.
