@@ -9,3 +9,4 @@ MaxParallelConnections=10
 
 [Peers]
 http://netregservice.com:5556
+#http://80.187.69.127:5556

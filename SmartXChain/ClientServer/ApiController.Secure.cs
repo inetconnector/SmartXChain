@@ -406,6 +406,55 @@ public partial class BlockchainServer
             });
         }
 
+        /// <summary>
+        ///     Retrieves details of multiple blocks securely using an HTTP GET request by specifying a range of block numbers.
+        ///     The blocks' details are encrypted before sending.
+        /// </summary>
+        /// <param name="from">The starting block number as a string.</param>
+        /// <param name="to">The ending block number as a string.</param>
+        [Route(HttpVerbs.Post, "/GetBlocks/{from}/{to}")]
+        public async Task GetBlocks(string from, string to)
+        {
+            await HandleSecureRequest(async _ =>
+            {
+                // Parse block range
+                if (!int.TryParse(from, out var fromBlock) || !int.TryParse(to, out var toBlock))
+                {
+                    HttpContext.Response.StatusCode = 400;
+
+                    var errorResponse = CreateChainInfo($"ERROR: Invalid block range: {from} - {to}");
+                    return await Task.FromResult(JsonSerializer.Serialize(errorResponse));
+                }
+
+                if (fromBlock < 0 || toBlock < fromBlock || Startup.Blockchain == null || Startup.Blockchain.Chain == null)
+                {
+                    HttpContext.Response.StatusCode = 404;
+
+                    var errorResponse = CreateChainInfo("ERROR: Invalid block range or blockchain not initialized.");
+                    return await Task.FromResult(JsonSerializer.Serialize(errorResponse));
+                }
+
+                // Adjust the range to fit within the available blocks
+                toBlock = Math.Min(toBlock, Startup.Blockchain.Chain.Count - 1);
+
+                var blocks = new List<string>();
+
+                for (var block = fromBlock; block <= toBlock; block++)
+                {
+                    var blockData = Startup.Blockchain.IsValid() ?
+                        Startup.Blockchain.Chain?[block].ToBase64() : null;
+
+                    if (Config.Default.Debug)
+                        Log($"Get block {block}");
+
+                    if (blockData != null) blocks.Add(blockData);
+                }
+
+                var responseInfo = CreateChainInfo(JsonSerializer.Serialize(blocks));
+                return await Task.FromResult(JsonSerializer.Serialize(responseInfo));
+            });
+        }
+
 
         /// <summary>
         ///     Retrieves a block's details securely using an HTTP GET request by block number.

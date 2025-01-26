@@ -1,8 +1,10 @@
 ﻿using System.Collections.Concurrent;
+using System.Text;
 using System.Text.Json;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Contracts;
 using SmartXChain.Utils;
+using Swan.Formatters;
 using Node = SmartXChain.Validators.Node;
 
 namespace SmartXChain.Server;
@@ -162,7 +164,7 @@ public partial class BlockchainServer
         await Task.WhenAll(tasks);
     }
 
-    private static async Task GetRemoteChain(ChainInfo responseObject, Blockchain chain, int fromBlock)
+    private static async Task GetRemoteChainSlow(ChainInfo responseObject, Blockchain chain, int fromBlock)
     {
         if (chain.Chain == null)
             return;
@@ -183,13 +185,20 @@ public partial class BlockchainServer
 
                         if (!string.IsNullOrEmpty(chainInfo.Message))
                         {
-                            var newBlock = Block.FromBase64(chainInfo.Message)!;
-                            if (newBlock.Nonce == -1)
-                                if (Startup.Blockchain.Chain != null)
-                                    Startup.Blockchain.Clear();
+                            if (!chainInfo.Message.StartsWith("Error"))
+                            {
+                                var newBlock = Block.FromBase64(chainInfo.Message)!;
+                                if (newBlock.Nonce == -1)
+                                    if (Startup.Blockchain.Chain != null)
+                                        Startup.Blockchain.Clear();
 
-                            Startup.Blockchain.AddBlock(newBlock, false);
-                        }
+                                Startup.Blockchain.AddBlock(newBlock, false);
+                            }
+                            else
+                            {
+                                Logger.LogError(chainInfo.URL + ": " + chainInfo.Message);
+                            }
+                        } 
                     }
                 }
                 catch (Exception ex)
@@ -198,6 +207,69 @@ public partial class BlockchainServer
                 }
         }
     }
+
+    private static async Task GetRemoteChain(ChainInfo responseObject, Blockchain chain, int fromBlock, int chunkSize = 40)
+    {
+        if (chain.Chain == null)
+            return;
+
+        for (var block = fromBlock; block < responseObject.BlockCount; block += chunkSize)
+        {
+            var toBlock = Math.Min(block + chunkSize - 1, responseObject.BlockCount - 1);
+
+            try
+            {
+                var (success, response) =
+                    await SendSecureMessage(responseObject.URL, $"/api/GetBlocks/{block}/{toBlock}", Config.Default.URL);
+
+                if (success && !string.IsNullOrEmpty(response))
+                {
+                    var chainInfo = JsonSerializer.Deserialize<ChainInfo>(response);
+                    if (chainInfo != null && Startup.Blockchain != null)
+                    {
+                        if (Config.Default.Debug)
+                            Logger.Log($"GetBlocks {block}-{toBlock} from {responseObject.URL} Success");
+
+                        if (!string.IsNullOrEmpty(chainInfo.Message))
+                        {
+                            if (!chainInfo.Message.StartsWith("Error"))
+                            {
+                                try
+                                {
+                                    var blocksString=JsonSerializer.Deserialize<List<string>>(chainInfo.Message);
+
+                                    if (blocksString != null)
+                                        foreach (var newBlockString in blocksString)
+                                        {
+                                            var newBlock = Block.FromBase64(newBlockString);
+                                            if (newBlock != null && newBlock.Nonce == -1) 
+                                                Startup.Blockchain.Clear();
+                                            
+                                            Startup.Blockchain.AddBlock(newBlock, false);
+                                        }
+                                }
+                                catch (JsonException jsonEx)
+                                {
+                                    Logger.LogException(jsonEx, $"JSON deserialization failed for blocks in range {block}-{toBlock} from {responseObject.URL}");
+                                }
+                            }
+                            else
+                            {
+                                Logger.LogError(chainInfo.URL + ": " + chainInfo.Message); 
+                            }
+                        }
+
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogException(ex, $"Failed to GetBlocks {block}-{toBlock} from {responseObject.URL}");
+            }
+        }
+    }
+
+
 
 
     /// <summary>
