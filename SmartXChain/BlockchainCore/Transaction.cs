@@ -74,7 +74,6 @@ public class Transaction
     [JsonInclude]
     internal TransactionTypes TransactionType { get; set; }
 
-     
 
     /// <summary>
     ///     Holds the balance of each account.
@@ -351,11 +350,6 @@ public class Transaction
 
         return (false, "no blockchain");
     }
-    private record FileData
-    {
-        public Transaction Transaction { get; set; }
-        public string PrivateKey { get; set; }
-    }
 
 
     /// <summary>
@@ -419,7 +413,7 @@ public class Transaction
                 TransactionType = TransactionTypes.Export
             };
 
-            var success = await chain.AddTransaction(transferTransaction,true);
+            var success = await chain.AddTransaction(transferTransaction, true);
             if (success)
             {
                 Balances[sender] -= amount;
@@ -428,7 +422,7 @@ public class Transaction
 
                 message = $"Transfer successful: {amount} tokens from {sender} to file.";
                 Logger.Log(message);
-                
+
                 var fileData = new FileData
                 {
                     PrivateKey = filePrivateKey,
@@ -439,7 +433,7 @@ public class Transaction
                 return (true, message, fileContent);
             }
 
-            return (false, "Error: AddTransaction failed", "" );
+            return (false, "Error: AddTransaction failed", "");
         }
 
         return (false, "no blockchain", "");
@@ -450,11 +444,11 @@ public class Transaction
     ///     Imports transaction details from a file and applies the transaction to the blockchain.
     /// </summary>
     /// <param name="chain">The blockchain instance to apply the transaction to.</param>
-    /// <param name="fileContent">json transaction</param> 
+    /// <param name="fileContent">json transaction</param>
     /// <param name="recipient">The recipient account for the imported transaction.</param>
     /// <returns>A tuple containing success status and a message.</returns>
     public static async Task<(bool success, string message)> ImportFromFileToAccount(Blockchain? chain,
-        string fileContent,  string recipient)
+        string fileContent, string recipient)
     {
         if (chain == null) return (false, "No blockchain provided.");
 
@@ -464,7 +458,7 @@ public class Transaction
             var fileData = JsonSerializer.Deserialize<FileData>(fileContent);
             var transaction = fileData.Transaction;
 
-            if (transaction == null || transaction.Amount == 0) 
+            if (transaction == null || transaction.Amount == 0)
                 return (false, "Invalid transaction file");
 
             foreach (var t in chain.GetTransactionsByAddress(Blockchain.UnknownAddress))
@@ -475,10 +469,10 @@ public class Transaction
             foreach (var t in chain.GetTransactionsByAddress(Blockchain.UnknownAddress))
                 if (t.ID.Equals(transaction.ID) &&
                     t.Info == transaction.Info &&
-                    t.Amount == transaction.Amount && t.TransactionType==TransactionTypes.Export)
+                    t.Amount == transaction.Amount && t.TransactionType == TransactionTypes.Export)
                 {
                     var data = Encoding.ASCII.GetBytes($"{t.Amount}-{fileData.PrivateKey}-{t.ID}");
-                    var signature =Convert.FromBase64String(t.Data);
+                    var signature = Convert.FromBase64String(t.Data);
                     using var rsaVerifier = new RSACryptoServiceProvider();
 
                     rsaVerifier.ImportRSAPublicKey(Convert.FromBase64String(transaction.Info), out _);
@@ -498,7 +492,7 @@ public class Transaction
                         TransactionType = TransactionTypes.Import
                     };
 
-                    var success = await chain.AddTransaction(transferTransaction, true); 
+                    var success = await chain.AddTransaction(transferTransaction, true);
                     if (success)
                     {
                         Logger.Log(
@@ -606,5 +600,11 @@ public class Transaction
         {
             WriteIndented = true // Pretty print the JSON
         });
+    }
+
+    private record FileData
+    {
+        public Transaction Transaction { get; set; }
+        public string PrivateKey { get; set; }
     }
 }

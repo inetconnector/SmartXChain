@@ -1,7 +1,4 @@
-﻿using Microsoft.Maui;
-using Microsoft.Maui.Controls;
-
-namespace SmartXapp;
+﻿namespace SmartXapp;
 
 public partial class App : Application
 {

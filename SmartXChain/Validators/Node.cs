@@ -1,6 +1,4 @@
 ﻿using System.Collections.Concurrent;
-using System.Text.Json; 
-using SmartXChain.BlockchainCore;
 using SmartXChain.Server;
 using SmartXChain.Utils;
 using static SmartXChain.Server.BlockchainServer;
@@ -95,7 +93,7 @@ public class Node
 
         // Register with a discovery server
         await node.RegisterWithDiscoveryAsync(ipList);
-          
+
         // Periodically retrieve registered nodes
         _ = Task.Run(async () =>
         {
@@ -108,7 +106,7 @@ public class Node
                         var nodeIPList = await GetRegisteredNodesAsync(server);
 
                         foreach (var nodeIP in nodeIPList)
-                            AddNodeIP(nodeIP); 
+                            AddNodeIP(nodeIP);
                     }
                 }
                 catch (Exception ex)
@@ -149,8 +147,8 @@ public class Node
     {
         lock (CurrentNodeIPs)
         {
-            if (Config.Default.Peers.Contains(ip)) 
-                return; 
+            if (Config.Default.Peers.Contains(ip))
+                return;
 
             if (CurrentNodeIPs.Contains(ip))
             {
@@ -168,8 +166,8 @@ public class Node
                 CurrentNodeIP_LastActive.TryRemove(ip, out _);
 
                 SocketManager.RemoveInstance(ip);
-            }           
-        } 
+            }
+        }
     }
 
 
@@ -181,41 +179,36 @@ public class Node
     {
         // Resolve the server URL to its IP
         var resolvedServerIp = NetworkUtils.ResolveUrlToIp(server);
-         
+
         if (string.IsNullOrEmpty(resolvedServerIp))
         {
-            if (Config.Default.Debug)
-            {
-                Logger.Log($"Failed to resolve IP for server: {server}");
-            }
+            if (Config.Default.Debug) Logger.Log($"Failed to resolve IP for server: {server}");
             return;
         }
-         
+
         foreach (var node in CurrentNodeIPs)
         {
             var resolvedNodeIp = NetworkUtils.ResolveUrlToIp(node);
 
             if (resolvedServerIp == resolvedNodeIp)
             {
-                if (resolvedNodeIp!=server && CurrentNodeIPs.Contains(resolvedNodeIp))
+                if (resolvedNodeIp != server && CurrentNodeIPs.Contains(resolvedNodeIp))
                 {
                     RemoveNodeIP(resolvedNodeIp);
-                    CurrentNodeIPs.Add(server); 
+                    CurrentNodeIPs.Add(server);
                     CurrentNodeIP_LastActive[server] = DateTime.UtcNow;
                 }
-                return; 
+
+                return;
             }
         }
-         
+
         if (NetworkUtils.IsValidServer(server))
-        { 
-            CurrentNodeIP_LastActive[server] = DateTime.UtcNow; 
+        {
+            CurrentNodeIP_LastActive[server] = DateTime.UtcNow;
             CurrentNodeIPs.Add(server);
 
-            if (Config.Default.Debug)
-            {
-                Logger.Log($"New server added: {server}");
-            }
+            if (Config.Default.Debug) Logger.Log($"New server added: {server}");
         }
     }
 
@@ -243,8 +236,8 @@ public class Node
             var response = await SocketManager.GetInstance(serverAddress)
                 .SendMessageAsync($"Register:{NodeAddress}|{signature}");
 
-            if (response.Contains("ok")) 
-                AddNodeIP(serverAddress);  
+            if (response.Contains("ok"))
+                AddNodeIP(serverAddress);
 
             if (Config.Default.Debug)
                 Logger.Log($"Response from server {serverAddress}: {response}");

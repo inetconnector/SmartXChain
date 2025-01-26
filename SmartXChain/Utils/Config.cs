@@ -9,6 +9,12 @@ namespace SmartXChain.Utils;
 /// </summary>
 public class Config
 {
+    public enum ChainNames
+    {
+        SmartXChain_Testnet,
+        SmartXChain
+    }
+
     public enum ConfigKey
     {
         ChainId,
@@ -27,9 +33,9 @@ public class Config
 
     private static readonly Lazy<Config> _defaultInstance = new(() =>
     {
-        var configFilePath = SmartXChain.Utils.FileSystem.ConfigFile;
-        FileInfo fi = new FileInfo(configFilePath);
-        Directory.CreateDirectory(fi.DirectoryName); 
+        var configFilePath = FileSystem.ConfigFile;
+        var fi = new FileInfo(configFilePath);
+        Directory.CreateDirectory(fi.DirectoryName);
         return new Config(configFilePath);
     });
 
@@ -52,7 +58,7 @@ public class Config
     public string WalletPrivateKey { get; private set; }
     public List<string> Peers { get; }
     public string URL { get; private set; }
-    public string ResolvedURL => NetworkUtils.ResolveUrlToIp(Config.Default.URL);
+    public string ResolvedURL => NetworkUtils.ResolveUrlToIp(Default.URL);
     public string SecurityProtocol { get; private set; }
     public bool Debug { get; private set; }
     public string BlockchainPath { get; private set; }
@@ -61,17 +67,11 @@ public class Config
     public string PublicKey { get; private set; }
     public string PrivateKey { get; private set; }
 
-    public enum ChainNames
-    {
-        SmartXChain_Testnet,
-        SmartXChain
-    }
     public static bool TestNet
     {
         get => ChainName == ChainNames.SmartXChain_Testnet;
         set =>
-            ChainName = value ? ChainNames.SmartXChain_Testnet : 
-                ChainNames.SmartXChain;
+            ChainName = value ? ChainNames.SmartXChain_Testnet : ChainNames.SmartXChain;
     }
 
     public static Config Default => _defaultInstance.Value;
@@ -85,7 +85,7 @@ public class Config
     {
         try
         {
-            var configFilePath = SmartXChain.Utils.FileSystem.ConfigFile;
+            var configFilePath = FileSystem.ConfigFile;
             if (File.Exists(configFilePath))
             {
                 File.Delete(configFilePath);
@@ -106,7 +106,7 @@ public class Config
     /// </summary>
     public void ReloadConfig()
     {
-        var configFilePath = SmartXChain.Utils.FileSystem.ConfigFile;
+        var configFilePath = FileSystem.ConfigFile;
         if (!File.Exists(configFilePath))
         {
             Logger.Log("Config file not found during reload.");
@@ -126,7 +126,7 @@ public class Config
         MaxParallelConnections = 10;
         URL = "";
 
-        LoadConfig(configFilePath);  
+        LoadConfig(configFilePath);
     }
 
     /// <summary>
@@ -152,7 +152,7 @@ public class Config
             return;
         }
 
-        var filePath = SmartXChain.Utils.FileSystem.ConfigFile;
+        var filePath = FileSystem.ConfigFile;
         var keyName = key.ToString();
         var section = GetSectionForKey(key);
 
@@ -197,7 +197,7 @@ public class Config
     /// <returns>The value of the property, or null if not found.</returns>
     public string? GetProperty(ConfigKey key)
     {
-        var filePath = SmartXChain.Utils.FileSystem.ConfigFile;
+        var filePath = FileSystem.ConfigFile;
 
         if (!File.Exists(filePath))
         {
@@ -272,7 +272,7 @@ public class Config
         PublicKey = Convert.ToBase64String(rsa.ExportRSAPublicKey());
         PrivateKey = Convert.ToBase64String(rsa.ExportRSAPrivateKey());
 
-        var filePath = SmartXChain.Utils.FileSystem.ConfigFile;
+        var filePath = FileSystem.ConfigFile;
 
         if (!File.Exists(filePath)) File.WriteAllText(filePath, "[Server]\n");
 
@@ -374,11 +374,13 @@ public class Config
                     Logger.Log($"Invalid Peer URL: {peerValue}");
             }
         }
-    }/// <summary>
-     ///     Adds a new peer to the configuration file if it does not already exist.
-     /// </summary>
-     /// <param name="peerUrl">The URL of the peer to add.</param>
-     /// <returns>True if the peer was successfully added; otherwise, false.</returns>
+    }
+
+    /// <summary>
+    ///     Adds a new peer to the configuration file if it does not already exist.
+    /// </summary>
+    /// <param name="peerUrl">The URL of the peer to add.</param>
+    /// <returns>True if the peer was successfully added; otherwise, false.</returns>
     public bool AddPeer(string peerUrl)
     {
         if (string.IsNullOrWhiteSpace(peerUrl) || !Regex.IsMatch(peerUrl, @"^https?://[\w\-.]+(:\d+)?$"))
@@ -395,7 +397,7 @@ public class Config
 
         Peers.Add(peerUrl);
 
-        var filePath = SmartXChain.Utils.FileSystem.ConfigFile;
+        var filePath = FileSystem.ConfigFile;
         if (!File.Exists(filePath))
         {
             Logger.Log($"Config file not found: {filePath}");
@@ -440,7 +442,7 @@ public class Config
             return false;
         }
 
-        var filePath = SmartXChain.Utils.FileSystem.ConfigFile;
+        var filePath = FileSystem.ConfigFile;
         if (!File.Exists(filePath))
         {
             Logger.Log($"Config file not found: {filePath}");
@@ -463,7 +465,7 @@ public class Config
             return true;
         }
 
-        Logger.Log($"Peer section not found in the config file.");
+        Logger.Log("Peer section not found in the config file.");
         return false;
     }
 }

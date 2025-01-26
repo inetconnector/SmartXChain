@@ -296,12 +296,12 @@ public partial class BlockchainServer
                     .Select(kvp => kvp.Key)
                     .ToList();
 
-                if (inactiveNodes.Contains(Config.Default.URL)) 
+                if (inactiveNodes.Contains(Config.Default.URL))
                     inactiveNodes.Remove(Config.Default.URL);
 
-                foreach (var peer in Config.Default.Peers.Where(peer => 
+                foreach (var peer in Config.Default.Peers.Where(peer =>
                              inactiveNodes.Contains(peer)))
-                    inactiveNodes.Remove(peer); 
+                    inactiveNodes.Remove(peer);
 
                 foreach (var node in inactiveNodes)
                 {

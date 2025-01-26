@@ -1,6 +1,5 @@
 ﻿using System.Collections.Concurrent;
 using System.Text.Json.Serialization;
-
 /// <summary>
 ///     Extended ERC20 token class with additional features such as minting, burning, pausing transfers,
 ///     freezing accounts, and transferring ownership.
@@ -22,19 +21,15 @@ public class ERC20Extended : ERC20Token, IERC20Token
     /// <param name="decimals">Number of decimal places for the token.</param>
     /// <param name="initialSupply">Initial supply of tokens.</param>
     /// <param name="owner">Address of the token owner.</param>
-    public ERC20Extended(string name, string symbol, uint decimals, decimal initialSupply, string owner) : base(name, symbol, decimals, initialSupply, owner)
+    public ERC20Extended(string name, string symbol, uint decimals, decimal initialSupply, string owner) : base(name,
+        symbol, decimals, initialSupply, owner)
     {
         Name = name;
- 
+
         // Assign initial supply to the owner's balance
         Balances[owner] = initialSupply;
         Owner = owner;
     }
-    /// <summary>
-    ///     Total supply of tokens in the contract.
-    /// </summary>
-    [JsonInclude]
-    public new decimal TotalSupply { get; private set; }
 
     /// <summary>
     ///     List of accounts that are frozen and cannot perform transfers.
@@ -47,6 +42,63 @@ public class ERC20Extended : ERC20Token, IERC20Token
     /// </summary>
     [JsonInclude]
     public bool TransfersPaused { get; private set; }
+
+    /// <summary>
+    ///     Total supply of tokens in the contract.
+    /// </summary>
+    [JsonInclude]
+    public new decimal TotalSupply { get; private set; }
+
+    /// <summary>
+    ///     Transfers tokens from one account to another.
+    /// </summary>
+    /// <param name="from">The sender's address.</param>
+    /// <param name="to">The recipient's address.</param>
+    /// <param name="amount">The amount of tokens to transfer.</param>
+    /// <param name="privateKey">The private key of the sender for authentication.</param>
+    /// <returns>True if the transfer was successful; otherwise, false.</returns>
+    public new bool Transfer(string from, string to, decimal amount, string privateKey)
+    {
+        if (TransfersPaused)
+        {
+            LogError("Transfer failed: Transfers are currently paused.");
+            return false;
+        }
+
+        if (FrozenAccounts != null && FrozenAccounts.Contains(from))
+        {
+            LogError($"Transfer failed: Account {from} is frozen.");
+            return false;
+        }
+
+        if (!IsAuthenticated(from, privateKey))
+        {
+            LogError($"Transfer failed: Unauthorized action by '{from}'.");
+            return false;
+        }
+
+        if (!Balances.ContainsKey(from) || Balances[from] < amount)
+        {
+            LogError($"Transfer failed: Insufficient balance in account '{from}'.");
+            return false;
+        }
+
+        if (from == to)
+        {
+            LogError($"Transfer failed: Cannot transfer to the same account '{from}'.");
+            return false;
+        }
+
+        Balances[from] -= amount;
+        if (!Balances.ContainsKey(to)) Balances[to] = 0;
+        Balances[to] += amount;
+
+        Log($"Transfer successful: {amount} tokens from {from} to {to}.");
+
+        OnTransfer?.Invoke(from, to, amount);
+
+        return true;
+    }
 
     /// <summary>
     ///     Triggered when tokens are minted.
@@ -149,7 +201,8 @@ public class ERC20Extended : ERC20Token, IERC20Token
     {
         if (!IsAuthenticated(owner, privateKey) || owner != Owner)
         {
-            LogError($"PauseTransfers failed: Unauthorized action by '{owner}'. Only the token owner can pause transfers.");
+            LogError(
+                $"PauseTransfers failed: Unauthorized action by '{owner}'. Only the token owner can pause transfers.");
             return;
         }
 
@@ -181,57 +234,6 @@ public class ERC20Extended : ERC20Token, IERC20Token
     }
 
     /// <summary>
-    ///     Transfers tokens from one account to another.
-    /// </summary>
-    /// <param name="from">The sender's address.</param>
-    /// <param name="to">The recipient's address.</param>
-    /// <param name="amount">The amount of tokens to transfer.</param>
-    /// <param name="privateKey">The private key of the sender for authentication.</param>
-    /// <returns>True if the transfer was successful; otherwise, false.</returns>
-    public new bool Transfer(string from, string to, decimal amount, string privateKey)
-    {
-        if (TransfersPaused)
-        {
-            LogError("Transfer failed: Transfers are currently paused.");
-            return false;
-        }
-
-        if (FrozenAccounts != null && FrozenAccounts.Contains(from))
-        {
-            LogError($"Transfer failed: Account {from} is frozen.");
-            return false;
-        }
-
-        if (!IsAuthenticated(from, privateKey))
-        {
-            LogError($"Transfer failed: Unauthorized action by '{from}'.");
-            return false;
-        }
-
-        if (!Balances.ContainsKey(from) || Balances[from] < amount)
-        {
-            LogError($"Transfer failed: Insufficient balance in account '{from}'.");
-            return false;
-        }
-
-        if (from == to)
-        {
-            LogError($"Transfer failed: Cannot transfer to the same account '{from}'.");
-            return false;
-        }
-
-        Balances[from] -= amount;
-        if (!Balances.ContainsKey(to)) Balances[to] = 0;
-        Balances[to] += amount;
-
-        Log($"Transfer successful: {amount} tokens from {from} to {to}.");
-
-        OnTransfer?.Invoke(from, to, amount);
-
-        return true;
-    }
-
-    /// <summary>
     ///     Freezes the specified account, preventing it from transferring tokens.
     /// </summary>
     /// <param name="account">The address of the account to freeze.</param>
@@ -241,7 +243,8 @@ public class ERC20Extended : ERC20Token, IERC20Token
     {
         if (!IsAuthenticated(owner, privateKey) || owner != Owner)
         {
-            LogError($"FreezeAccount failed: Unauthorized action by '{owner}'. Only the token owner can freeze accounts.");
+            LogError(
+                $"FreezeAccount failed: Unauthorized action by '{owner}'. Only the token owner can freeze accounts.");
             return;
         }
 

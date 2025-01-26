@@ -1,11 +1,85 @@
 ﻿using System.IO.Compression;
-using System.Text;
 using static SmartXChain.Utils.Config;
 
 namespace SmartXChain.Utils;
 
 public static class FileSystem
 {
+    private static string BlockchainPath
+    {
+        get
+        {
+            var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                ChainName.ToString());
+
+            var blockchainPath = Path.Combine(appDir, "Blockchain");
+            Directory.CreateDirectory(blockchainPath);
+            return blockchainPath;
+        }
+    }
+
+    public static string WWWRoot
+    {
+        get
+        {
+            var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                ChainName.ToString());
+
+            var wwwroot = Path.Combine(appDir, "wwwroot");
+            Directory.CreateDirectory(wwwroot);
+            return wwwroot;
+        }
+    }
+
+    public static string ContractsDir
+    {
+        get
+        {
+            var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                ChainName.ToString());
+
+            var contractsDir = Path.Combine(appDir, "Contracts");
+            Directory.CreateDirectory(contractsDir);
+            return contractsDir;
+        }
+    }
+
+    public static string ConfigFile
+    {
+        get
+        {
+            var configFileName = ChainName == ChainNames.SmartXChain ? "config.txt" : "config.testnet.txt";
+
+            // Ensure the AppData directory exists
+            var appDirectory = AppDirectory;
+            Directory.CreateDirectory(appDirectory);
+            var config = Path.Combine(appDirectory, configFileName);
+            return config;
+        }
+    }
+
+    public static string AppDirectory
+    {
+        get
+        {
+            var chainName = ChainName.ToString();
+            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var appDir = Path.Combine(appDataPath, chainName);
+            return appDir;
+        }
+    }
+
+    public static string BlockchainDirectory
+    {
+        get
+        {
+            var blockchainDirectory = Path.Combine(AppDirectory, "Blockchain");
+            Directory.CreateDirectory(blockchainDirectory); // Ensure directory exists
+
+            return blockchainDirectory;
+        }
+    }
+
     /// <summary>
     ///     Creates a zip file from a given directory
     /// </summary>
@@ -62,10 +136,10 @@ public static class FileSystem
     public static void CreateBackup()
     {
         var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-          Config.ChainName.ToString());
+            ChainName.ToString());
 
         if (Directory.Exists(appDir))
-        { 
+        {
             if (Directory.Exists(WWWRoot))
                 Directory.Delete(WWWRoot, true);
 
@@ -74,42 +148,6 @@ public static class FileSystem
 
             CreateBackup(appDir);
             Directory.Delete(appDir, true);
-        }
-    }
-    private static string BlockchainPath
-    {
-        get
-        {
-            var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                Config.ChainName.ToString());
-
-            var blockchainPath = Path.Combine(appDir, "Blockchain");
-            Directory.CreateDirectory(blockchainPath);
-            return blockchainPath;
-        }
-    }
-    public static string WWWRoot
-    {
-        get
-        {
-            var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                Config.ChainName.ToString());
-
-            var wwwroot = Path.Combine(appDir, "wwwroot");
-            Directory.CreateDirectory(wwwroot);
-            return wwwroot;
-        }
-    }
-    public static string ContractsDir
-    {
-        get
-        {
-            var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                Config.ChainName.ToString());
-
-            var contractsDir = Path.Combine(appDir, "Contracts");
-            Directory.CreateDirectory(contractsDir);
-            return contractsDir;
         }
     }
 
@@ -130,42 +168,6 @@ public static class FileSystem
         catch (Exception ex)
         {
             Logger.LogException(ex, "Saving Backup failed");
-        }
-    }
-
-    public static string ConfigFile
-    {
-        get
-        {
-            var configFileName = Config.ChainName  == ChainNames.SmartXChain ? 
-                "config.txt" : "config.testnet.txt";
-
-            // Ensure the AppData directory exists
-            var appDirectory = AppDirectory;
-            Directory.CreateDirectory(appDirectory);
-            var config = Path.Combine(appDirectory, configFileName);
-            return config;
-        } 
-    } 
-    public static string AppDirectory
-    {
-        get
-        {
-            var chainName = Config.ChainName.ToString();
-            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var appDir = Path.Combine(appDataPath, chainName);
-            return appDir;
-        }
-    } 
-
-    public static string BlockchainDirectory
-    {
-        get
-        {
-            var blockchainDirectory = Path.Combine(AppDirectory, "Blockchain");
-            Directory.CreateDirectory(blockchainDirectory); // Ensure directory exists
-
-            return blockchainDirectory;
         }
     }
 }

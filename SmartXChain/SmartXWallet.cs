@@ -34,8 +34,8 @@ public class SmartXWallet
 
             // 1. Generate a 12-word Mnemonic phrase (BIP-39)
             mnemonic = new Mnemonic(Wordlist.English, WordCount.Twelve);
-            Logger.LogLine($"Your Mnemonic Phrase (Keep it secure!)");
-            Logger.Log(mnemonic.ToString(),false);
+            Logger.LogLine("Your Mnemonic Phrase (Keep it secure!)");
+            Logger.Log(mnemonic.ToString(), false);
 
             // 2. Derive the seed from the Mnemonic (BIP-39)
             var seed = mnemonic.DeriveSeed();
@@ -125,7 +125,7 @@ public class SmartXWallet
             return true;
         }
         catch (Exception ex)
-        { 
+        {
             Logger.LogException(ex, "Deleting wallet failed");
         }
 

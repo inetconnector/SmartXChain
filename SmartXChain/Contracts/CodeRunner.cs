@@ -79,7 +79,7 @@ using System.IO;
             var exMessage =
                 $"Contract execution failed with compilation errors: {string.Join(Environment.NewLine, ex.Diagnostics)}";
             Logger.LogException(ex, exMessage);
-            return ($"Contract execution failed with compilation errors: ",
+            return ("Contract execution failed with compilation errors: ",
                 currentState);
         }
         catch (Exception ex)

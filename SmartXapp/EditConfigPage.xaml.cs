@@ -3,7 +3,6 @@ namespace SmartXapp;
 public partial class EditConfigPage : ContentPage
 {
     private string _initialConfig;
-    public event Action<string> ConfigSaved;
 
     public EditConfigPage(string initialConfig)
     {
@@ -11,6 +10,8 @@ public partial class EditConfigPage : ContentPage
         _initialConfig = initialConfig;
         ConfigEditor.Text = initialConfig;
     }
+
+    public event Action<string> ConfigSaved;
 
     private async void OnSaveClicked(object sender, EventArgs e)
     {
@@ -20,6 +21,6 @@ public partial class EditConfigPage : ContentPage
 
     private async void OnCancelClicked(object sender, EventArgs e)
     {
-        await Navigation.PopModalAsync();  
+        await Navigation.PopModalAsync();
     }
 }

@@ -25,7 +25,7 @@ public static class BlockchainHelper
         ChainName = ChainNames.SmartXChain_Testnet;
         var port = 5556;
         SmartXChain.Utils.FileSystem.CreateBackup();
-         
+
         Logger.Log($"ChainName has been set to '{ChainName}'.");
         var configFile = SmartXChain.Utils.FileSystem.ConfigFile;
         var configContent = "";
@@ -33,18 +33,19 @@ public static class BlockchainHelper
         await CopyFileFromAssets("ERC20.cs", SmartXChain.Utils.FileSystem.ContractsDir);
         await CopyFileFromAssets("ERC20Extended.cs", SmartXChain.Utils.FileSystem.ContractsDir);
         await CopyFileFromAssets("GoldCoin.cs", SmartXChain.Utils.FileSystem.ContractsDir);
-     
+
         //copy defaults
-        if (!File.Exists(configFile) || Config.TestNet)
+        if (!File.Exists(configFile) || TestNet)
         {
             if (ChainName == ChainNames.SmartXChain_Testnet)
                 configContent = await GetFileFromAssets("config.testnet.txt");
-            else if (ChainName == ChainNames.SmartXChain) 
+            else if (ChainName == ChainNames.SmartXChain)
                 configContent = await GetFileFromAssets("config.txt");
-             
-            File.WriteAllText(configFile, configContent); 
+
+            File.WriteAllText(configFile, configContent);
         }
-        Config.Default.ReloadConfig();
+
+        Default.ReloadConfig();
 
 
         //htm
@@ -56,17 +57,17 @@ public static class BlockchainHelper
             var html = Functions.ReplaceBody(File.ReadAllText(indexhtmSrc));
             File.WriteAllText(indexhtmDest, html);
         }
-         
+
         //get public IP
         var publicIP = await NetworkUtils.GetPublicIPAsync(debug: true);
         Default.SetProperty(ConfigKey.URL, $"http://{publicIP}:{port}");
 
         Logger.Log($"Current Node: {ConfigKey.URL}");
-        foreach (var peer in Config.Default.Peers) 
+        foreach (var peer in Default.Peers)
             Logger.Log($"Current Peer: {peer}");
-       
-        Logger.Log($"Current Chain: {Config.Default.ChainId}");
-       
+
+        Logger.Log($"Current Chain: {Default.ChainId}");
+
         //generate wallet
         if (string.IsNullOrEmpty(Default.MinerAddress))
         {
@@ -86,7 +87,7 @@ public static class BlockchainHelper
         await using var s = await FileSystem.OpenAppPackageFileAsync(fileName);
         using var r = new StreamReader(s);
         var file = r.ReadToEnd();
-        File.WriteAllText(Path.Combine(targetDirectory,fileName), file);
+        File.WriteAllText(Path.Combine(targetDirectory, fileName), file);
     }
 
     private static async Task<string> GetFileFromAssets(string fileName)
@@ -96,6 +97,7 @@ public static class BlockchainHelper
         var file = r.ReadToEnd();
         return file;
     }
+
     private static void SetWebserverCertificate()
     {
         if (Default.URL.ToLower().StartsWith("https"))

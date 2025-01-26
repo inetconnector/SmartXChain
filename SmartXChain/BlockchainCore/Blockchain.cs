@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
@@ -15,7 +14,7 @@ namespace SmartXChain.BlockchainCore;
 /// <summary>
 ///     SmartX Blockchain
 /// </summary>
-public partial class Blockchain
+public class Blockchain
 {
     public const string SystemAddress = "smartX0000000000000000000000000000000000000000";
     public const string UnknownAddress = "smartXFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF";
@@ -41,11 +40,11 @@ public partial class Blockchain
     }
 
     public static List<Blockchain> Blockchains { get; } = new();
-     
+
     [JsonInclude] internal string ChainId { get; }
-    [JsonInclude] internal string MinerAdress { get; } 
-    [JsonInclude] public List<Block>? Chain { get; private set; } 
-    [JsonInclude] internal List<Transaction>? PendingTransactions { get; private set; } 
+    [JsonInclude] internal string MinerAdress { get; }
+    [JsonInclude] public List<Block>? Chain { get; private set; }
+    [JsonInclude] internal List<Transaction>? PendingTransactions { get; private set; }
     [JsonInclude] internal static decimal CurrentNetworkLoad { get; private set; } = (decimal).5;
 
     public IReadOnlyDictionary<string, SmartContract?> SmartContracts
@@ -124,10 +123,7 @@ public partial class Blockchain
 
         lock (block)
         {
-            if (mineBlock)
-            {
-                block.Mine(_difficulty);
-            }
+            if (mineBlock) block.Mine(_difficulty);
 
             if (Chain != null)
                 lock (Chain)
@@ -156,9 +152,8 @@ public partial class Blockchain
                     }
                     else
                     {
-                        
                         if (Chain.Count > 0 && Chain.Last().Hash != block.PreviousHash)
-                        {  
+                        {
                             Logger.LogError("Block not added to chain -- invalid previous block.");
                             return false;
                         }
@@ -377,7 +372,7 @@ public partial class Blockchain
                 Logger.LogError($"Smart Contract '{contract.Name}' not added to the blockchain.");
                 return false;
             }
-             
+
             Logger.Log($"Smart Contract '{contract.Name}' added to the blockchain.");
             return true;
         }
@@ -664,7 +659,6 @@ public partial class Blockchain
     }
 
 
-
     /// <summary>
     ///     Mines all pending transactions and adds them to the blockchain.
     ///     Includes consensus validation and reward distribution for miners and validators.
@@ -690,14 +684,13 @@ public partial class Blockchain
             {
                 var retryCount = 0;
                 const int maxRetries = 5;
-                bool blockAdded = false;
+                var blockAdded = false;
 
                 do
                 {
                     var transactionsToMine = new List<Transaction>();
 
                     if (PendingTransactions != null)
-                    {
                         lock (PendingTransactions)
                         {
                             if (PendingTransactions.Count == 0)
@@ -708,7 +701,6 @@ public partial class Blockchain
 
                             transactionsToMine = PendingTransactions.ToList();
                         }
-                    }
 
                     var previousHash = Chain.Last().Hash;
                     var block = new Block(transactionsToMine, previousHash);
@@ -763,10 +755,7 @@ public partial class Blockchain
                     }
                 } while (!blockAdded && retryCount < maxRetries);
 
-                if (!blockAdded)
-                {
-                    Logger.LogError($"Failed to add block after {maxRetries} attempts.");
-                }
+                if (!blockAdded) Logger.LogError($"Failed to add block after {maxRetries} attempts.");
             }
         }
         else
@@ -1233,7 +1222,7 @@ public partial class Blockchain
     }
 
     /// <summary>
-    /// Retrieves all transactions associated with a specific address from the blockchain.
+    ///     Retrieves all transactions associated with a specific address from the blockchain.
     /// </summary>
     /// <param name="address">The blockchain address to filter transactions for.</param>
     /// <returns>An IEnumerable containing all matching transactions.</returns>
@@ -1245,9 +1234,7 @@ public partial class Blockchain
         var transactions = new List<Transaction>();
 
         if (Chain != null)
-        {
             foreach (var block in Chain)
-            {
                 lock (block)
                 {
                     var matchingTransactions = block.Transactions
@@ -1255,8 +1242,6 @@ public partial class Blockchain
 
                     transactions.AddRange(matchingTransactions);
                 }
-            }
-        }
 
         return transactions;
     }

@@ -16,7 +16,7 @@ public class ERC20Token : Contract, IERC20Token
     public ERC20Token()
     {
         Balances = new ConcurrentDictionary<string, decimal>();
-        Allowances = new ConcurrentDictionary<string, ConcurrentDictionary<string, decimal>>(); 
+        Allowances = new ConcurrentDictionary<string, ConcurrentDictionary<string, decimal>>();
     }
 
     /// <summary>
@@ -36,11 +36,23 @@ public class ERC20Token : Contract, IERC20Token
         TotalSupply = initialSupply;
         Balances = new ConcurrentDictionary<string, decimal>();
         Allowances = new ConcurrentDictionary<string, ConcurrentDictionary<string, decimal>>();
-         
+
         // Assign initial supply to the owner's balance
-        Balances[owner] = initialSupply; 
+        Balances[owner] = initialSupply;
     }
-      
+
+    /// <summary>
+    ///     Internal dictionary storing the balance of each account.
+    /// </summary>
+    [JsonInclude]
+    public ConcurrentDictionary<string, decimal> Balances { get; private set; }
+
+    /// <summary>
+    ///     Internal dictionary managing allowances where a spender can spend on behalf of an owner.
+    /// </summary>
+    [JsonInclude]
+    public ConcurrentDictionary<string, ConcurrentDictionary<string, decimal>> Allowances { get; private set; }
+
 
     /// <summary>
     ///     Symbol of the token (e.g., "GLD").
@@ -60,19 +72,7 @@ public class ERC20Token : Contract, IERC20Token
     [JsonInclude]
     public decimal TotalSupply { get; private set; }
 
-    /// <summary>
-    ///     Internal dictionary storing the balance of each account.
-    /// </summary>
-    [JsonInclude]
-    public ConcurrentDictionary<string, decimal> Balances { get; private set; }
 
-    /// <summary>
-    ///     Internal dictionary managing allowances where a spender can spend on behalf of an owner.
-    /// </summary>
-    [JsonInclude]
-    public ConcurrentDictionary<string, ConcurrentDictionary<string, decimal>> Allowances { get; private set; }
-
-     
     /// <summary>
     ///     Exposes a read-only view of account balances.
     /// </summary>
@@ -122,7 +122,7 @@ public class ERC20Token : Contract, IERC20Token
         if (Allowances.ContainsKey(owner) && Allowances[owner].ContainsKey(spender)) return Allowances[owner][spender];
         return 0;
     }
-     
+
 
     /// <summary>
     ///     Transfers tokens from one account to another, ensuring proper authentication and balance checks.
@@ -208,13 +208,13 @@ public class ERC20Token : Contract, IERC20Token
         TransferFromEvent?.Invoke(spender, from, to, amount);
         return true;
     }
-} 
+}
 
 /// <summary>
 ///     Interface defining the essential functionalities of an ERC20 token.
 /// </summary>
 public interface IERC20Token
-{    
+{
     /// <summary>
     ///     Name of the token (e.g., "GoldCoin").
     /// </summary>

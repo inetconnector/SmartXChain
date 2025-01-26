@@ -2,7 +2,6 @@
 using System.Text.Json.Serialization;
 using System.Net.Http;
 using System.Threading.Tasks;
-
 /// <summary>
 ///     Represents a GoldCoin token that adjusts its supply dynamically based on the gold price.
 ///     Inherits from the ERC20Extended class.
@@ -174,7 +173,7 @@ public class GoldCoin : ERC20Extended, IERC20Token
         }
         catch (Exception ex)
         {
-            LogException(ex, $"Error fetching gold price");
+            LogException(ex, "Error fetching gold price");
         }
     }
 }

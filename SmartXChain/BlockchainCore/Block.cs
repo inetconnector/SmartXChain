@@ -1,4 +1,3 @@
-using System.Resources;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -21,7 +20,7 @@ public sealed class Block
     }
 
     public Block()
-    { 
+    {
     }
 
     [JsonInclude] public DateTime Timestamp { get; internal set; } = DateTime.MinValue;
@@ -30,7 +29,7 @@ public sealed class Block
     [JsonInclude] public string Hash { get; internal set; }
     [JsonInclude] public string Issuer { get; internal set; }
     [JsonInclude] public string IssuerURL { get; internal set; }
-    [JsonInclude] public int Nonce { get; internal set; } 
+    [JsonInclude] public int Nonce { get; internal set; }
 
     /// <summary>
     ///     Get a dictionary of SmartContract from the block
@@ -118,7 +117,7 @@ public sealed class Block
 
         Logger.Log($"Block mined: {Hash}");
     }
-     
+
     /// <summary>
     ///     Serializes the block into a compressed byte array.
     /// </summary>

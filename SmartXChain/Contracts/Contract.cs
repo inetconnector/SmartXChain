@@ -9,16 +9,16 @@ using System.Threading.Tasks;
 using System.Net.Http;
 
 /// ---------BEGIN BASE CLASSES----------
-public class Contract:Authenticate
-{  
-    [JsonInclude] public string Name { get; protected set; }
-   
+public class Contract : Authenticate
+{
     private readonly Dictionary<string, List<(string RpcUrl, string Owner)>> _eventSubscriptions;
 
     public Contract()
     {
         _eventSubscriptions = new Dictionary<string, List<(string RpcUrl, string Owner)>>();
     }
+
+    [JsonInclude] public string Name { get; protected set; }
 
     public void RegisterHandler(string eventName, string rpcUrl, string owner)
     {
@@ -46,7 +46,7 @@ public class Contract:Authenticate
         }
     }
 
-    public async Task TriggerHandlers(string eventName, string eventData, string bearerToken="")
+    public async Task TriggerHandlers(string eventName, string eventData, string bearerToken = "")
     {
         if (_eventSubscriptions.ContainsKey(eventName))
             foreach (var (url, _) in _eventSubscriptions[eventName])
@@ -59,13 +59,13 @@ public class Contract:Authenticate
         try
         {
             using var client = new HttpClient();
-            if (bearerToken!="")
+            if (bearerToken != "")
                 client.DefaultRequestHeaders.Authorization =
                     new AuthenticationHeaderValue("Bearer", bearerToken);
             var content = new StringContent(data, Encoding.UTF8, "application/json");
             var response = await client.PostAsync(url, content);
 
-            Log($"Sent event to {url}, response: {response.StatusCode}",false);
+            Log($"Sent event to {url}, response: {response.StatusCode}", false);
         }
         catch (Exception ex)
         {
@@ -120,8 +120,9 @@ public class Contract:Authenticate
     public void LogException(Exception ex, string message = "", bool trim = false)
     {
         Logger.LogException(ex, $"[{Name}] {message}");
-    } 
+    }
 }
+
 /// <summary>
 ///     Authentication for Contracts
 /// </summary>
@@ -131,8 +132,8 @@ public class Authenticate : Logger
     {
         Version = "1.0.0";
         DeploymentDate = DateTime.UtcNow;
-        AuthenticatedUsers = new Dictionary<string, string>(); 
-        DeploymentDate = DateTime.UtcNow; 
+        AuthenticatedUsers = new Dictionary<string, string>();
+        DeploymentDate = DateTime.UtcNow;
     }
 
     /// <summary>
@@ -206,7 +207,7 @@ public class Authenticate : Logger
             var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(key));
             return Convert.ToBase64String(hashedBytes);
         }
-    } 
+    }
 
     /// <summary>
     ///     Authenticates a user by comparing their hashed private key with the stored hash.
@@ -227,6 +228,7 @@ public class Authenticate : Logger
 public class Logger
 {
     public static event Action<string>? OnLog;
+
     /// <summary>
     ///     Logs a message to the console with a timestamp, excluding specific messages based on predefined filters.
     /// </summary>
@@ -238,8 +240,8 @@ public class Logger
         var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
         var formattedMessage = $"{timestamp} - {message}";
 
-        formattedMessage= formattedMessage.Replace("smartX0000000000000000000000000000000000000000","System")
-                                          .Replace("smartXFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF","Offline");
+        formattedMessage = formattedMessage.Replace("smartX0000000000000000000000000000000000000000", "System")
+            .Replace("smartXFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF", "Offline");
 
         // Print the message to the console, truncating if it exceeds 100 characters
         if (formattedMessage.Length > 110 && trim)
@@ -257,7 +259,7 @@ public class Logger
     /// <param name="trim">Trims output to 110 chars</param>
     public static void LogError(string message = "", bool trim = true)
     {
-        Log("[Error]: " +message,trim);
+        Log("[Error]: " + message, trim);
     }
 
     /// <summary>
@@ -271,21 +273,21 @@ public class Logger
     }
 
     /// <summary>
-    /// Logs a message to the console with a line
+    ///     Logs a message to the console with a line
     /// </summary>
     /// <param name="message">message to log</param>
     /// <param name="totalWidth">total with of the line. Maximum is 200</param>
-    public static void LogLine(string message="", int totalWidth=80)
+    public static void LogLine(string message = "", int totalWidth = 80)
     {
         if (totalWidth > 200)
 #if ANDROID
             totalWidth = 80;
-#else            
+#else
             totalWidth = 200;
 #endif
 
-            // Trim the message to handle cases with only whitespace
-            message = message.Trim();
+        // Trim the message to handle cases with only whitespace
+        message = message.Trim();
 
         if (string.IsNullOrEmpty(message))
         {
@@ -294,7 +296,7 @@ public class Logger
         }
         else
         {
-            int messageLength = message.Length;
+            var messageLength = message.Length;
 
             if (messageLength >= totalWidth - 2)
             {
@@ -303,11 +305,12 @@ public class Logger
                 messageLength = message.Length;
             }
 
-            int padding = (totalWidth - messageLength - 2) / 2; // Calculate padding
-            string line = new string('-', padding) + " " + message.ToUpper() + " " + new string('-', totalWidth - messageLength - padding - 2);
+            var padding = (totalWidth - messageLength - 2) / 2; // Calculate padding
+            var line = new string('-', padding) + " " + message.ToUpper() + " " +
+                       new string('-', totalWidth - messageLength - padding - 2);
 
-            Logger.Log();
-            Logger.Log(line,false);
+            Log();
+            Log(line, false);
         }
     }
 
@@ -317,7 +320,7 @@ public class Logger
     /// </summary>
     /// <param name="message"></param>
     /// <param name="ex"></param>
-    public static void LogException(Exception ex, string message="")
+    public static void LogException(Exception ex, string message = "")
     {
         var prefix = "[ERROR] ";
         // Check if the message starts with "error" or "ERROR:" and modify accordingly

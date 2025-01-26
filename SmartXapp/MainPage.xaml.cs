@@ -1,6 +1,5 @@
-﻿using Microsoft.Maui.Controls;
+﻿using System.Diagnostics;
 using SmartXChain.Utils;
-using System.Diagnostics;
 using FileSystem = SmartXChain.Utils.FileSystem;
 
 namespace SmartXapp;
@@ -15,7 +14,7 @@ public partial class MainPage : ContentPage
         Task.Run(async () =>
         {
             await BlockchainHelper.InitializeApplicationAsync();
-            var (_, startup) = await BlockchainHelper.StartServerAsync(); 
+            var (_, startup) = await BlockchainHelper.StartServerAsync();
         });
     }
 
@@ -23,12 +22,12 @@ public partial class MainPage : ContentPage
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            LogEditor.Text += message + Environment.NewLine; 
+            LogEditor.Text += message + Environment.NewLine;
             LogEditor.CursorPosition = LogEditor.Text.Length;
         });
     }
 
- async void OnImportSCXTokensClicked(object sender, EventArgs e)
+    private async void OnImportSCXTokensClicked(object sender, EventArgs e)
     {
         // Logic to import SCX tokens
         await BlockchainHelper.ImportAmountFromFile();
@@ -74,15 +73,17 @@ public partial class MainPage : ContentPage
             await DisplayAlert("Upload Contract",
                 success ? "Contract uploaded successfully." : "Failed to upload contract.", "OK");
         }
-    } 
+    }
+
     private async void OnRunSmartContractDemoClicked(object sender, EventArgs e)
     {
         // Logic to run Smart Contract demo
         await BlockchainHelper.RunSmartContractDemoAsync();
         await DisplayAlert("Smart Contract Demo", "Smart contract demo ran successfully.", "OK");
     }
+
     private async void OnConfigButtonClicked(object? sender, EventArgs e)
-    { 
+    {
         var configContent = File.ReadAllText(FileSystem.ConfigFile);
 
         var editConfigPage = new EditConfigPage(configContent);
@@ -91,16 +92,14 @@ public partial class MainPage : ContentPage
             if (!string.IsNullOrEmpty(editedConfig))
             {
                 var directoryPath = Path.GetDirectoryName(FileSystem.ConfigFile);
-                if (!string.IsNullOrEmpty(directoryPath) && !Directory.Exists(directoryPath)) 
-                    Directory.CreateDirectory(directoryPath);  
+                if (!string.IsNullOrEmpty(directoryPath) && !Directory.Exists(directoryPath))
+                    Directory.CreateDirectory(directoryPath);
 
                 File.WriteAllText(FileSystem.ConfigFile, editedConfig);
 
-                var restartConfirmed = await DisplayAlert("Restart Required", "The application needs to restart to apply changes. Restart now?", "Yes", "No");
-                if (restartConfirmed)
-                {
-                    RestartApplication();
-                }
+                var restartConfirmed = await DisplayAlert("Restart Required",
+                    "The application needs to restart to apply changes. Restart now?", "Yes", "No");
+                if (restartConfirmed) RestartApplication();
             }
         };
 

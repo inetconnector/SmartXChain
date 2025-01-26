@@ -29,16 +29,16 @@ public static class BlockchainStorage
                     db.DeleteAll<Block>();
                 }
                 catch (Exception e)
-                { 
+                {
                 }
-           
+
                 try
                 {
                     db.DeleteAll<Transaction>();
                 }
                 catch (Exception e)
-                { 
-                }  
+                {
+                }
             }
 
             Logger.Log("Database cleared successfully.");
@@ -50,28 +50,7 @@ public static class BlockchainStorage
             return false;
         }
     }
-    public class DBTransaction
-    {
-        public Guid ID { get; set; }
-        public string ParentBlock { get; set; }
-        public string Sender { get; set; }
-        public string Recipient { get; set; }
-        public decimal Amount { get; set; }
-        public DateTime Timestamp { get; set; }
-        public decimal Gas { get; set; }
-        public string Data { get; set; }
-        public string Info { get; set; }
-    }
-     
-    public class DBBlock
-    {
-        public DateTime Timestamp { get; set; } = DateTime.MinValue;
-        public string PreviousHash { get; set; }
-        public string Hash { get; set; }
-        public int Nonce { get; set; }
-        public string SmartContractsJson { get; set; } 
-        public string ApprovesJson { get; set; } 
-    }
+
     /// <summary>
     ///     Saves block and transactions to database.
     /// </summary>
@@ -83,13 +62,13 @@ public static class BlockchainStorage
         try
         {
             using (var db = new SQLiteConnection(databasePath))
-            { 
+            {
                 db.CreateTable<DBTransaction>();
                 db.CreateTable<DBBlock>();
-                 
+
                 foreach (var transaction in block.Transactions)
                 {
-                    DBTransaction dbTransaction = new DBTransaction()
+                    var dbTransaction = new DBTransaction
                     {
                         ID = transaction.ID,
                         ParentBlock = block.Hash,
@@ -103,8 +82,8 @@ public static class BlockchainStorage
                     };
                     db.Insert(dbTransaction);
                 }
-                 
-                DBBlock dbBlock = new DBBlock()
+
+                var dbBlock = new DBBlock
                 {
                     Hash = block.Hash,
                     Timestamp = block.Timestamp,
@@ -116,7 +95,7 @@ public static class BlockchainStorage
 
                 db.InsertOrReplace(dbBlock);
             }
-             
+
             return true;
         }
         catch (Exception ex)
@@ -148,8 +127,8 @@ public static class BlockchainStorage
                     Hash = dbBlock.Hash,
                     Timestamp = dbBlock.Timestamp,
                     Nonce = dbBlock.Nonce,
-                    PreviousHash = dbBlock.PreviousHash,
-                 };
+                    PreviousHash = dbBlock.PreviousHash
+                };
 
                 return block;
             }
@@ -187,10 +166,13 @@ public static class BlockchainStorage
                 var blocks = db.Table<DBBlock>().ToList();
                 foreach (var dbBlock in blocks)
                 {
-                    var smartContracts = JsonConvert.DeserializeObject<Dictionary<string, SmartContract?>>(dbBlock.SmartContractsJson);
+                    var smartContracts =
+                        JsonConvert.DeserializeObject<Dictionary<string, SmartContract?>>(dbBlock.SmartContractsJson);
                     if (smartContracts != null && smartContracts.ContainsKey(contractName))
                     {
-                        var contractCode = Serializer.DeserializeFromBase64<string>(smartContracts[contractName]?.SerializedContractCode);
+                        var contractCode =
+                            Serializer.DeserializeFromBase64<string>(smartContracts[contractName]
+                                ?.SerializedContractCode);
                         if (contractCode != null)
                             return contractCode;
                     }
@@ -254,7 +236,8 @@ public static class BlockchainStorage
     /// <summary>
     ///     Retrieves contract names from the database.
     /// </summary>
-    public static List<string> GetContractNames(string blockchainPath, string chainId, string? nameFilter = null, int maxResults = 1)
+    public static List<string> GetContractNames(string blockchainPath, string chainId, string? nameFilter = null,
+        int maxResults = 1)
     {
         var databasePath = Path.Combine(blockchainPath, chainId + ".db");
         var contractNames = new List<string>();
@@ -272,19 +255,16 @@ public static class BlockchainStorage
                 var blocks = db.Table<DBBlock>().ToList();
                 foreach (var dbBlock in blocks)
                 {
-                    var smartContracts = JsonConvert.DeserializeObject<Dictionary<string, SmartContract?>>(dbBlock.SmartContractsJson);
+                    var smartContracts =
+                        JsonConvert.DeserializeObject<Dictionary<string, SmartContract?>>(dbBlock.SmartContractsJson);
                     if (smartContracts != null)
-                    {
                         foreach (var contractName in smartContracts.Keys)
-                        {
                             if (string.IsNullOrEmpty(nameFilter) || contractName.Contains(nameFilter))
                             {
                                 contractNames.Add(contractName);
                                 if (contractNames.Count >= maxResults)
                                     break;
                             }
-                        }
-                    }
                 }
             }
 
@@ -328,7 +308,6 @@ public static class BlockchainStorage
 
                     blocks.Add(block);
                 }
-
             }
 
             return blocks;
@@ -451,5 +430,28 @@ public static class BlockchainStorage
             Logger.LogException(ex, "Failed to retrieve recent transactions.");
             return Enumerable.Empty<Transaction>();
         }
+    }
+
+    public class DBTransaction
+    {
+        public Guid ID { get; set; }
+        public string ParentBlock { get; set; }
+        public string Sender { get; set; }
+        public string Recipient { get; set; }
+        public decimal Amount { get; set; }
+        public DateTime Timestamp { get; set; }
+        public decimal Gas { get; set; }
+        public string Data { get; set; }
+        public string Info { get; set; }
+    }
+
+    public class DBBlock
+    {
+        public DateTime Timestamp { get; set; } = DateTime.MinValue;
+        public string PreviousHash { get; set; }
+        public string Hash { get; set; }
+        public int Nonce { get; set; }
+        public string SmartContractsJson { get; set; }
+        public string ApprovesJson { get; set; }
     }
 }

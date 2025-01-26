@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
 using System.Text;
-using System.Text.RegularExpressions; 
+using System.Text.RegularExpressions;
 using SmartXChain;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Contracts;
@@ -34,29 +34,29 @@ internal class Program
 
     private static async Task Main(string[] args)
     {
-        Config.ChainName = ChainNames.SmartXChain;       
+        ChainName = ChainNames.SmartXChain;
         var port = 5556;
-        
+
         if (args.Contains("/testnet", StringComparer.OrdinalIgnoreCase))
         {
-            Config.ChainName = ChainNames.SmartXChain_Testnet;
-            Logger.Log($"ChainName has been set to '{Config.ChainName}'.");
-   
+            ChainName = ChainNames.SmartXChain_Testnet;
+            Logger.Log($"ChainName has been set to '{ChainName}'.");
+
             FileSystem.CreateBackup();
 
-            var configFile = SmartXChain.Utils.FileSystem.ConfigFile; 
-            var configFileName = Config.ChainName == ChainNames.SmartXChain ?
-                "config.txt" : "config.testnet.txt";
+            var configFile = FileSystem.ConfigFile;
+            var configFileName = ChainName == ChainNames.SmartXChain ? "config.txt" : "config.testnet.txt";
             var configInitialPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, configFileName);
 
-            if (!File.Exists(configFile) || Config.TestNet) 
+            if (!File.Exists(configFile) || TestNet)
                 File.Copy(configInitialPath, configFile, true);
-            Config.Default.ReloadConfig();
+            Default.ReloadConfig();
 
-            
-            var indexhtmSrc=Path.Combine(new FileInfo(Assembly.GetExecutingAssembly().Location).DirectoryName, "index.html");
-            var indexhtmDest=Path.Combine(FileSystem.WWWRoot, "index.html"); 
-           
+
+            var indexhtmSrc = Path.Combine(new FileInfo(Assembly.GetExecutingAssembly().Location).DirectoryName,
+                "index.html");
+            var indexhtmDest = Path.Combine(FileSystem.WWWRoot, "index.html");
+
             File.WriteAllText(indexhtmDest, Functions.ReplaceBody(File.ReadAllText(indexhtmSrc)));
         }
 
@@ -78,15 +78,15 @@ internal class Program
 
         // ensure wallet and keys are set up
 
-        if (string.IsNullOrEmpty(Config.Default.MinerAddress))
+        if (string.IsNullOrEmpty(Default.MinerAddress))
         {
             SmartXWallet.GenerateWallet();
-            Config.Default.ReloadConfig();
+            Default.ReloadConfig();
         }
 
         //create server keys
-        if (string.IsNullOrEmpty(Config.Default.PublicKey))
-            Config.Default.GenerateServerKeys();
+        if (string.IsNullOrEmpty(Default.PublicKey))
+            Default.GenerateServerKeys();
 
         SetWebserverCertificate();
         return Task.CompletedTask;
@@ -94,24 +94,24 @@ internal class Program
 
     private static void SetWebserverCertificate()
     {
-        if (Config.Default.URL.ToLower().StartsWith("https"))
+        if (Default.URL.ToLower().StartsWith("https"))
         {
-            if (!string.IsNullOrEmpty(Config.Default.SSLCertificate) && File.Exists(Config.Default.SSLCertificate))
+            if (!string.IsNullOrEmpty(Default.SSLCertificate) && File.Exists(Default.SSLCertificate))
             {
                 //assign certificate for https
                 BlockchainServer.WebserverCertificate =
-                    CertificateManager.GetCertificate(Config.Default.SSLCertificate);
+                    CertificateManager.GetCertificate(Default.SSLCertificate);
             }
             else
             {
                 //create webserver certificate
-                var name = Config.ChainName.ToString();
+                var name = ChainName.ToString();
                 var certManager = new CertificateManager(name,
                     FileSystem.AppDirectory,
                     name + ".pfx",
                     name);
 
-                var certPath = certManager.GenerateCertificate(Config.Default.URL);
+                var certPath = certManager.GenerateCertificate(Default.URL);
                 if (!certManager.IsCertificateInstalled()) certManager.InstallCertificate(certPath);
 
                 //assign certificate for https
@@ -163,14 +163,14 @@ internal class Program
                         break;
                     case '8':
                         Logger.Log("9: Toggle Debug mode");
-                        Config.Default.SetProperty(Config.ConfigKey.Debug,
-                            (!Config.Default.Debug).ToString());
+                        Default.SetProperty(ConfigKey.Debug,
+                            (!Default.Debug).ToString());
                         break;
                     case 'e':
                         EraseWallet(startup);
-                        return; 
+                        return;
                     case 'r':
-                        if (Config.TestNet && RebootChains(startup))
+                        if (TestNet && RebootChains(startup))
                         {
                             Thread.Sleep(5000);
                             Functions.RestartApplication();
@@ -201,10 +201,10 @@ internal class Program
         Logger.Log("Enter mode:");
         Logger.Log("n: Show nodes");
         Logger.Log("s: Send SCX Tokens / Export SCX Tokens to file");
-        Logger.Log("i: Import SCX Tokens from file"); 
+        Logger.Log("i: Import SCX Tokens from file");
         Logger.Log("c: Clear screen");
         Logger.Log("e: Erase wallet and local chain");
-        if (Config.TestNet)
+        if (TestNet)
             Logger.Log("r: Reboot nodes");
         Logger.Log();
         Logger.Log("1: Coin class tester");
@@ -257,16 +257,13 @@ internal class Program
 
             Task.Run(async () =>
             {
-                var (success, message) = await Transaction.ImportFromFileToAccount(startup.Blockchain, fileContent, recipient);
+                var (success, message) =
+                    await Transaction.ImportFromFileToAccount(startup.Blockchain, fileContent, recipient);
 
                 if (success)
-                {
                     Logger.LogLine("Import successful: " + message);
-                }
                 else
-                {
                     Logger.LogError("Import failed: " + message);
-                }
             }).Wait();
         }
         catch (Exception ex)
@@ -300,7 +297,8 @@ internal class Program
                     Logger.Log($"Ready to send {amount} to {recipient} ? (y/n)");
                     if (Console.ReadLine() == "y")
                     {
-                        var success = startup != null && await NativeSCXTransfer(startup.Blockchain, walletAddresses[0], recipient, amount,
+                        var success = startup != null && await NativeSCXTransfer(startup.Blockchain, walletAddresses[0],
+                            recipient, amount,
                             data, PrivateKey);
                         Logger.Log("Success: " + success);
                     }
@@ -363,7 +361,7 @@ internal class Program
 
 
         // Test ERC20 coin functionalities
-        Logger.LogLine("ERC20 coin functionalities"); 
+        Logger.LogLine("ERC20 coin functionalities");
         var token = new ERC20Token("SmartXchain", "SXC", 18, 10000000000, walletAddresses[0]);
         token.RegisterUser(walletAddresses[0], seed);
         token.Transfer(walletAddresses[0], walletAddresses[1], 100, seed);
@@ -378,10 +376,10 @@ internal class Program
         var goldCoin = new GoldCoin("GoldCoin", "GLD", 18, 10000000000, walletAddresses[0]);
         goldCoin.RegisterUser(walletAddresses[0], seed);
         goldCoin.Transfer(walletAddresses[0], walletAddresses[1], 100, seed);
-        await goldCoin.FetchAndUpdateGoldPriceAsync(seed); 
+        await goldCoin.FetchAndUpdateGoldPriceAsync(seed);
         serializedData = Serializer.SerializeToBase64(goldCoin);
         deserializedToken = Serializer.DeserializeFromBase64<GoldCoin>(serializedData);
-        DisplayTokenDetails(deserializedToken); 
+        DisplayTokenDetails(deserializedToken);
     }
 
     private static void DisplayTokenDetails(IERC20Token token)
@@ -427,7 +425,6 @@ internal class Program
 
             if (node.Blockchain != null)
             {
-
                 ////send 1000 scx transaction
                 //await NativeSCXTransfer(
                 //    node.Blockchain,
@@ -440,33 +437,30 @@ internal class Program
                 //await node.Blockchain.MinePendingTransactions(walletAddresses[0]);
 
 
-
                 const int threadCount = 1;
                 const int transactionsPerThread = 1; // Anzahl der Transaktionen pro Thread
-                var tasks = new List<Task>(); 
+                var tasks = new List<Task>();
 
-                for (int i = 0; i < threadCount; i++)
-                {
+                for (var i = 0; i < threadCount; i++)
                     tasks.Add(Task.Run(async () =>
                     {
-                        for (int j = 0; j < transactionsPerThread; j++)
+                        for (var j = 0; j < transactionsPerThread; j++)
                         {
                             //send 1000 scx transaction
                             await NativeSCXTransfer(
                                 node.Blockchain,
                                 sender,
                                 recipient,
-                                (decimal)1,
-                                j+"Thread",
+                                1,
+                                j + "Thread",
                                 PrivateKey);
 
                             await node.Blockchain.MinePendingTransactions(walletAddresses[0]);
                         }
                     }));
-                }
-                 
+
                 await Task.WhenAll(tasks);
-                 
+
                 // Add demonstration tasks for ERC20, ERC20Extendedand and GoldCoin smart contracts
                 ERC20Example(sender, walletAddresses, node.Blockchain);
                 ERC20ExtendedExample(sender, walletAddresses, node.Blockchain);
@@ -649,12 +643,12 @@ internal class Program
         SmartXWallet.DeleteWallet();
 
         //delete saved contracts
-        var contractsPath = Path.Combine(Config.Default.BlockchainPath, "Contracts");
+        var contractsPath = Path.Combine(Default.BlockchainPath, "Contracts");
         if (Directory.Exists(contractsPath))
             Directory.Delete(contractsPath, true);
 
         //delete local chains
-        foreach (var file in Directory.GetFiles(Config.Default.BlockchainPath))
+        foreach (var file in Directory.GetFiles(Default.BlockchainPath))
             try
             {
                 File.Delete(file);
@@ -751,7 +745,7 @@ internal class Program
         var contractFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Examples", "ERC20.cs");
         var contractCode = File.ReadAllText(contractFile);
         var (contract, created) = await SmartContract.Create("ERC20Token", blockchain, ownerAddress, contractCode);
-        if (!created) 
+        if (!created)
             Logger.Log($"Contract {contract.Name} could not be created.");
 
         string[] inputs =
@@ -793,7 +787,7 @@ internal class Program
         var contractFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Examples", "ERC20Extended.cs");
         var contractCode = File.ReadAllText(contractFile);
         var (contract, created) = await SmartContract.Create("ERC20Extended", blockchain, ownerAddress, contractCode);
-        if (!created) 
+        if (!created)
             Logger.Log($"Contract {contract} could not be created.");
 
         string[] inputs =
@@ -846,7 +840,7 @@ internal class Program
         var contractFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Examples", "GoldCoin.cs");
         var contractCode = File.ReadAllText(contractFile);
         var (contract, created) = await SmartContract.Create("GoldCoin", blockchain, minerAddress, contractCode);
-        if (!created) 
+        if (!created)
             Logger.Log($"Contract {contract} could not be created");
 
         string[] inputs =

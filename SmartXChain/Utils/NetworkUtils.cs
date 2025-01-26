@@ -68,7 +68,8 @@ public class NetworkUtils
         }
 
         return url;
-    } 
+    }
+
     public static async Task<string> GetPublicIPAsync(IEnumerable<string> customIpServices = null, bool debug = false)
     {
         // Default list of public IP services for fallback

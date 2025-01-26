@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 ///     Represents a basic implementation of an ERC20 token contract with functionality for transfers, approvals,
 ///     allowances, and user registration.
 /// </summary>
-public class ERC20Token : Contract
+public class ERC20Token : Contract, IERC20Token
 {
     /// <summary>
     ///     Default constructor. Initializes the token contract with default values for balances, allowances,
@@ -16,7 +16,7 @@ public class ERC20Token : Contract
     public ERC20Token()
     {
         Balances = new ConcurrentDictionary<string, decimal>();
-        Allowances = new ConcurrentDictionary<string, ConcurrentDictionary<string, decimal>>(); 
+        Allowances = new ConcurrentDictionary<string, ConcurrentDictionary<string, decimal>>();
     }
 
     /// <summary>
@@ -36,43 +36,43 @@ public class ERC20Token : Contract
         TotalSupply = initialSupply;
         Balances = new ConcurrentDictionary<string, decimal>();
         Allowances = new ConcurrentDictionary<string, ConcurrentDictionary<string, decimal>>();
-         
+
         // Assign initial supply to the owner's balance
-        Balances[owner] = initialSupply; 
+        Balances[owner] = initialSupply;
     }
-      
-
-    /// <summary>
-    ///     Symbol of the token (e.g., "GLD").
-    /// </summary>
-    [JsonInclude]
-    public string Symbol { get; internal set; }
-
-    /// <summary>
-    ///     Number of decimal places for the token.
-    /// </summary>
-    [JsonInclude]
-    public uint Decimals { get; internal set; }
-
-    /// <summary>
-    ///     Total supply of tokens in the contract.
-    /// </summary>
-    [JsonInclude]
-    public decimal TotalSupply { get; internal set; }
 
     /// <summary>
     ///     Internal dictionary storing the balance of each account.
     /// </summary>
     [JsonInclude]
-    public ConcurrentDictionary<string, decimal> Balances { get; internal set; }
+    public ConcurrentDictionary<string, decimal> Balances { get; private set; }
 
     /// <summary>
     ///     Internal dictionary managing allowances where a spender can spend on behalf of an owner.
     /// </summary>
     [JsonInclude]
-    public ConcurrentDictionary<string, ConcurrentDictionary<string, decimal>> Allowances { get; internal set; }
+    public ConcurrentDictionary<string, ConcurrentDictionary<string, decimal>> Allowances { get; private set; }
 
-     
+
+    /// <summary>
+    ///     Symbol of the token (e.g., "GLD").
+    /// </summary>
+    [JsonInclude]
+    public string Symbol { get; private set; }
+
+    /// <summary>
+    ///     Number of decimal places for the token.
+    /// </summary>
+    [JsonInclude]
+    public uint Decimals { get; private set; }
+
+    /// <summary>
+    ///     Total supply of tokens in the contract.
+    /// </summary>
+    [JsonInclude]
+    public decimal TotalSupply { get; private set; }
+
+
     /// <summary>
     ///     Exposes a read-only view of account balances.
     /// </summary>
@@ -122,7 +122,7 @@ public class ERC20Token : Contract
         if (Allowances.ContainsKey(owner) && Allowances[owner].ContainsKey(spender)) return Allowances[owner][spender];
         return 0;
     }
-     
+
 
     /// <summary>
     ///     Transfers tokens from one account to another, ensuring proper authentication and balance checks.
@@ -208,4 +208,102 @@ public class ERC20Token : Contract
         TransferFromEvent?.Invoke(spender, from, to, amount);
         return true;
     }
+}
+
+/// <summary>
+///     Interface defining the essential functionalities of an ERC20 token.
+/// </summary>
+public interface IERC20Token
+{
+    /// <summary>
+    ///     Name of the token (e.g., "GoldCoin").
+    /// </summary>
+    string Name { get; }
+
+
+    /// <summary>
+    ///     Symbol of the token (e.g., "GLD").
+    /// </summary>
+    string Symbol { get; }
+
+    /// <summary>
+    ///     Number of decimal places for the token.
+    /// </summary>
+    uint Decimals { get; }
+
+    /// <summary>
+    ///     Total supply of tokens in the contract.
+    /// </summary>
+    decimal TotalSupply { get; }
+
+    /// <summary>
+    ///     Exposes a read-only view of account balances.
+    /// </summary>
+    IReadOnlyDictionary<string, decimal> GetBalances { get; }
+
+    /// <summary>
+    ///     Exposes a read-only view of allowances between accounts.
+    /// </summary>
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, decimal>> GetAllowances { get; }
+
+    /// <summary>
+    ///     Event triggered when a transfer between accounts occurs.
+    /// </summary>
+    event Action<string, string, decimal> TransferEvent;
+
+    /// <summary>
+    ///     Event triggered when a transfer is executed on behalf of another account using an allowance.
+    /// </summary>
+    event Action<string, string, string, decimal> TransferFromEvent;
+
+    /// <summary>
+    ///     Event triggered when an allowance is set or updated.
+    /// </summary>
+    event Action<string, string, decimal> ApprovalEvent;
+
+    /// <summary>
+    ///     Retrieves the balance of a specific account.
+    /// </summary>
+    /// <param name="account">The address of the account to query.</param>
+    /// <returns>The balance of the account.</returns>
+    decimal BalanceOf(string account);
+
+    /// <summary>
+    ///     Retrieves the allowance set by an owner for a specific spender.
+    /// </summary>
+    /// <param name="owner">The address of the owner.</param>
+    /// <param name="spender">The address of the spender.</param>
+    /// <returns>The remaining allowance.</returns>
+    decimal Allowance(string owner, string spender);
+
+    /// <summary>
+    ///     Transfers tokens from one account to another.
+    /// </summary>
+    /// <param name="from">The address of the sender.</param>
+    /// <param name="to">The address of the receiver.</param>
+    /// <param name="amount">The amount of tokens to transfer.</param>
+    /// <param name="privateKey">The private key of the sender.</param>
+    /// <returns>True if the transfer is successful, otherwise false.</returns>
+    bool Transfer(string from, string to, decimal amount, string privateKey);
+
+    /// <summary>
+    ///     Approves a spender to spend a specified amount on behalf of the owner.
+    /// </summary>
+    /// <param name="owner">The address of the owner.</param>
+    /// <param name="spender">The address of the spender.</param>
+    /// <param name="amount">The amount to approve.</param>
+    /// <param name="privateKey">The private key of the owner.</param>
+    /// <returns>True if the approval is successful, otherwise false.</returns>
+    bool Approve(string owner, string spender, decimal amount, string privateKey);
+
+    /// <summary>
+    ///     Executes a transfer on behalf of another account, deducting from the spender's allowance.
+    /// </summary>
+    /// <param name="spender">The address of the spender.</param>
+    /// <param name="from">The address of the sender.</param>
+    /// <param name="to">The address of the receiver.</param>
+    /// <param name="amount">The amount of tokens to transfer.</param>
+    /// <param name="spenderKey">The private key of the spender.</param>
+    /// <returns>True if the transfer is successful, otherwise false.</returns>
+    bool TransferFrom(string spender, string from, string to, decimal amount, string spenderKey);
 }

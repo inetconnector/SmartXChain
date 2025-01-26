@@ -2,12 +2,11 @@
 using System.Text.Json.Serialization;
 using System.Net.Http;
 using System.Threading.Tasks;
-
 /// <summary>
 ///     Represents a GoldCoin token that adjusts its supply dynamically based on the gold price.
 ///     Inherits from the ERC20Extended class.
 /// </summary>
-public class GoldCoin : ERC20Extended
+public class GoldCoin : ERC20Extended, IERC20Token
 {
     private static readonly HttpClient HttpClient = new();
 
@@ -75,18 +74,18 @@ public class GoldCoin : ERC20Extended
     /// <param name="newGoldPrice">The new gold price in USD per ounce.</param>
     /// <param name="ownerPrivateKey">Private key of the owner for authentication.</param>
     /// <returns>True if the gold price was successfully updated; otherwise, false.</returns>
-    public Task<bool> UpdateGoldPriceAsync(decimal newGoldPrice, string ownerPrivateKey)
+    public async Task<bool> UpdateGoldPriceAsync(decimal newGoldPrice, string ownerPrivateKey)
     {
         if (!IsAuthenticated(Owner, ownerPrivateKey))
         {
             LogError("Gold price update failed: Unauthorized action.");
-            return Task.FromResult(false);
+            return false;
         }
 
         if (newGoldPrice <= 0)
         {
             LogError("Gold price update failed: Price must be greater than zero.");
-            return Task.FromResult(false);
+            return false;
         }
 
         var timeSinceLastUpdate = DateTime.UtcNow - LastGoldPriceUpdate;
@@ -94,7 +93,7 @@ public class GoldCoin : ERC20Extended
         {
             LogError(
                 $"Gold price update failed: Updates are allowed only every {GoldPriceUpdateInterval.TotalMinutes} minutes. Time since last update: {timeSinceLastUpdate.TotalMinutes} minutes.");
-            return Task.FromResult(false);
+            return false;
         }
 
         var previousPrice = CurrentGoldPrice;
@@ -105,7 +104,7 @@ public class GoldCoin : ERC20Extended
         Log($"Gold price updated to {newGoldPrice} USD per ounce.");
 
         AdjustTokenSupplyBasedOnGoldPrice(previousPrice, newGoldPrice);
-        return Task.FromResult(true);
+        return true;
     }
 
     /// <summary>
@@ -174,7 +173,7 @@ public class GoldCoin : ERC20Extended
         }
         catch (Exception ex)
         {
-            LogException(ex, $"Error fetching gold price");
+            LogException(ex, "Error fetching gold price");
         }
     }
 }

@@ -33,7 +33,7 @@ public sealed class GasConfiguration
         ContractDataLengthGasFactor
     }
 
-    private static Lazy<GasConfiguration> _instance = new(() => new GasConfiguration());
+    private static readonly Lazy<GasConfiguration> _instance = new(() => new GasConfiguration());
 
     /// <summary>
     ///     Singleton instance of  gas configuration.
