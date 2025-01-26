@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://xamarin.com/schemas/2014/forms"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="XamarinBlockchainApp.Views.EditProfilePage"
+             BackgroundColor="Black">
+    <StackLayout Padding="20">
+        <Label Text="Edit Profile" FontSize="24" TextColor="White" FontAttributes="Bold" HorizontalOptions="Center" />
+        <Entry Placeholder="First Name" Text="{Binding FirstName}" Margin="0,20,0,0" BackgroundColor="Gray" TextColor="White" />
+        <Entry Placeholder="Last Name" Text="{Binding LastName}" BackgroundColor="Gray" TextColor="White" />
+        <Entry Placeholder="Email" Text="{Binding Email}" Keyboard="Email" BackgroundColor="Gray" TextColor="White" />
+        <Button Text="Update" Command="{Binding UpdateCommand}" BackgroundColor="LimeGreen" TextColor="Black" />
+    </StackLayout>
+</ContentPage>

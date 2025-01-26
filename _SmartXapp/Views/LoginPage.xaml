@@ -1,0 +1,7 @@
+<StackLayout Padding="20" VerticalOptions="Center">
+    <Label Text="Login" FontSize="36" TextColor="White" HorizontalOptions="Center" />
+    <Entry Placeholder="Email" Text="{Binding Email}" Keyboard="Email" Margin="0,10,0,0" BackgroundColor="Gray" TextColor="White" x:Name="EmailEntry" />
+    <Entry Placeholder="Password" Text="{Binding Password}" IsPassword="True" Margin="0,10,0,0" BackgroundColor="Gray" TextColor="White" />
+    <Button Text="Login" Command="{Binding LoginCommand}" BackgroundColor="LimeGreen" TextColor="Black" Margin="0,20,0,0" />
+    <Button Text="Register" Command="{Binding NavigateToRegisterCommand}" BackgroundColor="Transparent" TextColor="LimeGreen" />
+</StackLayout>

@@ -256,26 +256,7 @@ public partial class BlockchainServer
                 return Task.FromResult(HandleRegistration(message));
             });
         }
-
-        /// <summary>
-        ///     Handles the reboot of a node in the blockchain network securely.
-        /// </summary>
-        [Route(HttpVerbs.Post, "/RebootChain")]
-        public async Task RebootChain()
-        {
-            await HandleSecureRequest(message =>
-            {
-                if (Config.Default.ChainId == "{3683DDE3-C2D3-4565-8E1C-50C8E0E2AAC2}")
-                {
-                    Log("Reboot not initiated.");
-                    return Task.FromResult(""); // No action taken
-                }
-
-                Log($"Reboot initiated for {Config.Default.ChainId}");
-                Functions.RestartApplication();
-                return Task.FromResult("ok");
-            });
-        }
+ 
 
         /// <summary>
         ///     Handles requests for the list of nodes in the network securely.

@@ -254,42 +254,7 @@ public partial class BlockchainServer
         return ret;
     }
 
-
-    /// <summary>
-    ///     Reboot client chains
-    /// </summary>
-    /// <returns></returns>
-    public static async Task RebootChainsAsync()
-    {
-        if (Config.TestNet)
-            foreach (var serverAddress in Node.CurrentNodeIPs)
-            {
-                if (serverAddress == Config.Default.URL)
-                    continue;
-
-                try
-                {
-                    var response = await SocketManager.GetInstance(serverAddress)
-                        .SendMessageAsync($"RebootChain:{serverAddress}");
-
-                    if (Config.Default.Debug)
-                    {
-                        Logger.Log($"RebootChain sent to {serverAddress}");
-                        Logger.Log($"Response from server {serverAddress}: {response}");
-                    }
-
-                    if (!string.IsNullOrEmpty(response))
-                        Logger.LogError($"No response received from {serverAddress}");
-                    else
-                        Logger.Log($"Shutdown initiated {serverAddress}");
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogException(ex, $"RebootChainsAsync: sending Shutdown command to {serverAddress} failed");
-                }
-            }
-    }
-
+     
     /// <summary>
     ///     Sends a vote request to a target validator for a specific block.
     /// </summary>

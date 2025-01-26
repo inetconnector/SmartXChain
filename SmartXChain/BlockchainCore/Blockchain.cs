@@ -20,17 +20,19 @@ public class Blockchain
     public const string UnknownAddress = "smartXFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF";
 
     [JsonInclude] private readonly int _difficulty;
+    [JsonInclude] private readonly int _maxBlockRetries;
 
 
     /// <summary>
     ///     Initializes the blockchain with a specified difficulty and miner address.
     ///     Creates a genesis block as the starting point of the blockchain.
     /// </summary>
-    public Blockchain(string minerAdress, string chainId, int difficulty = 0)
+    public Blockchain(string minerAdress, string chainId, int difficulty = 0, int maxBlockRetries=20)
     {
         Chain = new List<Block>();
         PendingTransactions = new List<Transaction>();
         _difficulty = difficulty;
+        _maxBlockRetries = maxBlockRetries;
 
         ChainId = chainId;
         MinerAdress = minerAdress;
@@ -682,8 +684,7 @@ public class Blockchain
         {
             if (Chain != null)
             {
-                var retryCount = 0;
-                const int maxRetries = 5;
+                var retryCount = 0; 
                 var blockAdded = false;
 
                 do
@@ -743,7 +744,7 @@ public class Blockchain
                         }
                         else
                         {
-                            Logger.LogWarning("AddBlock failed. Retrying...");
+                            Logger.LogWarning("AddBlock failed. Retrying after Sync...");
                             await Sync(); // Sync chain to get the latest state
                             retryCount++;
                         }
@@ -753,9 +754,9 @@ public class Blockchain
                         Logger.LogError("Block rejected.");
                         break;
                     }
-                } while (!blockAdded && retryCount < maxRetries);
+                } while (!blockAdded && retryCount < _maxBlockRetries);
 
-                if (!blockAdded) Logger.LogError($"Failed to add block after {maxRetries} attempts.");
+                if (!blockAdded) Logger.LogError($"Failed to add block after {_maxBlockRetries} attempts.");
             }
         }
         else

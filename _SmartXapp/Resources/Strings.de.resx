@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <data name="NewTransaction" xml:space="preserve">
+    <value>Neue Transaktion empfangen: {0}</value>
+  </data>
+  <data name="PasswordUpdated" xml:space="preserve">
+    <value>Passwort erfolgreich aktualisiert</value>
+  </data>
+</root>

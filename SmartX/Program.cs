@@ -137,6 +137,12 @@ internal class Program
                     case 'c':
                         Console.Clear();
                         break;
+                    case 'n':
+                        DisplayNodes(startup);
+                        break;
+                    case 's':
+                        await SendNativeTokens(startup);
+                        break; 
                     case 'i':
                         ImportAmountFromFile(startup);
                         break;
@@ -165,24 +171,7 @@ internal class Program
                         Logger.Log("9: Toggle Debug mode");
                         Default.SetProperty(ConfigKey.Debug,
                             (!Default.Debug).ToString());
-                        break;
-                    case 'e':
-                        EraseWallet(startup);
-                        return;
-                    case 'r':
-                        if (TestNet && RebootChains(startup))
-                        {
-                            Thread.Sleep(5000);
-                            Functions.RestartApplication();
-                        }
-
-                        break;
-                    case 'n':
-                        DisplayNodes(startup);
-                        break;
-                    case 's':
-                        await SendNativeTokens(startup);
-                        break;
+                        break; 
                     case '0':
                         return;
                 }
@@ -202,10 +191,7 @@ internal class Program
         Logger.Log("n: Show nodes");
         Logger.Log("s: Send SCX Tokens / Export SCX Tokens to file");
         Logger.Log("i: Import SCX Tokens from file");
-        Logger.Log("c: Clear screen");
-        Logger.Log("e: Erase wallet and local chain");
-        if (TestNet)
-            Logger.Log("r: Reboot nodes");
+        Logger.Log("c: Clear screen"); 
         Logger.Log();
         Logger.Log("1: Coin class tester");
         Logger.Log("2: SmartContract Demo");
@@ -634,54 +620,7 @@ internal class Program
             Logger.Log("No contracts found.");
         }
     }
-
-    private static void EraseWallet(BlockchainServer.NodeStartupResult? node)
-    {
-        Logger.LogLine("e: Delete wallet and local chain");
-
-        // deletes wallet
-        SmartXWallet.DeleteWallet();
-
-        //delete saved contracts
-        var contractsPath = Path.Combine(Default.BlockchainPath, "Contracts");
-        if (Directory.Exists(contractsPath))
-            Directory.Delete(contractsPath, true);
-
-        //delete local chains
-        foreach (var file in Directory.GetFiles(Default.BlockchainPath))
-            try
-            {
-                File.Delete(file);
-                Logger.Log($"Deleted {file}");
-            }
-            catch (Exception ex)
-            {
-                Logger.LogException(ex, $"deleting file {file}");
-            }
-
-        Logger.Log("Press any key to end");
-        Console.ReadKey();
-    }
-
-    private static bool RebootChains(BlockchainServer.NodeStartupResult? node)
-    {
-        Logger.LogLine("r: Reboot chains on all servers. Clears all chains in testnet");
-        Logger.Log("Are you sure to reboot and clear testnet chains on all servers?");
-        Logger.Log("This action cannot be undone. (yes/no):");
-
-        var confirmation = Console.ReadLine();
-
-        if (confirmation == null || !confirmation.Equals("yes", StringComparison.OrdinalIgnoreCase))
-        {
-            Logger.Log("Chain reboot canceled.");
-            return false;
-        }
-
-        _ = BlockchainServer.RebootChainsAsync();
-
-        return true;
-    }
-
+     
     private static async Task UploadContract(BlockchainServer.NodeStartupResult? node)
     {
         Logger.Log("7: Upload Contract");
