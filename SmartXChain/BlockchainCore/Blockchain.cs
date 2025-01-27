@@ -678,8 +678,6 @@ public class Blockchain
             counter++;
         }
 
-        await Sync();
-
         if (ValidateChain())
         {
             if (Chain != null)
@@ -703,6 +701,7 @@ public class Blockchain
                             transactionsToMine = PendingTransactions.ToList();
                         }
 
+                    await Sync(); 
                     var previousHash = Chain.Last().Hash;
                     var block = new Block(transactionsToMine, previousHash);
 

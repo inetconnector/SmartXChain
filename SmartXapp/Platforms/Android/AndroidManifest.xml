@@ -1,12 +1,35 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="com.inetconnector.com_smartxchain"
+          android:versionCode="1"
+          android:versionName="1.0">
 
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.inetconnector.com_smartxchain"
-          android:versionCode="1">
-	<application android:allowBackup="true"
-	             android:icon="@mipmap/appicon"
-	             android:supportsRtl="true"
-	             android:label="SmrtXchain">
+	<!-- Application Declaration -->
+	<application
+		android:allowBackup="true"
+		android:icon="@mipmap/appicon"
+		android:label="SmrtXchain"
+		android:roundIcon="@mipmap/appicon_round" 
+		android:supportsRtl="true"
+		android:theme="@style/AppTheme"> <!-- Default theme for the app -->
 	</application>
+
+	<!-- Permissions -->
+	<!-- Access to network state (e.g., whether Wi-Fi or mobile data is active) -->
 	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+	<!-- Internet access for the app -->
 	<uses-permission android:name="android.permission.INTERNET" />
+
+	<!-- Optional: Additional permissions for common network applications -->
+	<!-- Access Wi-Fi state and control -->
+	<uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+	<!-- Allow the app to hold a wake lock to keep background services running -->
+	<uses-permission android:name="android.permission.WAKE_LOCK" />
+
+	<!-- Optional: Permissions for location access (if required, e.g., for Wi-Fi location services) -->
+	<!-- <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" /> -->
+	<!-- <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" /> -->
+
 </manifest>

@@ -1,10 +1,8 @@
 ﻿using System.Collections.Concurrent;
-using System.Text;
 using System.Text.Json;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Contracts;
 using SmartXChain.Utils;
-using Swan.Formatters;
 using Node = SmartXChain.Validators.Node;
 
 namespace SmartXChain.Server;
@@ -52,6 +50,9 @@ public partial class BlockchainServer
         }
     }
 
+    /// <summary>
+    /// Synchronize with peers, get missing blocks from peers
+    /// </summary>
     public static async Task Sync()
     {
         foreach (var peer in Node.CurrentNodeIPs)
@@ -162,52 +163,7 @@ public partial class BlockchainServer
         });
 
         await Task.WhenAll(tasks);
-    }
-
-    private static async Task GetRemoteChainSlow(ChainInfo responseObject, Blockchain chain, int fromBlock)
-    {
-        if (chain.Chain == null)
-            return;
-
-        for (var block = fromBlock; block < responseObject.BlockCount; block++)
-        {
-            var (success, response) =
-                await SendSecureMessage(responseObject.URL, "/api/GetBlock/" + block, Config.Default.URL);
-
-            if (success && !string.IsNullOrEmpty(response))
-                try
-                {
-                    var chainInfo = JsonSerializer.Deserialize<ChainInfo>(response);
-                    if (chainInfo != null && Startup.Blockchain != null)
-                    {
-                        if (Config.Default.Debug)
-                            Logger.Log($"GetBlock {block} from {responseObject.URL} Result: {responseObject.Message}");
-
-                        if (!string.IsNullOrEmpty(chainInfo.Message))
-                        {
-                            if (!chainInfo.Message.StartsWith("Error"))
-                            {
-                                var newBlock = Block.FromBase64(chainInfo.Message)!;
-                                if (newBlock.Nonce == -1)
-                                    if (Startup.Blockchain.Chain != null)
-                                        Startup.Blockchain.Clear();
-
-                                Startup.Blockchain.AddBlock(newBlock, false);
-                            }
-                            else
-                            {
-                                Logger.LogError(chainInfo.URL + ": " + chainInfo.Message);
-                            }
-                        } 
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogException(ex, $"Failed to GetBlock {block} from {responseObject.URL} ");
-                }
-        }
-    }
-
+    } 
     private static async Task GetRemoteChain(ChainInfo responseObject, Blockchain chain, int fromBlock, int chunkSize = 40)
     {
         if (chain.Chain == null)
