@@ -1,8 +1,8 @@
 ﻿using System.Text.RegularExpressions;
 using SmartXChain;
 using SmartXChain.BlockchainCore;
+using SmartXChain.ClientServer;
 using SmartXChain.Contracts;
-using SmartXChain.Server;
 using SmartXChain.Utils;
 using static SmartXChain.Utils.Config;
 using FileSystem = Microsoft.Maui.Storage.FileSystem;
@@ -60,10 +60,10 @@ public static class BlockchainHelper
 
         //get public IP
         var publicIP = await NetworkUtils.GetPublicIPAsync(debug: true);
-        Default.SetProperty(ConfigKey.URL, $"http://{publicIP}:{port}");
+        Default.SetProperty(ConfigKey.NodeAddress, $"http://{publicIP}:{port}");
 
-        Logger.Log($"Current Node: {ConfigKey.URL}");
-        foreach (var peer in Default.Peers)
+        Logger.Log($"Current Node: {ConfigKey.NodeAddress}");
+        foreach (var peer in Default.SignalHubs)
             Logger.Log($"Current Peer: {peer}");
 
         Logger.Log($"Current Chain: {Default.ChainId}");
@@ -77,8 +77,7 @@ public static class BlockchainHelper
 
         //generate server keys
         if (string.IsNullOrEmpty(Default.PublicKey)) Default.GenerateServerKeys();
-        SetWebserverCertificate();
-
+  
         await Task.CompletedTask;
     }
 
@@ -96,31 +95,7 @@ public static class BlockchainHelper
         using var r = new StreamReader(s);
         var file = r.ReadToEnd();
         return file;
-    }
-
-    private static void SetWebserverCertificate()
-    {
-        if (Default.URL.ToLower().StartsWith("https"))
-        {
-            if (!string.IsNullOrEmpty(Default.SSLCertificate) && File.Exists(Default.SSLCertificate))
-            {
-                BlockchainServer.WebserverCertificate =
-                    CertificateManager.GetCertificate(Default.SSLCertificate);
-            }
-            else
-            {
-                var name = ChainName.ToString();
-                var certManager = new CertificateManager(
-                    name, SmartXChain.Utils.FileSystem.AppDirectory, $"{name}.pfx", name);
-                var certPath = certManager.GenerateCertificate(Default.URL);
-
-                if (!certManager.IsCertificateInstalled())
-                    certManager.InstallCertificate(certPath);
-
-                BlockchainServer.WebserverCertificate = certManager.GetCertificate();
-            }
-        }
-    }
+    } 
 
     public static async Task<(object?, BlockchainServer.NodeStartupResult?)> StartServerAsync()
     {

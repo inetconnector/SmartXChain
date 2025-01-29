@@ -2,7 +2,7 @@
 
 	<PropertyGroup>
 		<OutputType>Library</OutputType>
-		<TargetFramework>net8.0</TargetFramework>
+		<TargetFramework>net9.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 	</PropertyGroup>
@@ -11,7 +11,12 @@
 	</PropertyGroup>
 	<ItemGroup>
 		<Compile Remove="BlockchainCore\ERC20.cs" />
+		<Compile Remove="ClientServer\ApiController.cs" />
+		<Compile Remove="ClientServer\ApiController.Secure.cs" />
+		<Compile Remove="ClientServer\ApiHandler.cs" />
 		<Compile Remove="Contracts.Designer.cs" />
+		<Compile Remove="Utils\BearerToken.cs" />
+		<Compile Remove="Utils\CertManager.cs" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -19,15 +24,18 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="EmbedIO.BearerToken" Version="3.4.2" />
 		<PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.12.0" />
+		<PackageReference Include="SIPSorcery" Version="8.0.7" />
 		<PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
-		<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.3.1" />
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.1" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.12.0" />
 		<PackageReference Include="NBitcoin" Version="7.0.50" />
 		<PackageReference Include="Nethereum.Web3" Version="4.28.0" />
+						<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.1" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.1" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="9.0.1" />
+		<PackageReference Include="SIPSorcery" Version="8.0.7" />		
 	</ItemGroup>
 
 	<ItemGroup>
@@ -57,6 +65,15 @@
 		<None Update="wwwroot\index.html">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
+	</ItemGroup> 	<ItemGroup>
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.1" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.1" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="9.0.1" />
+		<PackageReference Include="SIPSorcery" Version="8.0.7" />
 	</ItemGroup>
-
+	<ItemGroup>
+		<None Update="Settings.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup> 
 </Project>

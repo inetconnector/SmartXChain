@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 using SmartXChain.Contracts;
 using SmartXChain.Utils;
 using static SmartXChain.BlockchainCore.Transaction;
-using static SmartXChain.Server.BlockchainServer;
+using static SmartXChain.ClientServer.BlockchainServer;
 using Node = SmartXChain.Validators.Node;
 
 namespace SmartXChain.BlockchainCore;
@@ -42,11 +42,10 @@ public class Blockchain
     }
 
     public static List<Blockchain> Blockchains { get; } = new();
-
     [JsonInclude] internal string ChainId { get; }
     [JsonInclude] internal string MinerAdress { get; }
-    [JsonInclude] public List<Block>? Chain { get; private set; }
-    [JsonInclude] internal List<Transaction>? PendingTransactions { get; private set; }
+    [JsonInclude] public List<Block> Chain { get; private set; }
+    [JsonInclude] internal List<Transaction> PendingTransactions { get; private set; }
     [JsonInclude] internal static decimal CurrentNetworkLoad { get; private set; } = (decimal).5;
 
     public IReadOnlyDictionary<string, SmartContract?> SmartContracts
@@ -77,7 +76,7 @@ public class Blockchain
         {
             Sender = SystemAddress,
             Recipient = minerAdress,
-            Data = Convert.ToBase64String(Encoding.ASCII.GetBytes(Config.Default.URL)), // Store data as Base64 string
+            Data = Convert.ToBase64String(Encoding.ASCII.GetBytes(Config.Default.NodeAddress)), // Store data as Base64 string
             Info = "IP",
             Timestamp = DateTime.UtcNow,
             TransactionType = TransactionTypes.Server
@@ -403,22 +402,21 @@ public class Blockchain
             var selectionSize = block.Transactions.Count > 1000 ? 20 : 10; // Example: More validators for large blocks
 
             // If there are fewer nodes than the desired number, select all available nodes
-            selectionSize = Math.Min(selectionSize, Node.CurrentNodeIPs.Count / 2);
+            selectionSize = Math.Min(selectionSize, Node.CurrentNodes.Count / 2);
 
-            if (Node.CurrentNodeIPs.Count == 1)
+            if (Node.CurrentNodes.Count == 1)
                 selectionSize = 1;
 
             // Select the validators (excluding own server address)
-            var selectedValidators = Node.CurrentNodeIPs
-                .Where(ip =>
-                    !Config.Default.URL.Contains(ip) &&
-                    !Config.Default.ResolvedURL.Contains(ip)) // Exclude own server URL
+            var selectedValidators = Node.CurrentNodes
+                .Where(nodeAddress =>
+                    !Config.Default.NodeAddress.Contains(nodeAddress)) 
                 .OrderBy(_ => Guid.NewGuid()) // Random selection
                 .Take(selectionSize) // Select the desired number of validators
                 .ToList();
 
             Logger.Log(
-                $"Selected {selectedValidators.Count} validators from {Node.CurrentNodeIPs.Count} available nodes.");
+                $"Selected {selectedValidators.Count} validators from {Node.CurrentNodes.Count} available nodes.");
 
             if (selectedValidators.Count <= 0) return (false, new ConcurrentList<string>());
 
@@ -430,7 +428,7 @@ public class Blockchain
 
             foreach (var validator in selectedValidators)
             {
-                if (validator.Contains(Config.Default.URL) || validator.Contains(Config.Default.ResolvedURL))
+                if (validator.Contains(Config.Default.NodeAddress))
                     continue;
                 voteTasks.Add(SendVoteRequestAsync(validator, block));
             }
@@ -670,7 +668,7 @@ public class Blockchain
     {
         var counter = 0;
 
-        while (Node.CurrentNodeIPs.Count == 0)
+        while (Node.CurrentNodes.Count == 0)
         {
             if (counter % 1000 == 0) // Every 10 seconds
                 Logger.Log("Waiting for validators...");
@@ -718,7 +716,7 @@ public class Blockchain
                             var blocks = new List<Block> { block };
 
                             // Broadcast the new block securely
-                            _ = BroadcastBlockToPeers(Node.CurrentNodeIPs, blocks, this);
+                            _ = BroadcastBlockToPeers(Node.CurrentNodes, blocks, this);
 
                             // Clear pending transactions
                             PendingTransactions?.Clear();
@@ -776,21 +774,21 @@ public class Blockchain
         {
             if (contract != null)
             {
-                if (Node.CurrentNodeIPs.Count == 0)
+                if (Node.CurrentNodes.Count == 0)
                 {
                     Logger.LogError($"No validator adresses found for: {contract.Name}");
                     return false;
                 }
 
                 Logger.Log($"Starting Snowman-Consensus for contract: {contract.Name}");
-                var requiredVotes = Node.CurrentNodeIPs.Count / 2;
+                var requiredVotes = Node.CurrentNodes.Count / 2;
                 if (requiredVotes == 0)
                     requiredVotes = 1;
 
                 var voteTasks = new List<Task<bool>>();
 
-                foreach (var validator in Node.CurrentNodeIPs)
-                    if (!Config.Default.URL.Contains(validator))
+                foreach (var validator in Node.CurrentNodes)
+                    if (!Config.Default.NodeAddress.Contains(validator))
                         voteTasks.Add(SendCodeForVerificationAsync(validator, contract));
 
                 var results = await Task.WhenAll(voteTasks);

@@ -46,7 +46,7 @@ public class NetworkUtils
     {
         if (string.IsNullOrWhiteSpace(httpIPPort)) return false;
 
-        // Regex pattern for validating a server URL
+        // Regex pattern for validating a server SignalHub
         var pattern = @"^(http|https):\/\/(?:(?:\d{1,3}\.){3}\d{1,3}|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,})(?::\d{1,5})?$";
 
         // Match the input string against the regex pattern

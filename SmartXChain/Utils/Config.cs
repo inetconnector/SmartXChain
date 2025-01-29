@@ -22,11 +22,10 @@ public class Config
         MinerAddress,
         Mnemonic,
         WalletPrivateKey,
-        URL,
+        NodeAddress,
         Debug,
         PublicKey,
-        PrivateKey,
-        SecurityProtocol,
+        PrivateKey, 
         SSLCertificate,
         MaxParallelConnections
     }
@@ -35,7 +34,7 @@ public class Config
     {
         var configFilePath = FileSystem.ConfigFile;
         var fi = new FileInfo(configFilePath);
-        Directory.CreateDirectory(fi.DirectoryName);
+        Directory.CreateDirectory(fi.DirectoryName); 
         return new Config(configFilePath);
     });
 
@@ -45,8 +44,8 @@ public class Config
     /// <param name="filePath">The file path to the configuration file.</param>
     public Config(string filePath)
     {
-        Peers = new List<string>();
-
+        SignalHubs = new List<string>();
+        NodeAddress = Guid.NewGuid().ToString().ToUpper();
         LoadConfig(filePath);
         SetBlockchainPath(FileSystem.BlockchainDirectory);
     }
@@ -56,16 +55,15 @@ public class Config
     public string Mnemonic { get; private set; }
     public int MaxParallelConnections { get; private set; }
     public string WalletPrivateKey { get; private set; }
-    public List<string> Peers { get; }
-    public string URL { get; private set; }
-    public string ResolvedURL => NetworkUtils.ResolveUrlToIp(Default.URL);
-    public string SecurityProtocol { get; private set; }
+    public List<string> SignalHubs { get; }
+    public string NodeAddress { get; private set; }  
     public bool Debug { get; private set; }
     public string BlockchainPath { get; private set; }
-    public bool SSL => SSLCertificate.Length > 0 && URL.StartsWith("https");
+    public bool SSL => SSLCertificate.Length > 0 && NodeAddress.StartsWith("https");
     public string SSLCertificate { get; private set; }
     public string PublicKey { get; private set; }
     public string PrivateKey { get; private set; }
+    public int ResponseTimeoutMilliseconds { get; set; } = 1000;
 
     public static bool TestNet
     {
@@ -113,7 +111,7 @@ public class Config
             return;
         }
 
-        Peers.Clear();
+        SignalHubs.Clear();
         ChainId = null;
         MinerAddress = null;
         Mnemonic = null;
@@ -121,10 +119,9 @@ public class Config
         PublicKey = null;
         PrivateKey = null;
         BlockchainPath = "";
-        SSLCertificate = "";
-        SecurityProtocol = "";
+        SSLCertificate = ""; 
         MaxParallelConnections = 10;
-        URL = "";
+        NodeAddress = "";
 
         LoadConfig(configFilePath);
     }
@@ -250,8 +247,7 @@ public class Config
             ConfigKey.ChainId => "Config",
             ConfigKey.BlockchainPath => "Config",
             ConfigKey.Debug => "Config",
-            ConfigKey.URL => "Config",
-            ConfigKey.SecurityProtocol => "Config",
+            ConfigKey.NodeAddress => "Config", 
             ConfigKey.MaxParallelConnections => "Config",
 
             ConfigKey.MinerAddress => "Miner",
@@ -338,10 +334,8 @@ public class Config
                             Debug = debug;
                         if (key.Equals("ChainId", StringComparison.OrdinalIgnoreCase))
                             ChainId = value;
-                        if (key.Equals("URL", StringComparison.OrdinalIgnoreCase))
-                            URL = value;
-                        if (key.Equals("SecurityProtocol", StringComparison.OrdinalIgnoreCase))
-                            SecurityProtocol = value;
+                        if (key.Equals("NodeAddress", StringComparison.OrdinalIgnoreCase))
+                            NodeAddress = value; 
                         if (key.Equals("MaxParallelConnections", StringComparison.OrdinalIgnoreCase))
                             MaxParallelConnections = Convert.ToInt16(value);
                         break;
@@ -365,13 +359,13 @@ public class Config
                         break;
                 }
             }
-            else if (currentSection == "[Peers]")
+            else if (currentSection == "[SignalHubs]")
             {
-                var peerValue = trimmedLine;
-                if (Regex.IsMatch(peerValue, @"^https?://[\w\-.]+(:\d+)?$"))
-                    Peers.Add(peerValue);
+                var item = trimmedLine;
+                if (Regex.IsMatch(item, @"^https?://[\w\-.]+(:\d+)?$"))
+                    SignalHubs.Add(item);
                 else
-                    Logger.Log($"Invalid Peer URL: {peerValue}");
+                    Logger.Log($"Invalid SignalHub: {item}");
             }
         }
     }
@@ -379,23 +373,23 @@ public class Config
     /// <summary>
     ///     Adds a new peer to the configuration file if it does not already exist.
     /// </summary>
-    /// <param name="peerUrl">The URL of the peer to add.</param>
+    /// <param name="signalHubUrl">The NodeAddress of the peer to add.</param>
     /// <returns>True if the peer was successfully added; otherwise, false.</returns>
-    public bool AddPeer(string peerUrl)
+    public bool AddSignalHub(string signalHubUrl)
     {
-        if (string.IsNullOrWhiteSpace(peerUrl) || !Regex.IsMatch(peerUrl, @"^https?://[\w\-.]+(:\d+)?$"))
+        if (string.IsNullOrWhiteSpace(signalHubUrl) || !Regex.IsMatch(signalHubUrl, @"^https?://[\w\-.]+(:\d+)?$"))
         {
-            Logger.Log($"Invalid peer URL: {peerUrl}");
+            Logger.Log($"Invalid peer SignalHub: {signalHubUrl}");
             return false;
         }
 
-        if (Peers.Contains(peerUrl))
+        if (SignalHubs.Contains(signalHubUrl))
         {
-            Logger.Log($"Peer already exists: {peerUrl}");
+            Logger.Log($"SignalHub already exists: {signalHubUrl}");
             return false;
         }
 
-        Peers.Add(peerUrl);
+        SignalHubs.Add(signalHubUrl);
 
         var filePath = FileSystem.ConfigFile;
         if (!File.Exists(filePath))
@@ -405,40 +399,40 @@ public class Config
         }
 
         var lines = File.ReadAllLines(filePath).ToList();
-        var peersSectionIndex = lines.FindIndex(l => l.Trim().Equals("[Peers]", StringComparison.OrdinalIgnoreCase));
+        var peersSectionIndex = lines.FindIndex(l => l.Trim().Equals("[SignalHubs]", StringComparison.OrdinalIgnoreCase));
 
         if (peersSectionIndex >= 0)
         {
-            lines.Insert(peersSectionIndex + 1, peerUrl);
+            lines.Insert(peersSectionIndex + 1, signalHubUrl);
         }
         else
         {
             lines.Add("");
-            lines.Add("[Peers]");
-            lines.Add(peerUrl);
+            lines.Add("[SignalHubs]");
+            lines.Add(signalHubUrl);
         }
 
         File.WriteAllLines(filePath, lines);
-        Logger.Log($"Peer added: {peerUrl}");
+        Logger.Log($"SignalHub added: {signalHubUrl}");
         return true;
     }
 
     /// <summary>
     ///     Removes an existing peer from the configuration file if it exists.
     /// </summary>
-    /// <param name="peerUrl">The URL of the peer to remove.</param>
+    /// <param name="signalHub">The NodeAddress of the peer to remove.</param>
     /// <returns>True if the peer was successfully removed; otherwise, false.</returns>
-    public bool RemovePeer(string peerUrl)
+    public bool RemoveSignalHub(string signalHub)
     {
-        if (string.IsNullOrWhiteSpace(peerUrl))
+        if (string.IsNullOrWhiteSpace(signalHub))
         {
-            Logger.Log("Invalid peer URL provided for removal.");
+            Logger.Log("Invalid peer SignalHub provided for removal.");
             return false;
         }
 
-        if (!Peers.Remove(peerUrl))
+        if (!SignalHubs.Remove(signalHub))
         {
-            Logger.Log($"Peer not found: {peerUrl}");
+            Logger.Log($"SignalHub not found: {signalHub}");
             return false;
         }
 
@@ -450,22 +444,22 @@ public class Config
         }
 
         var lines = File.ReadAllLines(filePath).ToList();
-        var peersSectionIndex = lines.FindIndex(l => l.Trim().Equals("[Peers]", StringComparison.OrdinalIgnoreCase));
+        var peersSectionIndex = lines.FindIndex(l => l.Trim().Equals("[SignalHubs]", StringComparison.OrdinalIgnoreCase));
 
         if (peersSectionIndex >= 0)
         {
             var updatedPeers = lines.Skip(peersSectionIndex + 1)
                 .TakeWhile(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("["))
-                .Where(l => !l.Equals(peerUrl, StringComparison.OrdinalIgnoreCase))
+                .Where(l => !l.Equals(signalHub, StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
             lines = lines.Take(peersSectionIndex + 1).Concat(updatedPeers).ToList();
             File.WriteAllLines(filePath, lines);
-            Logger.Log($"Peer removed: {peerUrl}");
+            Logger.Log($"SignalHub removed: {signalHub}");
             return true;
         }
 
-        Logger.Log("Peer section not found in the config file.");
+        Logger.Log("SignalHub section not found in the config file.");
         return false;
     }
 }

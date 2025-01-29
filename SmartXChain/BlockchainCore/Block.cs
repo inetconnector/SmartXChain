@@ -28,7 +28,7 @@ public sealed class Block
     [JsonInclude] public string PreviousHash { get; internal set; }
     [JsonInclude] public string Hash { get; internal set; }
     [JsonInclude] public string Issuer { get; internal set; }
-    [JsonInclude] public string IssuerURL { get; internal set; }
+    [JsonInclude] public string NodeAddress { get; internal set; }
     [JsonInclude] public int Nonce { get; internal set; }
 
     /// <summary>
@@ -103,7 +103,7 @@ public sealed class Block
         {
             Hash = CalculateHash();
             Issuer = Config.Default.MinerAddress;
-            IssuerURL = Config.Default.ResolvedURL;
+            NodeAddress = Config.Default.NodeAddress;
         }
         else
         {

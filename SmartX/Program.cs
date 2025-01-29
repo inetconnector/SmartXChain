@@ -5,8 +5,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using SmartXChain;
 using SmartXChain.BlockchainCore;
+using SmartXChain.ClientServer;
 using SmartXChain.Contracts;
-using SmartXChain.Server;
 using SmartXChain.Utils;
 using SmartXChain.Validators;
 using static SmartXChain.Utils.Config;
@@ -62,7 +62,7 @@ internal class Program
 
         var publicIP = await NetworkUtils.GetPublicIPAsync(debug: true);
 
-        //Default.SetProperty(ConfigKey.URL, $"http://{publicIP}:{port}");
+        //Default.SetProperty(ConfigKey.NodeAddress, $"http://{publicIP}:{port}");
 
         // Initialize application and start the blockchain server
         await InitializeApplicationAsync();
@@ -87,39 +87,10 @@ internal class Program
         //create server keys
         if (string.IsNullOrEmpty(Default.PublicKey))
             Default.GenerateServerKeys();
-
-        SetWebserverCertificate();
+         
         return Task.CompletedTask;
     }
-
-    private static void SetWebserverCertificate()
-    {
-        if (Default.URL.ToLower().StartsWith("https"))
-        {
-            if (!string.IsNullOrEmpty(Default.SSLCertificate) && File.Exists(Default.SSLCertificate))
-            {
-                //assign certificate for https
-                BlockchainServer.WebserverCertificate =
-                    CertificateManager.GetCertificate(Default.SSLCertificate);
-            }
-            else
-            {
-                //create webserver certificate
-                var name = ChainName.ToString();
-                var certManager = new CertificateManager(name,
-                    FileSystem.AppDirectory,
-                    name + ".pfx",
-                    name);
-
-                var certPath = certManager.GenerateCertificate(Default.URL);
-                if (!certManager.IsCertificateInstalled()) certManager.InstallCertificate(certPath);
-
-                //assign certificate for https
-                BlockchainServer.WebserverCertificate = certManager.GetCertificate();
-            }
-        }
-    }
-
+      
     private static async Task RunConsoleMenuAsync(BlockchainServer.NodeStartupResult? startup)
     {
         // Display and process console menu 
@@ -309,10 +280,10 @@ internal class Program
         Logger.LogLine("n: Show nodes");
         if (startup != null && startup.Node != null)
         {
-            if (Node.CurrentNodeIPs.Count == 0)
+            if (Node.CurrentNodes.Count == 0)
                 Logger.LogError("no nodes found!");
             else
-                foreach (var ip in Node.CurrentNodeIPs)
+                foreach (var ip in Node.CurrentNodes)
                     if (ip == startup.Node.NodeAddress)
                         Logger.Log("*" + ip);
                     else

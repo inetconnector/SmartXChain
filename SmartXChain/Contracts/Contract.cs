@@ -41,7 +41,7 @@ public class Contract : Authenticate
             }
             else
             {
-                Log($"Unregister failed: Only the owner ({subscription.Owner}) can unregister this URL.");
+                Log($"Unregister failed: Only the owner ({subscription.Owner}) can unregister this SignalHub.");
             }
         }
     }
