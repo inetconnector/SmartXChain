@@ -34,8 +34,7 @@ public class WebRtcManager
     public event Action<string> OnSdpOfferGenerated;
     public event Action<string> OnSdpAnswerGenerated;
     public event Action<string> OnIceCandidateGenerated;
-     
-
+      
 
     /// <summary>
     ///     Initializes the RTCPeerConnection by reading STUN servers from 'settings.json'.
@@ -573,7 +572,7 @@ public class WebRtcManager
                 }
 
                 if (chainInfo != null)
-                    Node.AddNodeIP(chainInfo.URL);
+                    Node.AddNodeIP(chainInfo.NodeAddress);
             }
 
             return JsonSerializer.Serialize(ChainInfo.CreateChainInfo(_blockchain));

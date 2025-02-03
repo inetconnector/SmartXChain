@@ -1,5 +1,6 @@
 ﻿using System.Security.Cryptography;
 using System.Text.RegularExpressions;
+using WebSocketSharp;
 
 namespace SmartXChain.Utils;
 
@@ -35,7 +36,10 @@ public class Config
         var configFilePath = FileSystem.ConfigFile;
         var fi = new FileInfo(configFilePath);
         Directory.CreateDirectory(fi.DirectoryName); 
-        return new Config(configFilePath);
+        var config= new Config(configFilePath);
+        if (string.IsNullOrEmpty(config.NodeAddress))
+            config.NodeAddress = "";
+        return config;
     });
 
     /// <summary>
@@ -44,8 +48,7 @@ public class Config
     /// <param name="filePath">The file path to the configuration file.</param>
     public Config(string filePath)
     {
-        SignalHubs = new List<string>();
-        NodeAddress = Guid.NewGuid().ToString().ToUpper();
+        SignalHubs = new List<string>(); 
         LoadConfig(filePath);
         SetBlockchainPath(FileSystem.BlockchainDirectory);
     }
@@ -55,11 +58,10 @@ public class Config
     public string Mnemonic { get; private set; }
     public int MaxParallelConnections { get; private set; }
     public string WalletPrivateKey { get; private set; }
-    public List<string> SignalHubs { get; }
-    public string NodeAddress { get; private set; }  
+    public List<string> SignalHubs { get; } 
+    public string NodeAddress {get; internal set;} 
     public bool Debug { get; private set; }
-    public string BlockchainPath { get; private set; }
-    public bool SSL => SSLCertificate.Length > 0 && NodeAddress.StartsWith("https");
+    public string BlockchainPath { get; private set; } 
     public string SSLCertificate { get; private set; }
     public string PublicKey { get; private set; }
     public string PrivateKey { get; private set; }
@@ -120,8 +122,7 @@ public class Config
         PrivateKey = null;
         BlockchainPath = "";
         SSLCertificate = ""; 
-        MaxParallelConnections = 10;
-        NodeAddress = "";
+        MaxParallelConnections = 10; 
 
         LoadConfig(configFilePath);
     }
@@ -362,7 +363,7 @@ public class Config
             else if (currentSection == "[SignalHubs]")
             {
                 var item = trimmedLine;
-                if (Regex.IsMatch(item, @"^https?://[\w\-.]+(:\d+)?$"))
+                if (Regex.IsMatch(item, @"^https?://[\w\-.]+(:\d+)?(/[\w\-/]*)?$"))
                     SignalHubs.Add(item);
                 else
                     Logger.Log($"Invalid SignalHub: {item}");

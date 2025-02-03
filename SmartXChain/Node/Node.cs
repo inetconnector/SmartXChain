@@ -56,45 +56,35 @@ public class Node
     internal static async Task<Node> Start()
     {
         var nodeAddress = Config.Default.NodeAddress;
+
         Logger.Log($"Starting node at {nodeAddress}...");
 
         var chainId = Config.Default.ChainId;
 
         var node = new Node(nodeAddress, chainId);
         Logger.Log("Starting server discovery...");
-
-        // Discover servers from the configuration
-        var signalHubs = Config.Default.SignalHubs;
-
-        var nodeAdresses = new List<string>();
-        foreach (var staticIP in node.GetStaticServers(signalHubs))
-            if (!nodeAdresses.Contains(staticIP))
-                nodeAdresses.Add(staticIP);
-
+          
 
         // Retry server discovery if no active servers are found
-        if (nodeAdresses.Count == 0)
+        if (Config.Default.SignalHubs.Count == 0)
         {
-            Logger.Log("No active servers found. Waiting for a server...");
-            while (nodeAdresses.Count == 0)
+            Logger.Log("No active signalHubs found. Waiting for a server...");
+            while (Config.Default.SignalHubs.Count == 0)
             {
-                await Task.Delay(5000);
-                foreach (var staticIP in node.GetStaticServers(signalHubs))
-                    if (!nodeAdresses.Contains(staticIP))
-                        nodeAdresses.Add(staticIP);
+                await Task.Delay(5000); 
             }
         }
 
-        // Filter out the local node's own IP address
-        nodeAdresses = nodeAdresses
-            .Where(nodeAddress => !nodeAddress.Contains(Config.Default.NodeAddress)).ToList();
-
-        // Register with a discovery server
-        await node.RegisterWithDiscoveryAsync(nodeAdresses);
+        foreach (var signalHub in Config.Default.SignalHubs)
+            _ = Task.Run(async () =>
+            { 
+                Logger.Log($"Registering {nodeAddress} at {signalHub} ...");
+                await RegisterNodeAdressAsync(nodeAddress);
+            });
 
         // Periodically retrieve registered nodes
         _ = Task.Run(async () =>
-        {
+        {  
             while (true)
             {
                 try
@@ -118,24 +108,7 @@ public class Node
 
         return node;
     }
-
-    private List<string> GetStaticServers(List<string> urls)
-    {
-        var resolvedUrls = new List<string>();
-
-        foreach (var url in urls)
-            try
-            {
-                var resolvedUrl = NetworkUtils.ResolveUrlToIp(url);
-                if (!string.IsNullOrEmpty(resolvedUrl)) resolvedUrls.Add(resolvedUrl);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogException(ex, "server discovery failed");
-            }
-
-        return resolvedUrls;
-    }
+     
 
     /// <summary>
     ///     Removes a node from CurrentNodes and CurrentNodes_LastActive
@@ -204,42 +177,37 @@ public class Node
             if (Config.Default.Debug) Logger.Log($"New server added: {server}");
         }
     }
-
-
-    /// <summary>
-    ///     Registers the node with discovery servers.
-    /// </summary>
-    /// <param name="discoveryServers">List of discovery server addresses.</param>
-    public async Task RegisterWithDiscoveryAsync(List<string> discoveryServers)
-    {
-        Logger.Log($"Registering with {discoveryServers.Count} discovery servers...");
-        foreach (var serverAddress in discoveryServers)
-            await RegisterWithServerAsync(serverAddress);
-    }
+     
 
     /// <summary>
     ///     Registers the node with a specific server.
     /// </summary>
     /// <param name="nodeAddress">The address of the server to register with.</param>
-    private async Task RegisterWithServerAsync(string nodeAddress)
+    private static async Task RegisterNodeAdressAsync(string nodeAddress)
     {
         try
         {
-            var signature = Crypt.GenerateHMACSignature(NodeAddress, Config.Default.ChainId);
-            var response = await SignalR.SendRequestAsync(nodeAddress, $"Register:{NodeAddress}|{signature}");
+            string response="";
+            while (SignalR==null)
+            {
+                if (SignalR!=null)
+                {
+                    var signature = Crypt.GenerateHMACSignature(nodeAddress, Config.Default.ChainId);
+                    response = (await SignalR.SendRequestAsync(nodeAddress, $"Register:{nodeAddress}|{signature}"))!;
 
-            var response1 = await SignalR.InvokeApiAsync("GetBlockData", "5");
-             
+                    if (response.Contains("ok"))
+                        AddNodeIP(nodeAddress);
+                }
 
-            if (response.Contains("ok"))
-                AddNodeIP(nodeAddress);
+                Thread.Sleep(10);
+            } 
 
             if (Config.Default.Debug)
                 Logger.Log($"Response from server {nodeAddress}: {response}");
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, $"RegisterWithServerAsync: registering with server {nodeAddress} failed");
+            Logger.LogException(ex, $"RegisterNodeAdressAsync: registering with server {nodeAddress} failed");
         }
     }
 }

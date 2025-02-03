@@ -44,7 +44,7 @@ public class Blockchain
     public static List<Blockchain> Blockchains { get; } = new();
     [JsonInclude] internal string ChainId { get; }
     [JsonInclude] internal string MinerAdress { get; }
-    [JsonInclude] public List<Block> Chain { get; private set; }
+    [JsonInclude] public List<Block> Chain { get; internal set; }
     [JsonInclude] internal List<Transaction> PendingTransactions { get; private set; }
     [JsonInclude] internal static decimal CurrentNetworkLoad { get; private set; } = (decimal).5;
 

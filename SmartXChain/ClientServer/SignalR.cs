@@ -7,43 +7,16 @@ namespace SmartXChain.ClientServer;
 public class SignalRClient
 {
     private readonly ConcurrentDictionary<string, TaskCompletionSource<string?>> _pendingRequests = new();
+    public HubConnection Connection { get; private set; }
 
-    private HubConnection _connection;
-
-    /// <summary>
-    ///     Event fired when we receive a standard broadcast message (already in your code).
-    /// </summary>
     public event Action<string> OnBroadcastMessageReceived;
-
-    /// <summary>
-    ///     New event (or direct handler) used specifically to capture request/responses.
-    /// </summary>
-    private void OnRequestResponseReceived(string data)
-    {
-        try
-        {
-            // Attempt to parse the incoming JSON
-            var incoming = JsonSerializer.Deserialize<RequestMessage>(data);
-            if (incoming != null && !string.IsNullOrEmpty(incoming.CorrelationId))
-                // If we have a pending request with this correlation ID, it means it's a response
-                if (_pendingRequests.TryGetValue(incoming.CorrelationId, out var tcs))
-                {
-                    tcs.TrySetResult(incoming.Payload);
-                    return;
-                }
-
-            // If no match found, handle it as a generic incoming message
-            Console.WriteLine($"[SignalR] Received an unsolicited message: {data}");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[SignalR] Error in OnRequestResponseReceived: {ex.Message}");
-        }
-    }
+    public event Action<string> OnOfferReceived;
+    public event Action<string> OnAnswerReceived;
+    public event Action<string> OnIceCandidateReceived;
 
     public async Task ConnectAsync(string serverUrl, string jwtToken)
     {
-        _connection = new HubConnectionBuilder()
+        Connection = new HubConnectionBuilder()
             .WithUrl(serverUrl, options => { options.AccessTokenProvider = () => Task.FromResult(jwtToken); })
             .WithAutomaticReconnect()
             .Build();
@@ -54,126 +27,151 @@ public class SignalRClient
 
     private void RegisterEventHandlers()
     {
-        // Existing handlers in your code:
-        _connection.On<string>("ReceiveMessage", message => OnBroadcastMessageReceived?.Invoke(message));
+        Connection.On<string>("ReceiveMessage", message => OnBroadcastMessageReceived?.Invoke(message));
+        Connection.On<string>("ReceiveRequestResponse", OnRequestResponseReceived);
+        Connection.On<string>("ReceiveOffer", HandleOfferReceived);
+        Connection.On<string>("ReceiveAnswer", HandleAnswerReceived);
+        Connection.On<string>("ReceiveIceCandidate", HandleIceCandidateReceived);
 
-        // 2) New or repurposed handler to receive request/response payloads
-        //    The method name "ReceiveRequestResponse" must match what your SignalR Hub invokes.
-        _connection.On<string>("ReceiveRequestResponse", jsonString => OnRequestResponseReceived(jsonString));
-
-        // Reconnection events (already in your code)...
-        _connection.Closed += async error =>
+        Connection.Closed += async error =>
         {
-            Console.WriteLine("Connection closed. Attempting to reconnect...");
+            Logger.Log("Connection closed. Attempting to reconnect...");
             await HandleReconnection();
         };
-        _connection.Reconnecting += error =>
+        Connection.Reconnecting += error =>
         {
-            Console.WriteLine("Reconnecting...");
+            Logger.Log("Reconnecting...");
             return Task.CompletedTask;
         };
-        _connection.Reconnected += connectionId =>
+        Connection.Reconnected += connectionId =>
         {
-            Console.WriteLine("Reconnected successfully. Connection ID: " + connectionId);
+            Logger.Log("Reconnected successfully. Connection ID: " + connectionId);
             return Task.CompletedTask;
         };
     }
 
+    private void OnRequestResponseReceived(string data)
+    {
+        try
+        {
+            var incoming = JsonSerializer.Deserialize<RequestMessage>(data);
+            if (incoming != null && !string.IsNullOrEmpty(incoming.CorrelationId))
+                if (_pendingRequests.TryGetValue(incoming.CorrelationId, out var tcs))
+                {
+                    tcs.TrySetResult(incoming.Payload);
+                    return;
+                }
 
-    // ---------------------------------------------------------------------------------------
-    // 3) The core method: Send a request with correlation ID, await response, up to a timeout
-    // ---------------------------------------------------------------------------------------
+            Logger.Log($"[SignalR] Unsolicited message received: {data}");
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[SignalR] Error in OnRequestResponseReceived: {ex.Message}");
+        }
+    }
+
+    private void HandleOfferReceived(string offer)
+    {
+        try
+        {
+            OnOfferReceived?.Invoke(offer);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[SignalR] Error handling offer: {ex.Message}");
+        }
+    }
+
+    private void HandleAnswerReceived(string answer)
+    {
+        try
+        {
+            OnAnswerReceived?.Invoke(answer);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[SignalR] Error handling answer: {ex.Message}");
+        }
+    }
+
+    private void HandleIceCandidateReceived(string candidate)
+    {
+        try
+        {
+            OnIceCandidateReceived?.Invoke(candidate);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[SignalR] Error handling ICE candidate: {ex.Message}");
+        }
+    }
+
     public async Task<string?> SendRequestAsync(string targetUser, string payload, int timeoutMs = 5000)
     {
-        if (_connection.State != HubConnectionState.Connected) return "SignalR not connected.";
+        if (Connection.State != HubConnectionState.Connected) return "SignalR not connected.";
 
-        // Create a unique correlation ID
         var correlationId = Guid.NewGuid().ToString("N");
         var tcs = new TaskCompletionSource<string?>();
         _pendingRequests[correlationId] = tcs;
 
-        // Wrap the data in a JSON object
-        var requestObj = new RequestMessage
-        {
-            CorrelationId = correlationId,
-            Payload = payload
-        };
-
+        var requestObj = new RequestMessage { CorrelationId = correlationId, Payload = payload };
         var json = JsonSerializer.Serialize(requestObj);
 
-        // Call a Hub method, e.g. "SendRequest" or something you define server-side
-        // The server is then expected to forward or process this
-        // and eventually call "ReceiveRequestResponse" with the same correlation ID.
-        await SafeInvokeAsync(() =>
-            _connection.InvokeAsync("SendRequest", targetUser, json)
-        );
-
-        // Wait for the response or timeout
+        await SafeInvokeAsync(() => Connection.InvokeAsync("SendRequest", targetUser, json));
         var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(timeoutMs));
         _pendingRequests.TryRemove(correlationId, out _);
 
-        if (completedTask == tcs.Task)
-            // If we got a response in time
-            return tcs.Task.Result;
-
-        return "Timeout: No response received.";
+        return completedTask == tcs.Task ? tcs.Task.Result : "Timeout: No response received.";
     }
-
-    // Existing methods for sending Offer/Answer, ICE, etc. (omitted for brevity)...
-
-    public event Action<string> OnOfferReceived;
-    public event Action<string> OnAnswerReceived;
-    public event Action<string> OnIceCandidateReceived;
 
     private async Task StartConnectionAsync()
     {
         try
         {
-            await _connection.StartAsync();
-            Console.WriteLine("SignalR connection established successfully.");
+            await Connection.StartAsync();
+            Logger.Log("SignalR connection established successfully.");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error while establishing the connection: {ex.Message}");
+            Logger.Log($"Error while establishing the connection: {ex.Message}");
             await HandleReconnection();
         }
     }
 
     private async Task HandleReconnection()
     {
-        while (_connection.State != HubConnectionState.Connected)
+        while (Connection.State != HubConnectionState.Connected)
             try
             {
-                Console.WriteLine("Attempting to reconnect...");
-                await _connection.StartAsync();
-                Console.WriteLine("SignalR connection re-established successfully.");
+                Logger.Log("Attempting to reconnect...");
+                await Connection.StartAsync();
+                Logger.Log("SignalR connection re-established successfully.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error while reconnecting: {ex.Message}");
+                Logger.Log($"Error while reconnecting: {ex.Message}");
                 await Task.Delay(3000);
             }
     }
 
-    // Methods to send messages to the server
     public async Task SendOffer(string targetUser, string offer)
     {
-        await SafeInvokeAsync(() => _connection.InvokeAsync("SendOffer", targetUser, offer));
+        await SafeInvokeAsync(() => Connection.InvokeAsync("SendOffer", targetUser, offer));
     }
 
     public async Task SendAnswer(string targetUser, string answer)
     {
-        await SafeInvokeAsync(() => _connection.InvokeAsync("SendAnswer", targetUser, answer));
+        await SafeInvokeAsync(() => Connection.InvokeAsync("SendAnswer", targetUser, answer));
     }
 
     public async Task SendIceCandidate(string targetUser, string candidate)
     {
-        await SafeInvokeAsync(() => _connection.InvokeAsync("SendIceCandidate", targetUser, candidate));
+        await SafeInvokeAsync(() => Connection.InvokeAsync("SendIceCandidate", targetUser, candidate));
     }
 
     public async Task BroadcastMessage(string message)
     {
-        await SafeInvokeAsync(() => _connection.InvokeAsync("BroadcastMessage", message));
+        await SafeInvokeAsync(() => Connection.InvokeAsync("BroadcastMessage", message));
     }
 
     private async Task SafeInvokeAsync(Func<Task> invokeFunction)
@@ -184,47 +182,16 @@ public class SignalRClient
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error while sending message: {ex.Message}");
-            if (_connection.State != HubConnectionState.Connected)
+            Logger.Log($"Error while sending message: {ex.Message}");
+            if (Connection.State != HubConnectionState.Connected)
             {
-                Console.WriteLine("Connection lost. Attempting to resend...");
+                Logger.Log("Connection lost. Attempting to resend...");
                 await HandleReconnection();
                 await invokeFunction();
             }
         }
     }
-    public async Task<string> InvokeApiAsync(string apiName, string parameters)
-    {
-        // Build the ApiRequest
-        var requestObj = new ApiRequest
-        { 
-            ApiName = apiName,
-            Parameters = parameters
-        };
-        var requestJson = JsonSerializer.Serialize(requestObj);
 
-        // Call the "InvokeApi" method on the hub
-        var responseJson = await _connection.InvokeAsync<string>("InvokeApi", requestJson);
-
-        // You can either return the raw JSON, or parse it back into ApiRequest
-        // For example, parse it:
-        var responseObj = JsonSerializer.Deserialize<ApiRequest>(responseJson);
-        if (responseObj == null)
-            return "ERROR: Could not parse response from the server.";
-
-        // Return the 'Parameters' portion if you just want the data
-        return responseObj.Parameters;
-    }
-
-    // If you reuse the same ApiRequest class as WebRtcManager:
-    private class ApiRequest
-    {
-        public string ApiName { get; set; }
-        public string Parameters { get; set; }
-        public string TargetUser { get; set; }
-    }
-
-    // A simple DTO to wrap the correlation ID + payload
     private class RequestMessage
     {
         public string CorrelationId { get; set; }

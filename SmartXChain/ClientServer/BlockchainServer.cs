@@ -28,87 +28,76 @@ public class BlockchainServer
     /// </summary>
     internal static NodeStartupResult Startup { get; private set; }
 
-    /// <summary>
-    ///     Starts the blockchain server by initializing key tasks such as peer discovery, server startup,
-    ///     and peer synchronization.
-    /// </summary>
-    public void Start()
-    {
-        // 1. Discover and register with peer servers
-        Task.Run(() => DiscoverAndRegisterWithPeers());
-
-        // 2. Start the main server to listen for incoming messages
-        Task.Run(() => StartServerAsync());
-
-        // 3. Background task to synchronize with peer servers
-        Task.Run(() => SynchronizeWithPeers());
-    }
 
     /// <summary>
     ///     Starts a new node on the blockchain and initializes the blockchain for that node.
     /// </summary>
-    /// <param name="walletAddress">The wallet address to associate with the node.</param>
     /// <returns>A Task that resolves to a <see cref="NodeStartupResult" /> containing the blockchain and node information.</returns>
-    public static async Task<NodeStartupResult> StartNode(string walletAddress)
-    {
-        // Start the node and initialize its configuration
-        var node = await Node.Start();
-
-        // Create a new blockchain with the provided wallet address
-        var blockchain = new Blockchain(walletAddress, node.ChainId);
-
-        // Set up the result containing the blockchain and node
-        Startup = new NodeStartupResult(blockchain, node);
-        return Startup;
-    }
-
     /// <summary>
     ///     Starts the server asynchronously.
     /// </summary>
-    public static async Task<(BlockchainServer?, NodeStartupResult?)> StartServerAsync(bool loadExisting = true)
-    {
-        NodeStartupResult? result = null;
-
-        // Initialize and start the node
-        await Task.Run(async () => { result = await StartNode(Config.Default.MinerAddress); });
-
-        if (result is null or { Blockchain: null })
-            throw new InvalidOperationException("Failed to initialize the blockchain node.");
-
-        BlockchainServer? server = null;
-
+    public static async Task<NodeStartupResult> StartServerAsync(bool loadExisting = true)
+    { 
         // Initialize and start the server
-        await Task.Run(() =>
-        {
-            try
+
+        try
+        { 
+            await Task.Run(async () =>
             {
-                server = new BlockchainServer();
+                var server = new BlockchainServer();
                 var signalHubs = Config.Default.SignalHubs;
+                var node = await Node.Start(); 
+                var blockchain = new Blockchain(Config.Default.MinerAddress, node.ChainId);
+
+
+                (SignalRClient, WebRtcManager) clientConnections;
                 foreach (var signalHub in signalHubs)
                 {
-                    using var peerConnection = CreatePeerConnection(signalHub, Startup.Blockchain);
+                    (SignalR,WebRtc) = await CreatePeerConnection(signalHub, blockchain); 
+                    break;
                 }
-                 
-                Logger.Log(
-                    $"Server node for blockchain '{Config.Default.ChainId}' started at {Config.Default.NodeAddress}");
-            }
-            catch (Exception ex)
-            {
-                Logger.LogException(ex, "starting server");
-            }
-        });
+  
+                Startup = new NodeStartupResult(blockchain, node, server, SignalR, WebRtc) ;
 
-        Startup = result;
+                Task.Run(() => DiscoverAndRegisterWithPeers()); 
+                Task.Run(() => SynchronizeWithPeers()); 
+
+            });
+
+            Logger.Log(
+                $"Server node for blockchain '{Config.Default.ChainId}' started at {Config.Default.NodeAddress}");
+          
+        
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex, "starting server");
+        }
+
+        while (Startup==null) 
+            ;
+        while (Startup.Server == null || 
+               Startup.Node == null || 
+               Startup.Blockchain == null || 
+               Startup.WebRtc == null || 
+               Startup.SignalRClient == null)
+            ; 
+        while (Startup.SignalRClient.Connection == null)
+            ;
+        while (string.IsNullOrEmpty(Startup.SignalRClient.Connection.ConnectionId))
+            ;
+
+        Config.Default.NodeAddress = Startup.SignalRClient.Connection.ConnectionId;
 
         if (loadExisting)
         {
             var chainPath = "";
             try
             {
-                chainPath = Path.Combine(Config.Default.BlockchainPath, "chain-" + result!.Node.ChainId);
+                chainPath = Path.Combine(Config.Default.BlockchainPath, "chain-" + Startup!.Node.ChainId);
                 if (File.Exists(chainPath))
                 {
-                    result!.Blockchain = Blockchain.Load(chainPath);
+                    Startup.Blockchain = Blockchain.Load(chainPath); ;
                 }
                 else
                 {
@@ -121,12 +110,15 @@ public class BlockchainServer
                 Logger.LogException(ex, $"loading existing chain from {chainPath}");
                 Logger.LogError($"{ex.Message}");
             }
-        }
-
-        return (server, result);
+        } 
+        return Startup;
     }
 
-    private static async Task CreatePeerConnection(string signalHub, Blockchain blockchain) 
+    public static WebRtcManager WebRtc { get; set; }
+
+    public static SignalRClient SignalR { get; set; }
+
+    private static async Task<(SignalRClient, WebRtcManager)> CreatePeerConnection(string signalHub, Blockchain blockchain) 
     {
         // Load your secret for JWT
         var signalRSigningKey = Environment.GetEnvironmentVariable("SIGNALR_PASSWORD");
@@ -142,17 +134,20 @@ public class BlockchainServer
         var jwtToken = GenerateJwtToken(name, signalRSigningKey);
 
         // Connect the SignalR client to the server
-        await signalRClient.ConnectAsync(signalHub, jwtToken);
+         _ = Task.Run(async () =>
+         {
+             await signalRClient.ConnectAsync(signalHub, jwtToken);
+         });
+         
+        // Initialize the SIPSorcery WebRTC peer 
+         _ = Task.Run(async () =>
+         {
+             await webRtcManager.InitializeAsync(blockchain);
+         });
 
-        // Initialize the SIPSorcery WebRTC peer
-        await webRtcManager.InitializeAsync(blockchain);
-
-        WebRtc = webRtcManager;
-        SignalR = signalRClient;
+        return (signalRClient, webRtcManager);
     }
-
-    public static WebRtcManager WebRtc { get; set; } = null;
-    public static SignalRClient SignalR { get; set; } = null;
+     
 
     // JWT generator for SignalR authentication
     private static string GenerateJwtToken(string issuer, string signingKey)
@@ -179,7 +174,7 @@ public class BlockchainServer
     ///     Discovers peers from the configuration and registers them in the peer server list,
     ///     excluding the current server addresses.
     /// </summary>
-    private void DiscoverAndRegisterWithPeers()
+    private static void DiscoverAndRegisterWithPeers()
     {
         var validPeers = new ConcurrentList<string>();
 
@@ -200,7 +195,7 @@ public class BlockchainServer
     /// <summary>
     ///     Refactored SynchronizeWithPeers to utilize SecureCommunication and process responses.
     /// </summary>
-    private async Task SynchronizeWithPeers()
+    private static async Task SynchronizeWithPeers()
     {
         while (true)
         {
@@ -214,21 +209,21 @@ public class BlockchainServer
     /// </summary>
     public static async Task Sync()
     {
-        foreach (var peer in Node.CurrentNodes)
+        foreach (var nodeAddress in Node.CurrentNodes)
         {
-            if (peer == Config.Default.NodeAddress)
+            if (nodeAddress == Config.Default.NodeAddress)
                 continue;
 
-            var (success, response) = await SendSecureMessage(peer, "Nodes", Config.Default.NodeAddress);
-
-            if (success && !string.IsNullOrEmpty(response))
+            var response = await WebRtc.SendRequestAsync(nodeAddress, "Nodes:"+ Config.Default.NodeAddress);
+ 
+            if (string.IsNullOrEmpty(response))
                 try
                 {
                     var responseObject = JsonSerializer.Deserialize<ChainInfo>(response);
                     if (responseObject != null)
                     {
                         if (Config.Default.Debug)
-                            Logger.Log($"SynchronizeWithPeers  {peer} Result: {responseObject.Message}");
+                            Logger.Log($"SynchronizeWithPeers  {nodeAddress} Result: {responseObject.Message}");
 
                         foreach (var node in responseObject.Message.Split(','))
                             Node.AddNodeIP(node);
@@ -255,10 +250,10 @@ public class BlockchainServer
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogException(ex, $"Failed to parse or update nodes from peer {peer}");
+                    Logger.LogException(ex, $"Failed to parse or update nodes from peer {nodeAddress}");
                 }
             else
-                Logger.LogError($"Synchronization with peer {peer} failed or returned no response.");
+                Logger.LogError($"Synchronization with peer {nodeAddress} failed or returned no response.");
         }
     }
 
@@ -283,37 +278,30 @@ public class BlockchainServer
             {
                 var compressedMessage = Convert.ToBase64String(Compress.CompressString(message));
                 var msg = ChainInfo.CreateChainInfo(blockchain, compressedMessage);
-
-                var (success, response) =
-                    await SendSecureMessage(peer, "NewBlocks", JsonSerializer.Serialize(msg));
-
-                if (success)
+                 
+                var response = await WebRtc.SendRequestAsync(peer, "NewBlocks:"+ JsonSerializer.Serialize(msg));
+                 
+                if (!string.IsNullOrEmpty(response))
                 {
-                    if (!string.IsNullOrEmpty(response))
+                    if (Config.Default.Debug)
+                        Logger.Log($"Broadcast to {peer} successful. Response: {response}");
+
+                    var responseObject = JsonSerializer.Deserialize<ChainInfo>(response);
+                    if (responseObject != null)
                     {
                         if (Config.Default.Debug)
-                            Logger.Log($"Broadcast to {peer} successful. Response: {response}");
-
-                        var responseObject = JsonSerializer.Deserialize<ChainInfo>(response);
-                        if (responseObject != null)
-                        {
-                            if (Config.Default.Debug)
-                                Logger.Log($"Broadcast to {peer} Result: {responseObject.Message}");
-                        }
-                        else
-                        {
-                            Logger.LogError("ChainInfo Deserialize failed: Invalid response structure");
-                        }
+                            Logger.Log($"Broadcast to {peer} Result: {responseObject.Message}");
                     }
                     else
                     {
-                        Logger.LogError($"Broadcast to {peer} failed. Response is null.");
+                        Logger.LogError("ChainInfo Deserialize failed: Invalid response structure");
                     }
                 }
                 else
                 {
-                    Logger.LogError($"Broadcast to {peer} failed. SendSecureMessage failed");
+                    Logger.LogError($"Broadcast to {peer} failed. Response is null.");
                 }
+ 
             }
             finally
             {
@@ -336,16 +324,15 @@ public class BlockchainServer
 
             try
             {
-                var (success, response) =
-                    await SendSecureMessage(responseObject.URL, $"GetBlocks/{block}/{toBlock}", Config.Default.NodeAddress);
-
-                if (success && !string.IsNullOrEmpty(response))
+                var response = await WebRtc.SendRequestAsync(responseObject.NodeAddress, $"GetBlocks/{block}/{toBlock}:" + Config.Default.NodeAddress);
+ 
+                if (!string.IsNullOrEmpty(response))
                 {
                     var chainInfo = JsonSerializer.Deserialize<ChainInfo>(response);
                     if (chainInfo != null && Startup.Blockchain != null)
                     {
                         if (Config.Default.Debug)
-                            Logger.Log($"GetBlocks {block}-{toBlock} from {responseObject.URL} Success");
+                            Logger.Log($"GetBlocks {block}-{toBlock} from {responseObject.NodeAddress} Success");
 
                         if (!string.IsNullOrEmpty(chainInfo.Message))
                         {
@@ -367,17 +354,17 @@ public class BlockchainServer
                                 catch (JsonException jsonEx)
                                 {
                                     Logger.LogException(jsonEx,
-                                        $"JSON deserialization failed for blocks in range {block}-{toBlock} from {responseObject.URL}");
+                                        $"JSON deserialization failed for blocks in range {block}-{toBlock} from {responseObject.NodeAddress}");
                                 }
                             else
-                                Logger.LogError(chainInfo.URL + ": " + chainInfo.Message);
+                                Logger.LogError(chainInfo.NodeAddress + ": " + chainInfo.Message);
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                Logger.LogException(ex, $"Failed to GetBlocks {block}-{toBlock} from {responseObject.URL}");
+                Logger.LogException(ex, $"Failed to GetBlocks {block}-{toBlock} from {responseObject.NodeAddress}");
             }
         }
     }
@@ -515,13 +502,7 @@ public class BlockchainServer
         }
 
         return false;
-    }
-
-    internal static async Task<(bool success, string? response)> SendSecureMessage(string peer,
-        string command, string message)
-    {
-        throw new NotImplementedException();
-    }
+    } 
 
     internal static async Task<(bool success, string? response)> SendSecureMessage(ConcurrentList<string> peers,
         string command, string message)
@@ -538,11 +519,20 @@ public class BlockchainServer
         /// </summary>
         /// <param name="blockchain">The initialized blockchain instance.</param>
         /// <param name="node">The node associated with the blockchain.</param>
-        public NodeStartupResult(Blockchain? blockchain, Node node)
+        public NodeStartupResult(Blockchain? blockchain, Node node, BlockchainServer server, SignalRClient signalRClient, WebRtcManager webRtc)
         {
             Blockchain = blockchain;
             Node = node;
+            Server = server;        
+            SignalRClient = signalRClient;
+            WebRtc = webRtc; 
         }
+
+        public WebRtcManager WebRtc { get; set; }
+
+        public SignalRClient SignalRClient { get; set; }
+
+        public BlockchainServer Server { get; set; }
 
         /// <summary>
         ///     Gets or sets the blockchain associated with the node.
@@ -553,5 +543,5 @@ public class BlockchainServer
         ///     Gets the node instance associated with the blockchain.
         /// </summary>
         public Node Node { get; }
-    }
+    } 
 }

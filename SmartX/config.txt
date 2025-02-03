@@ -6,5 +6,5 @@ MaxParallelConnections=10
 
 [Miner]
 
-[Peers] 
+[SignalHubs] 
 https://netregservice.com:5050/signalrhub

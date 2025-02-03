@@ -32,7 +32,7 @@ internal class Program
         }
     }
 
-    private static async Task Main(string[] args)
+    public static async Task Main(string[] args)
     {
         ChainName = ChainNames.SmartXChain;
         var port = 5556;
@@ -51,13 +51,6 @@ internal class Program
             if (!File.Exists(configFile) || TestNet)
                 File.Copy(configInitialPath, configFile, true);
             Default.ReloadConfig();
-
-
-            var indexhtmSrc = Path.Combine(new FileInfo(Assembly.GetExecutingAssembly().Location).DirectoryName,
-                "index.html");
-            var indexhtmDest = Path.Combine(FileSystem.WWWRoot, "index.html");
-
-            File.WriteAllText(indexhtmDest, Functions.ReplaceBody(File.ReadAllText(indexhtmSrc)));
         }
 
         var publicIP = await NetworkUtils.GetPublicIPAsync(debug: true);
@@ -67,7 +60,7 @@ internal class Program
         // Initialize application and start the blockchain server
         await InitializeApplicationAsync();
 
-        var (_, startup) = await BlockchainServer.StartServerAsync();
+        var startup = await BlockchainServer.StartServerAsync();
 
         await RunConsoleMenuAsync(startup);
     }
@@ -76,8 +69,7 @@ internal class Program
     {
         Logger.LogLine("Application start");
 
-        // ensure wallet and keys are set up
-
+        // ensure wallet and keys are set up 
         if (string.IsNullOrEmpty(Default.MinerAddress))
         {
             SmartXWallet.GenerateWallet();

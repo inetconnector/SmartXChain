@@ -17,20 +17,7 @@ public static class FileSystem
             return blockchainPath;
         }
     }
-
-    public static string WWWRoot
-    {
-        get
-        {
-            var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                ChainName.ToString());
-
-            var wwwroot = Path.Combine(appDir, "wwwroot");
-            Directory.CreateDirectory(wwwroot);
-            return wwwroot;
-        }
-    }
-
+     
     public static string ContractsDir
     {
         get
@@ -139,10 +126,7 @@ public static class FileSystem
             ChainName.ToString());
 
         if (Directory.Exists(appDir))
-        {
-            if (Directory.Exists(WWWRoot))
-                Directory.Delete(WWWRoot, true);
-
+        {  
             if (Directory.Exists(BlockchainPath))
                 Directory.Delete(BlockchainPath, true);
 
