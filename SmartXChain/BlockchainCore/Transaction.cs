@@ -57,7 +57,7 @@ public class Transaction
     public Guid ID { get; internal set; }
 
     /// <summary>
-    ///     Represents the parent Block
+    ///     Represents the parent Blocks
     /// </summary>
     [JsonInclude]
     internal string ParentBlock { get; set; }
@@ -589,7 +589,7 @@ public class Transaction
         AddProperty("Recipient", Recipient, string.IsNullOrEmpty);
         AddProperty("Amount", Amount, v => v == 0);
         AddProperty("Gas", Gas, v => v == 0);
-        AddProperty("Data", Data, string.IsNullOrEmpty);
+        AddProperty("ChainInfo", Data, string.IsNullOrEmpty);
         AddProperty("Info", Info, string.IsNullOrEmpty);
         AddProperty("Timestamp", Timestamp, v => v == default);
         AddProperty("Signature", Signature, string.IsNullOrEmpty);

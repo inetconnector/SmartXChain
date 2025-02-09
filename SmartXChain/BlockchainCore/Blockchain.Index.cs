@@ -16,7 +16,7 @@
 //    ///     Indexes all transactions from a given block for efficient lookup.
 //    /// </summary>
 //    /// <param name="block">The block containing transactions to index.</param>
-//    private void IndexTransactions(Block? block)
+//    private void IndexTransactions(Blocks? block)
 //    {
 //        if (block != null)
 //        {

@@ -33,6 +33,7 @@ public class Node
     ///     A Thread safe list of IP addresses for nodes currently known to the system.
     /// </summary>
     public static ConcurrentList<string> CurrentNodes { get; set; } = new();
+    public static ConcurrentDictionary <string,string> CurrentNodes_SDP{ get; set; } = new();
 
     /// <summary>
     ///     A dictionary of IP addresses for nodes with las activity currently known to the system.
@@ -63,7 +64,7 @@ public class Node
 
         var node = new Node(nodeAddress, chainId);
         Logger.Log("Starting server discovery...");
-          
+
 
         // Retry server discovery if no active servers are found
         if (Config.Default.SignalHubs.Count == 0)
@@ -71,44 +72,12 @@ public class Node
             Logger.Log("No active signalHubs found. Waiting for a server...");
             while (Config.Default.SignalHubs.Count == 0)
             {
-                await Task.Delay(5000); 
+                await Task.Delay(5000);
             }
         }
-
-        foreach (var signalHub in Config.Default.SignalHubs)
-            _ = Task.Run(async () =>
-            { 
-                Logger.Log($"Registering {nodeAddress} at {signalHub} ...");
-                await RegisterNodeAdressAsync(nodeAddress);
-            });
-
-        // Periodically retrieve registered nodes
-        _ = Task.Run(async () =>
-        {  
-            while (true)
-            {
-                try
-                {
-                    foreach (var server in CurrentNodes)
-                    {
-                        var nodeIPList = await GetRegisteredNodesAsync(server);
-
-                        foreach (var nodeIP in nodeIPList)
-                            AddNodeIP(nodeIP);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogException(ex, "retrieving nodes");
-                }
-
-                Thread.Sleep(10000);
-            }
-        });
-
         return node;
     }
-     
+
 
     /// <summary>
     ///     Removes a node from CurrentNodes and CurrentNodes_LastActive
@@ -117,7 +86,7 @@ public class Node
     public static void RemoveNodeAddress(string nodeAddress)
     {
         lock (CurrentNodes)
-        { 
+        {
             if (CurrentNodes.Contains(nodeAddress))
             {
                 var tempList = new List<string>();
@@ -131,83 +100,25 @@ public class Node
                 CurrentNodes.Clear();
                 foreach (var remainingIp in tempList) CurrentNodes.Add(remainingIp);
 
-                CurrentNodes_LastActive.TryRemove(nodeAddress, out _); 
+                CurrentNodes_LastActive.TryRemove(nodeAddress, out _);
             }
         }
     }
 
 
     /// <summary>
-    ///     Adds a node IP and updates CurrentNodes_LastActive, ensuring no duplicates (URLs or IPs).
+    ///     Adds a node and updates CurrentNodes_LastActive, ensuring no duplicates (URLs or IPs).
     /// </summary>
     /// <param name="server">The server NodeAddress</param>
-    public static void AddNodeIP(string server)
+    /// <param name="sdp">Webrtc offer</param>
+    public static void AddNode(string server, string sdp)
     {
-        // Resolve the server NodeAddress to its IP
-        var resolvedServerIp = NetworkUtils.ResolveUrlToIp(server);
-
-        if (string.IsNullOrEmpty(resolvedServerIp))
+        if (!CurrentNodes.Contains(server))
         {
-            if (Config.Default.Debug) Logger.Log($"Failed to resolve IP for server: {server}");
-            return;
-        }
-
-        foreach (var node in CurrentNodes)
-        {
-            var resolvedNodeIp = NetworkUtils.ResolveUrlToIp(node);
-
-            if (resolvedServerIp == resolvedNodeIp)
-            {
-                if (resolvedNodeIp != server && CurrentNodes.Contains(resolvedNodeIp))
-                {
-                    RemoveNodeAddress(resolvedNodeIp);
-                    CurrentNodes.Add(server);
-                    CurrentNodes_LastActive[server] = DateTime.UtcNow;
-                }
-
-                return;
-            }
-        }
-
-        if (NetworkUtils.IsValidServer(server))
-        {
-            CurrentNodes_LastActive[server] = DateTime.UtcNow;
             CurrentNodes.Add(server);
-
-            if (Config.Default.Debug) Logger.Log($"New server added: {server}");
+            CurrentNodes_SDP.TryAdd(server, sdp);
+            if (Config.Default.Debug) Logger.Log($"New server added: {server}"); 
         }
-    }
-     
-
-    /// <summary>
-    ///     Registers the node with a specific server.
-    /// </summary>
-    /// <param name="nodeAddress">The address of the server to register with.</param>
-    private static async Task RegisterNodeAdressAsync(string nodeAddress)
-    {
-        try
-        {
-            string response="";
-            while (SignalR==null)
-            {
-                if (SignalR!=null)
-                {
-                    var signature = Crypt.GenerateHMACSignature(nodeAddress, Config.Default.ChainId);
-                    response = (await SignalR.SendRequestAsync(nodeAddress, $"Register:{nodeAddress}|{signature}"))!;
-
-                    if (response.Contains("ok"))
-                        AddNodeIP(nodeAddress);
-                }
-
-                Thread.Sleep(10);
-            } 
-
-            if (Config.Default.Debug)
-                Logger.Log($"Response from server {nodeAddress}: {response}");
-        }
-        catch (Exception ex)
-        {
-            Logger.LogException(ex, $"RegisterNodeAdressAsync: registering with server {nodeAddress} failed");
-        }
+        CurrentNodes_LastActive[server] = DateTime.UtcNow; 
     }
 }

@@ -54,10 +54,9 @@ public class Blockchain
         {
             var contracts = new ConcurrentDictionary<string, SmartContract?>();
 
-            if (Chain != null)
-                foreach (var block in Chain)
-                foreach (var kvp in block.SmartContracts)
-                    contracts.TryAdd(kvp.Key, kvp.Value);
+            foreach (var block in Chain)
+            foreach (var kvp in block.SmartContracts)
+                contracts.TryAdd(kvp.Key, kvp.Value);
 
             return contracts;
         }
@@ -118,7 +117,7 @@ public class Blockchain
     {
         if (block == null)
         {
-            Logger.LogError("Block not added to chain. Block is null.");
+            Logger.LogError("Blocks not added to chain. Blocks is null.");
             return false;
         }
 
@@ -126,45 +125,44 @@ public class Blockchain
         {
             if (mineBlock) block.Mine(_difficulty);
 
-            if (Chain != null)
-                lock (Chain)
+            lock (Chain)
+            {
+                if (index.HasValue && index.Value <= Chain.Count)
                 {
-                    if (index.HasValue && index.Value <= Chain.Count)
+                    if (index.Value < 0)
                     {
-                        if (index.Value < 0)
-                        {
-                            Logger.LogError("Invalid index for adding block.");
-                            return false;
-                        }
-
-                        if (index.Value > 0 && Chain[index.Value - 1].Hash != block.PreviousHash)
-                        {
-                            Logger.LogError("Block not added to chain -- invalid previous block for given index.");
-                            return false;
-                        }
-
-                        if (index.Value < Chain.Count && Chain[index.Value].PreviousHash != block.Hash)
-                        {
-                            Logger.LogError("Block not added to chain -- would break chain consistency.");
-                            return false;
-                        }
-
-                        Chain.Insert(index.Value, block);
+                        Logger.LogError("Invalid index for adding block.");
+                        return false;
                     }
-                    else
+
+                    if (index.Value > 0 && Chain[index.Value - 1].Hash != block.PreviousHash)
                     {
-                        if (Chain.Count > 0 && Chain.Last().Hash != block.PreviousHash)
-                        {
-                            Logger.LogError("Block not added to chain -- invalid previous block.");
-                            return false;
-                        }
-
-                        Chain.Add(block);
+                        Logger.LogError("Blocks not added to chain -- invalid previous block for given index.");
+                        return false;
                     }
+
+                    if (index.Value < Chain.Count && Chain[index.Value].PreviousHash != block.Hash)
+                    {
+                        Logger.LogError("Blocks not added to chain -- would break chain consistency.");
+                        return false;
+                    }
+
+                    Chain.Insert(index.Value, block);
                 }
+                else
+                {
+                    if (Chain.Count > 0 && Chain.Last().Hash != block.PreviousHash)
+                    {
+                        Logger.LogError("Blocks not added to chain -- invalid previous block.");
+                        return false;
+                    }
+
+                    Chain.Add(block);
+                }
+            }
         }
 
-        Logger.Log("Block added to chain successfully: " + block.Hash);
+        Logger.Log("Blocks added to chain successfully: " + block.Hash);
 
         // Optimize: Index transactions for quick lookup
         //IndexTransactions(block);
@@ -221,7 +219,7 @@ public class Blockchain
     /// <returns>True if the address has received a Founder Reward; otherwise, false.</returns>
     public bool HasReceivedFounderReward(string address)
     {
-        if (Chain == null || string.IsNullOrEmpty(address)) return false;
+        if (string.IsNullOrEmpty(address)) return false;
 
         foreach (var block in Chain)
         foreach (var transaction in block.Transactions)
@@ -304,11 +302,8 @@ public class Blockchain
             if (!await PayGas("Transaction", transaction.Sender, gas))
                 return false;
 
-        if (PendingTransactions != null)
-            lock (PendingTransactions)
-            {
-                PendingTransactions.Add(transaction);
-            }
+        lock (PendingTransactions) 
+            PendingTransactions.Add(transaction); 
 
         if (mine) await MinePendingTransactions(transaction.Sender);
         return true;
@@ -440,9 +435,9 @@ public class Blockchain
             var positiveVotes = results.Count(result => result.Item1 && result.Item2.StartsWith("ok#"));
 
             if (positiveVotes >= requiredVotes)
-                Logger.Log("Consensus reached. Block validated.");
+                Logger.Log("Consensus reached. Blocks validated.");
             else
-                Logger.Log("No consensus reached. Block discharge.");
+                Logger.Log("No consensus reached. Blocks discharge.");
 
             // Collect reward addresses from the positive vote results
             var rewardAddresses = new ConcurrentList<string>();
@@ -676,90 +671,88 @@ public class Blockchain
             counter++;
         }
 
-        if (ValidateChain())
-        {
-            if (Chain != null)
-            {
-                var retryCount = 0; 
-                var blockAdded = false;
+        var retryCount = 0;
+        var blockAdded = false;
 
-                do
+        do
+        {
+            await Sync();
+            if (!ValidateChain()) continue;
+
+            var transactionsToMine = new List<Transaction>();
+
+            if (PendingTransactions != null)
+                lock (PendingTransactions)
                 {
-                    var transactionsToMine = new List<Transaction>();
-
-                    if (PendingTransactions != null)
-                        lock (PendingTransactions)
-                        {
-                            if (PendingTransactions.Count == 0)
-                            {
-                                Logger.Log("No transactions to mine.");
-                                return;
-                            }
-
-                            transactionsToMine = PendingTransactions.ToList();
-                        }
-
-                    await Sync(); 
-                    var previousHash = Chain.Last().Hash;
-                    var block = new Block(transactionsToMine, previousHash);
-
-                    // Find consensus between validators
-                    var (consensusReached, rewardAddresses) = await ReachConsensus(block);
-
-                    if (consensusReached)
+                    if (PendingTransactions.Count == 0)
                     {
-                        // Attempt to add block to chain
-                        blockAdded = AddBlock(block);
-
-                        if (blockAdded)
-                        {
-                            var blocks = new List<Block> { block };
-
-                            // Broadcast the new block securely
-                            _ = BroadcastBlockToPeers(Node.CurrentNodes, blocks, this);
-
-                            // Clear pending transactions
-                            PendingTransactions?.Clear();
-
-                            // Reward the miner
-                            var rewardTransaction = new RewardTransaction(this, Config.Default.MinerAddress);
-                            await AddTransaction(rewardTransaction);
-
-                            // Reward the validators
-                            foreach (var address in rewardAddresses)
-                            {
-                                if (address == minerAddress)
-                                    continue;
-
-                                rewardTransaction = new RewardTransaction(this, address, true);
-                                await AddTransaction(rewardTransaction);
-                                Logger.Log(
-                                    $"Validator reward: {rewardTransaction.Reward} to validator {address}");
-                            }
-
-                            Logger.Log($"Block successfully mined and added to the chain. Retries: {retryCount}");
-                        }
-                        else
-                        {
-                            Logger.LogWarning("AddBlock failed. Retrying after Sync...");
-                            await Sync(); // Sync chain to get the latest state
-                            retryCount++;
-                        }
+                        Logger.Log("No transactions to mine.");
+                        return;
                     }
-                    else
+
+                    transactionsToMine = PendingTransactions.ToList();
+                }
+
+            var previousHash = Chain.Last().Hash;
+            var block = new Block(transactionsToMine, previousHash);
+
+            // Find consensus between validators
+            var (consensusReached, rewardAddresses) = await ReachConsensus(block);
+
+            if (consensusReached)
+            {
+                // Attempt to add block to chain
+                blockAdded = AddBlock(block);
+
+                if (blockAdded)
+                {
+                    // Broadcast the new block   
+                    var blocks = new List<Block> { block }; 
+                    var compressedBlocks = Convert.ToBase64String(Compress.CompressString(JsonSerializer.Serialize(blocks)));
+                    var messageModel = new BroadcastMessageModel
                     {
-                        Logger.LogError("Block rejected.");
-                        break;
-                    }
-                } while (!blockAdded && retryCount < _maxBlockRetries);
+                        Type = BroadcastMessageType.Blocks,
+                        Info = await Info(compressedBlocks)
+                    }; 
+                    var jsonMessage = JsonSerializer.Serialize(messageModel);
+                    await SignalR.BroadcastMessage(jsonMessage);
 
-                if (!blockAdded) Logger.LogError($"Failed to add block after {_maxBlockRetries} attempts.");
+                    // Clear pending transactions
+                    PendingTransactions?.Clear();
+
+                    // Reward the miner
+                    var rewardTransaction = new RewardTransaction(this, Config.Default.MinerAddress);
+                    await AddTransaction(rewardTransaction);
+
+                    // Reward the validators
+                    foreach (var address in rewardAddresses)
+                    {
+                        if (address == minerAddress)
+                            continue;
+
+                        rewardTransaction = new RewardTransaction(this, address, true);
+                        await AddTransaction(rewardTransaction);
+                        Logger.Log(
+                            $"Validator reward: {rewardTransaction.Reward} to validator {address}");
+                    }
+
+                    Logger.Log($"Blocks successfully mined and added to the chain. Retries: {retryCount}");
+                }
+                else
+                {
+                    Logger.LogWarning("AddBlock failed. Retrying after Sync...");
+                    retryCount++;
+                }
             }
-        }
-        else
-        {
-            Logger.LogError("The chain is not valid.");
-        }
+            else
+            {
+                Logger.LogError("Blocks rejected.");
+                break;
+            }
+
+        } while (!blockAdded && retryCount < _maxBlockRetries);
+
+        if (!blockAdded) Logger.LogError($"Failed to add block after {_maxBlockRetries} attempts.");
     }
 
 
@@ -820,22 +813,21 @@ public class Blockchain
     /// <returns>True if the blockchain is valid; otherwise, false.</returns>
     public bool ValidateChain()
     {
-        if (Chain != null)
-            lock (Chain)
+        lock (Chain)
+        {
+            for (var i = 1; i < Chain.Count; i++)
             {
-                for (var i = 1; i < Chain.Count; i++)
-                {
-                    var current = Chain[i];
-                    var previous = Chain[i - 1];
+                var current = Chain[i];
+                var previous = Chain[i - 1];
 
-                    if (current.Hash != current.CalculateHash())
-                        return false;
+                if (current.Hash != current.CalculateHash())
+                    return false;
 
-                    if (current.PreviousHash != previous.Hash)
-                        return false;
-                }
+                if (current.PreviousHash != previous.Hash)
+                    return false;
             }
 
+        } 
 
         return true;
     }
@@ -860,7 +852,7 @@ public class Blockchain
         {
             var block = Chain[i];
             Logger.LogLine("BLOCK");
-            Logger.Log($"Block Index: {i}");
+            Logger.Log($"Blocks Index: {i}");
             Logger.Log($"Timestamp: {block.Timestamp}");
             Logger.Log($"Hash: {block.Hash}");
             Logger.Log($"Previous Hash: {block.PreviousHash}");
@@ -876,7 +868,7 @@ public class Blockchain
                     if (transaction.Amount > 0)
                         Logger.Log($"Amount: {transaction.Amount}");
                     if (!string.IsNullOrEmpty(transaction.Data))
-                        Logger.Log($"Data: {transaction.Data}");
+                        Logger.Log($"Info: {transaction.Data}");
                     if (!string.IsNullOrEmpty(transaction.Info))
                         Logger.Log($"Info: {transaction.Info}");
 
@@ -1071,7 +1063,7 @@ public class Blockchain
     }
 
     /// <summary>
-    ///     Decodes a list<Block>
+    ///     Decodes a list<Blocks>
     /// </summary>
     /// <param name="base64Data"></param>
     /// <returns></returns>
@@ -1174,7 +1166,7 @@ public class Blockchain
                 // Check if the current block's hash is valid
                 if (currentBlock.Hash != currentBlock.CalculateHash())
                 {
-                    Logger.LogError($"Block {i} has an invalid hash.");
+                    Logger.LogError($"Blocks {i} has an invalid hash.");
                     isValid = false;
                     lastValidIndex = Math.Min(lastValidIndex, i - 1); // Update the last valid index
                     state.Stop(); // Stop further iterations if invalid
@@ -1183,7 +1175,7 @@ public class Blockchain
                 // Check if the previous hash in the current block matches the hash of the previous block
                 if (currentBlock.PreviousHash != previousBlock.Hash)
                 {
-                    Logger.LogError($"Block {i} has an invalid previous hash.");
+                    Logger.LogError($"Blocks {i} has an invalid previous hash.");
                     isValid = false;
                     lastValidIndex = Math.Min(lastValidIndex, i - 1); // Update the last valid index
                     state.Stop(); // Stop further iterations if invalid

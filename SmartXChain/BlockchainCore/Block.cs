@@ -115,7 +115,7 @@ public sealed class Block
             }
         }
 
-        Logger.Log($"Block mined: {Hash}");
+        Logger.Log($"Blocks mined: {Hash}");
     }
 
     /// <summary>
@@ -143,7 +143,7 @@ public sealed class Block
     ///     Reconstructs a block from a Base64-encoded string.
     /// </summary>
     /// <param name="base64String">The Base64 string representation of the block.</param>
-    /// <returns>A Block object or null if deserialization fails.</returns>
+    /// <returns>A Blocks object or null if deserialization fails.</returns>
     public static Block? FromBase64(string base64String)
     {
         try
@@ -155,7 +155,7 @@ public sealed class Block
         }
         catch (Exception e)
         {
-            Logger.LogException(e, "Block decompress failed.");
+            Logger.LogException(e, "Blocks decompress failed.");
         }
 
         return null;
@@ -168,14 +168,14 @@ public sealed class Block
     public void Save(string filePath)
     {
         File.WriteAllBytes(filePath, GetBytes());
-        Logger.Log("Block saved (compressed) to file.");
+        Logger.Log("Blocks saved (compressed) to file.");
     }
 
     /// <summary>
     ///     Loads a block from a compressed file.
     /// </summary>
     /// <param name="filePath">The file path to load the block from.</param>
-    /// <returns>A Block object or null if deserialization fails.</returns>
+    /// <returns>A Blocks object or null if deserialization fails.</returns>
     public static Block? Load(string filePath)
     {
         var compressedData = File.ReadAllBytes(filePath);

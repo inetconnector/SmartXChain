@@ -67,13 +67,13 @@ public sealed class ShardedBlockchain : Blockchain
             if (previousBlock != null && block.PreviousHash != previousBlock.Hash)
             {
                 Logger.Log(
-                    $"Validation failed: Block {block.Hash} does not match previous block {previousBlock.Hash}.");
+                    $"Validation failed: Blocks {block.Hash} does not match previous block {previousBlock.Hash}.");
                 return false;
             }
 
             if (block.Hash != block.CalculateHash())
             {
-                Logger.Log($"Validation failed: Block {block.Hash} hash is invalid.");
+                Logger.Log($"Validation failed: Blocks {block.Hash} hash is invalid.");
                 return false;
             }
 

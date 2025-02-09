@@ -12,6 +12,7 @@ public class SignalRClient
     public event Action<string> OnBroadcastMessageReceived;
     public event Action<string> OnOfferReceived;
     public event Action<string> OnAnswerReceived;
+    public event Action<string> OnGetOfferReceived;
     public event Action<string> OnIceCandidateReceived;
 
     public async Task ConnectAsync(string serverUrl, string jwtToken)
@@ -31,6 +32,7 @@ public class SignalRClient
         Connection.On<string>("ReceiveRequestResponse", OnRequestResponseReceived);
         Connection.On<string>("ReceiveOffer", HandleOfferReceived);
         Connection.On<string>("ReceiveAnswer", HandleAnswerReceived);
+        Connection.On<string>("GetOffer", HandleGetOffer);
         Connection.On<string>("ReceiveIceCandidate", HandleIceCandidateReceived);
 
         Connection.Closed += async error =>
@@ -93,6 +95,21 @@ public class SignalRClient
             Logger.Log($"[SignalR] Error handling answer: {ex.Message}");
         }
     }
+    private void HandleGetOffer(string answer)
+    {
+        try
+        {
+            var rtc = new WebRTC();
+            rtc.InitializeAsync();
+            var offer =rtc.GetOffer(); 
+            OnGetOfferReceived?.Invoke(offer);
+            Logger.Log($"SignalR Offer sent {offer}");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex, $"[SignalR] Error handling answer");
+        }
+    }
 
     private void HandleIceCandidateReceived(string candidate)
     {
@@ -102,7 +119,7 @@ public class SignalRClient
         }
         catch (Exception ex)
         {
-            Logger.Log($"[SignalR] Error handling ICE candidate: {ex.Message}");
+            Logger.LogException(ex, $"[SignalR] Error handling ICE candidate");
         }
     }
 
@@ -133,7 +150,7 @@ public class SignalRClient
         }
         catch (Exception ex)
         {
-            Logger.Log($"Error while establishing the connection: {ex.Message}");
+            Logger.LogException(ex, $"Error while establishing the connection");
             await HandleReconnection();
         }
     }
@@ -173,6 +190,26 @@ public class SignalRClient
     {
         await SafeInvokeAsync(() => Connection.InvokeAsync("BroadcastMessage", message));
     }
+    public async Task<string> GetOfferFromServer(string nodeAddress)
+    {
+        if (Connection.State != HubConnectionState.Connected)
+        {
+            Logger.LogError($"SignalR-connection not available to get offer from {nodeAddress}");
+            return string.Empty;
+        }
+
+        try
+        { 
+            string offer = await Connection.InvokeAsync<string>("GetOffer", nodeAddress);
+            Logger.Log($"Got offer from {nodeAddress}: {offer}");
+            return offer;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex, $"Error getting offer from {nodeAddress}");
+            return string.Empty;
+        }
+    }
 
     private async Task SafeInvokeAsync(Func<Task> invokeFunction)
     {
@@ -190,8 +227,7 @@ public class SignalRClient
                 await invokeFunction();
             }
         }
-    }
-
+    }   
     private class RequestMessage
     {
         public string CorrelationId { get; set; }

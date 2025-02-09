@@ -135,7 +135,7 @@ public static class BlockchainStorage
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, "Block could not be retrieved from SQLite");
+            Logger.LogException(ex, "Blocks could not be retrieved from SQLite");
             return null;
         }
     }
@@ -219,7 +219,7 @@ public static class BlockchainStorage
                     { "Recipient", t.Recipient },
                     { "Amount", t.Amount },
                     { "Timestamp", t.Timestamp },
-                    { "Data", t.Data },
+                    { "ChainInfo", t.Data },
                     { "Info", t.Info }
                 }).ToList();
             }

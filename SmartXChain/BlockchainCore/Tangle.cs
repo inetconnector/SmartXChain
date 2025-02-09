@@ -24,7 +24,7 @@ public sealed class Tangle
         }
 
         _blocks.Add(block);
-        Logger.Log($"Block added: {block.CalculateHash()}");
+        Logger.Log($"Blocks added: {block.CalculateHash()}");
         Logger.Log($"Approved: {string.Join(", ", block.Approves)}");
     }
 
@@ -35,7 +35,7 @@ public sealed class Tangle
         {
             Logger.Log($"ID: {tx.CalculateHash()}");
             Logger.Log($"Confirmed: {string.Join(", ", tx.Approves)}");
-            foreach (var transaction in tx.Transactions) Console.WriteLine($"Data: {transaction}");
+            foreach (var transaction in tx.Transactions) Console.WriteLine($"ChainInfo: {transaction}");
             Logger.Log();
         }
     }

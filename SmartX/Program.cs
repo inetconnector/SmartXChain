@@ -35,7 +35,6 @@ internal class Program
     public static async Task Main(string[] args)
     {
         ChainName = ChainNames.SmartXChain;
-        var port = 5556;
 
         if (args.Contains("/testnet", StringComparer.OrdinalIgnoreCase))
         {
@@ -52,11 +51,7 @@ internal class Program
                 File.Copy(configInitialPath, configFile, true);
             Default.ReloadConfig();
         }
-
-        var publicIP = await NetworkUtils.GetPublicIPAsync(debug: true);
-
-        //Default.SetProperty(ConfigKey.NodeAddress, $"http://{publicIP}:{port}");
-
+          
         // Initialize application and start the blockchain server
         await InitializeApplicationAsync();
 
@@ -523,7 +518,7 @@ internal class Program
             lock (node.Blockchain.Chain)
             {
                 foreach (var block in node.Blockchain.Chain)
-                    Logger.Log($"Block {node.Blockchain.Chain.IndexOf(block)}: {block.Hash}");
+                    Logger.Log($"Blocks {node.Blockchain.Chain.IndexOf(block)}: {block.Hash}");
             }
     }
 

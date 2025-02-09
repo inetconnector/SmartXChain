@@ -24,20 +24,18 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.12.0" />
-		<PackageReference Include="SIPSorcery" Version="8.0.7" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.12.0" /> 
 		<PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.1" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.12.0" />
 		<PackageReference Include="NBitcoin" Version="7.0.50" />
 		<PackageReference Include="Nethereum.Web3" Version="4.28.0" />
-						<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.1" />
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.1" />
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.1" />
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="9.0.1" />
-		<PackageReference Include="SIPSorcery" Version="8.0.7" />		
+		<PackageReference Include="SIPSorcery" Version="8.0.7" />		 
 	</ItemGroup>
-
 	<ItemGroup>
 		<Compile Update="Contracts\Contract.cs">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
@@ -59,12 +57,7 @@
 
 	<ItemGroup>
 		<Folder Include="Resources\" />
-	</ItemGroup> 	<ItemGroup>
-		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.1" />
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.1" />
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="9.0.1" />
-		<PackageReference Include="SIPSorcery" Version="8.0.7" />
-	</ItemGroup>
+	</ItemGroup> 	
 	<ItemGroup>
 		<None Update="Settings.json">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
