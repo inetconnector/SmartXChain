@@ -34,7 +34,8 @@
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.1" />
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.1" />
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="9.0.1" />
-		<PackageReference Include="SIPSorcery" Version="8.0.7" />		 
+		<PackageReference Include="StackExchange.Redis" Version="2.7.33" />
+		<PackageReference Include="SIPSorcery" Version="8.0.7" />
 	</ItemGroup>
 	<ItemGroup>
 		<Compile Update="Contracts\Contract.cs">
