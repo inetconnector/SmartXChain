@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Threading;
 using Microsoft.AspNetCore.SignalR.Client;
 
 namespace SmartXChain.ClientServer;
@@ -8,6 +9,7 @@ public class SignalRClient
 {
     private readonly ConcurrentDictionary<string, TaskCompletionSource<string?>> _pendingRequests = new();
     public HubConnection Connection { get; private set; }
+    public string ServerUrl { get; private set; } = string.Empty;
 
     public event Action<string> OnBroadcastMessageReceived;
     public event Action<string> OnOfferReceived;
@@ -17,6 +19,7 @@ public class SignalRClient
 
     public async Task ConnectAsync(string serverUrl, string jwtToken)
     {
+        ServerUrl = serverUrl;
         Connection = new HubConnectionBuilder()
             .WithUrl(serverUrl, options => { options.AccessTokenProvider = () => Task.FromResult(jwtToken); })
             .WithAutomaticReconnect()
@@ -24,6 +27,23 @@ public class SignalRClient
 
         RegisterEventHandlers();
         await StartConnectionAsync();
+    }
+
+    public async Task<string> WaitForConnectionIdAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+    {
+        if (Connection == null)
+            return string.Empty;
+
+        var start = DateTime.UtcNow;
+        while (string.IsNullOrEmpty(Connection.ConnectionId))
+        {
+            if (DateTime.UtcNow - start > timeout)
+                return string.Empty;
+
+            await Task.Delay(100, cancellationToken);
+        }
+
+        return Connection.ConnectionId;
     }
 
     private void RegisterEventHandlers()

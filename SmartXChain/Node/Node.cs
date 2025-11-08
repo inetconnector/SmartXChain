@@ -101,6 +101,7 @@ public class Node
                 foreach (var remainingIp in tempList) CurrentNodes.Add(remainingIp);
 
                 CurrentNodes_LastActive.TryRemove(nodeAddress, out _);
+                CurrentNodes_SDP.TryRemove(nodeAddress, out _);
             }
         }
     }
@@ -113,12 +114,12 @@ public class Node
     /// <param name="sdp">Webrtc offer</param>
     public static void AddNode(string server, string sdp)
     {
+        CurrentNodes_SDP[server] = sdp;
         if (!CurrentNodes.Contains(server))
         {
             CurrentNodes.Add(server);
-            CurrentNodes_SDP.TryAdd(server, sdp);
-            if (Config.Default.Debug) Logger.Log($"New server added: {server}"); 
+            if (Config.Default.Debug) Logger.Log($"New server added: {server}");
         }
-        CurrentNodes_LastActive[server] = DateTime.UtcNow; 
+        CurrentNodes_LastActive[server] = DateTime.UtcNow;
     }
 }

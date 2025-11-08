@@ -48,7 +48,11 @@ public class Config
     /// <param name="filePath">The file path to the configuration file.</param>
     public Config(string filePath)
     {
-        SignalHubs = new List<string>(); 
+        SignalHubs = new List<string>();
+        RedisConnectionString = string.Empty;
+        RedisNamespace = "smartxchain";
+        RedisHeartbeatSeconds = 10;
+        RedisNodeTtlSeconds = 45;
         LoadConfig(filePath);
         SetBlockchainPath(FileSystem.BlockchainDirectory);
     }
@@ -59,13 +63,18 @@ public class Config
     public int MaxParallelConnections { get; private set; }
     public string WalletPrivateKey { get; private set; }
     public List<string> SignalHubs { get; } 
-    public string NodeAddress {get; internal set;} 
+    public string NodeAddress {get; internal set;}
     public bool Debug { get; private set; }
-    public string BlockchainPath { get; private set; } 
+    public string BlockchainPath { get; private set; }
     public string SSLCertificate { get; private set; }
     public string PublicKey { get; private set; }
     public string PrivateKey { get; private set; }
     public int ResponseTimeoutMilliseconds { get; set; } = 1000;
+    public string RedisConnectionString { get; private set; }
+    public string RedisNamespace { get; private set; }
+    public int RedisHeartbeatSeconds { get; private set; }
+    public int RedisNodeTtlSeconds { get; private set; }
+    public bool RedisEnabled => !string.IsNullOrWhiteSpace(RedisConnectionString);
 
     public static bool TestNet
     {
@@ -121,8 +130,12 @@ public class Config
         PublicKey = null;
         PrivateKey = null;
         BlockchainPath = "";
-        SSLCertificate = ""; 
-        MaxParallelConnections = 10; 
+        SSLCertificate = "";
+        MaxParallelConnections = 10;
+        RedisConnectionString = string.Empty;
+        RedisNamespace = "smartxchain";
+        RedisHeartbeatSeconds = 10;
+        RedisNodeTtlSeconds = 45;
 
         LoadConfig(configFilePath);
     }
@@ -357,6 +370,18 @@ public class Config
                             PrivateKey = value;
                         if (key.Equals("SSLCertificate", StringComparison.OrdinalIgnoreCase))
                             SSLCertificate = value;
+                        break;
+                    case "[Redis]":
+                        if (key.Equals("ConnectionString", StringComparison.OrdinalIgnoreCase))
+                            RedisConnectionString = value;
+                        if (key.Equals("Namespace", StringComparison.OrdinalIgnoreCase))
+                            RedisNamespace = value;
+                        if (key.Equals("HeartbeatSeconds", StringComparison.OrdinalIgnoreCase) &&
+                            int.TryParse(value, out var heartbeatSeconds))
+                            RedisHeartbeatSeconds = Math.Max(1, heartbeatSeconds);
+                        if (key.Equals("NodeTtlSeconds", StringComparison.OrdinalIgnoreCase) &&
+                            int.TryParse(value, out var ttlSeconds))
+                            RedisNodeTtlSeconds = Math.Max(RedisHeartbeatSeconds + 5, ttlSeconds);
                         break;
                 }
             }

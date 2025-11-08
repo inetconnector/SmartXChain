@@ -3,6 +3,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.IdentityModel.Tokens; 
 using SmartXChain.BlockchainCore;
@@ -38,48 +39,48 @@ public class BlockchainServer
     ///     Starts the server asynchronously.
     /// </summary>
     public static async Task<NodeStartupResult> StartServerAsync(bool loadExisting = true)
-    { 
-        // Initialize and start the server
+    {
+        var server = new BlockchainServer();
+        var signalHubs = Config.Default.SignalHubs;
+        var node = await Node.Start();
+        var blockchain = new Blockchain(Config.Default.MinerAddress, node.ChainId);
 
-        try
-        { 
-            await Task.Run(async () =>
+        if (signalHubs.Count == 0)
+            throw new InvalidOperationException("No SignalR hubs configured. Unable to start server.");
+
+        SignalRClient? connectedClient = null;
+        foreach (var signalHub in signalHubs)
+            try
             {
-                var server = new BlockchainServer();
-                var signalHubs = Config.Default.SignalHubs;
-                var node = await Node.Start(); 
-                var blockchain = new Blockchain(Config.Default.MinerAddress, node.ChainId); 
-                foreach (var signalHub in signalHubs)
-                {
-                    SignalR= await CreatePeerConnection(signalHub, blockchain); 
+                connectedClient = await CreatePeerConnection(signalHub, blockchain);
+                if (connectedClient?.Connection != null &&
+                    connectedClient.Connection.State == HubConnectionState.Connected)
                     break;
-                }
-  
-                Startup = new NodeStartupResult(blockchain, node, server, SignalR) ;  
-            }); 
-        }
-        catch (Exception ex)
-        {
-            Logger.LogException(ex, "starting server");
-        }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogException(ex, $"connecting to SignalR hub {signalHub}");
+            }
 
-        while (Startup==null) 
-            ;
-        while (Startup.Server == null || 
-               Startup.Node == null || 
-               Startup.Blockchain == null ||  
-               Startup.SignalRClient == null)
-            ; 
-        while (Startup.SignalRClient.Connection == null)
-            ;
-        while (string.IsNullOrEmpty(Startup.SignalRClient.Connection.ConnectionId))
-            ;
+        if (connectedClient == null)
+            throw new InvalidOperationException("Unable to connect to any configured SignalR hub.");
 
-        Config.Default.NodeAddress = Startup.SignalRClient.Connection.ConnectionId;
+        var connectionId = await connectedClient.WaitForConnectionIdAsync(TimeSpan.FromSeconds(20));
+        if (string.IsNullOrEmpty(connectionId))
+            throw new InvalidOperationException("SignalR connection established but no connection id was provided.");
+
+        Config.Default.NodeAddress = connectionId;
+        SignalR = connectedClient;
+
+        Startup = new NodeStartupResult(blockchain, node, server, connectedClient);
+
         Logger.Log(
             $"Server node for blockchain '{Config.Default.ChainId}' started at {Config.Default.NodeAddress}");
 
         SignalR.OnBroadcastMessageReceived += SignalR_OnBroadcastMessageReceived;
+
+        if (Config.Default.RedisEnabled)
+            await InitializeRedisDiscoveryAsync();
 
         await BroadcastAvailability();
 
@@ -91,7 +92,7 @@ public class BlockchainServer
                 chainPath = Path.Combine(Config.Default.BlockchainPath, "chain-" + Startup!.Node.ChainId);
                 if (File.Exists(chainPath))
                 {
-                    Startup.Blockchain = Blockchain.Load(chainPath); ;
+                    Startup.Blockchain = Blockchain.Load(chainPath);
                 }
                 else
                 {
@@ -111,7 +112,7 @@ public class BlockchainServer
         {
             while (true)
             {
-                Thread.Sleep(10000);
+                await Task.Delay(TimeSpan.FromSeconds(10));
                 await Sync();
             }
         });
@@ -156,11 +157,67 @@ public class BlockchainServer
                     Logger.LogException(ex, "retrieving nodes");
                 }
 
-                Thread.Sleep(10000);
+                await Task.Delay(TimeSpan.FromSeconds(10));
             }
         });
 
         return Task.CompletedTask;
+    }
+
+    private static async Task InitializeRedisDiscoveryAsync()
+    {
+        try
+        {
+            var registry = await RedisNodeRegistry.CreateAsync(
+                Config.Default.RedisConnectionString,
+                Config.Default.RedisNamespace,
+                Config.Default.ChainId,
+                Config.Default.NodeAddress,
+                TimeSpan.FromSeconds(Config.Default.RedisHeartbeatSeconds),
+                TimeSpan.FromSeconds(Config.Default.RedisNodeTtlSeconds));
+
+            Startup.NodeRegistry = registry;
+
+            registry.NodeDiscovered += HandleRedisNodeDiscoveredAsync;
+            registry.NodeRemoved += address =>
+            {
+                Node.RemoveNodeAddress(address);
+                Node.CurrentNodes_SDP.TryRemove(address, out _);
+                return Task.CompletedTask;
+            };
+
+            await registry.RegisterSelfAsync(SignalR.ServerUrl, string.Empty);
+
+            var knownNodes = await registry.GetKnownNodesAsync();
+            foreach (var nodeInfo in knownNodes)
+                await HandleRedisNodeDiscoveredAsync(nodeInfo).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex, "initializing redis node discovery");
+        }
+    }
+
+    private static async Task HandleRedisNodeDiscoveredAsync(RedisNodeRegistry.RedisNodeInfo nodeInfo)
+    {
+        if (string.IsNullOrWhiteSpace(nodeInfo.NodeAddress) ||
+            nodeInfo.NodeAddress == Config.Default.NodeAddress)
+            return;
+
+        var sdp = await SignalR.GetOfferFromServer(nodeInfo.NodeAddress);
+        if (string.IsNullOrEmpty(sdp))
+        {
+            Logger.LogWarning($"Failed to retrieve SDP offer for node {nodeInfo.NodeAddress} via SignalR.");
+            return;
+        }
+
+        Node.CurrentNodes_SDP[nodeInfo.NodeAddress] = sdp;
+        if (Node.CurrentNodes.Contains(nodeInfo.NodeAddress))
+        {
+            Node.CurrentNodes_LastActive[nodeInfo.NodeAddress] = DateTime.UtcNow;
+            return;
+        }
+        Node.AddNode(nodeInfo.NodeAddress, sdp);
     }
 
     internal static async Task Sync()
@@ -170,46 +227,56 @@ public class BlockchainServer
             if (nodeAddress == Config.Default.NodeAddress)
                 continue;
 
-            var sdpAddress = Node.CurrentNodes_SDP[nodeAddress]; 
-            string response = await WebRTC.Manager.InitOpenAndSendAsync(nodeAddress, sdpAddress, "Nodes", Info(nodeAddress).ToString());
+            if (!Node.CurrentNodes_SDP.TryGetValue(nodeAddress, out var sdpAddress) ||
+                string.IsNullOrEmpty(sdpAddress))
+            {
+                sdpAddress = await SignalR.GetOfferFromServer(nodeAddress);
+                if (string.IsNullOrEmpty(sdpAddress))
+                {
+                    Logger.LogWarning($"Synchronization skipped: missing SDP for {nodeAddress}.");
+                    continue;
+                }
 
-            if (string.IsNullOrEmpty(response))
-                try
+                Node.CurrentNodes_SDP[nodeAddress] = sdpAddress;
+            }
+
+            try
+            {
+                var infoPayload = (await Info(nodeAddress)).ToString();
+                var response = await WebRTC.Manager.InitOpenAndSendAsync(nodeAddress, sdpAddress, "Nodes", infoPayload);
+
+                if (string.IsNullOrEmpty(response))
                 {
-                    if (response != null)
+                    Logger.LogError($"Synchronization with peer {nodeAddress} failed or returned no response.");
+                    continue;
+                }
+
+                var responseObject = JsonSerializer.Deserialize<ChainInfo>(response);
+                if (responseObject == null)
+                {
+                    Logger.LogError("ChainInfo Deserialize failed: Invalid response structure");
+                    continue;
+                }
+
+                if (Config.Default.Debug)
+                    Logger.Log($"SynchronizeWithPeers  {nodeAddress} Result: {responseObject.Message}");
+
+                foreach (var chain in Blockchain.Blockchains)
+                    if (responseObject.FirstHash == chain.Chain.First().Hash &&
+                        Startup.Blockchain != null && Startup.Blockchain.IsValid())
                     {
-                        var responseObject = JsonSerializer.Deserialize<ChainInfo>(response);
-                        if (responseObject != null)
-                        {
-                            if (Config.Default.Debug)
-                                Logger.Log($"SynchronizeWithPeers  {nodeAddress} Result: {responseObject.Message}");
-                             
-                            foreach (var chain in Blockchain.Blockchains)
-                            {
-                                if (responseObject.FirstHash == chain.Chain.First().Hash &&
-                                    Startup.Blockchain != null && Startup.Blockchain.IsValid())
-                                {
-                                    if (responseObject.BlockCount > chain.Chain.Count)
-                                        await GetRemoteChain(responseObject, chain.Chain.Count);
-                                }
-                                else
-                                {
-                                    await GetRemoteChain(responseObject, 0);
-                                }
-                            }
-                        }
-                        else
-                        {
-                            Logger.LogError("ChainInfo Deserialize failed: Invalid response structure");
-                        }
+                        if (responseObject.BlockCount > chain.Chain.Count)
+                            await GetRemoteChain(responseObject, chain.Chain.Count);
                     }
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogException(ex, $"Failed to parse or update nodes from peer {nodeAddress}");
-                }
-            else
-                Logger.LogError($"Synchronization with peer {nodeAddress} failed or returned no response.");
+                    else
+                    {
+                        await GetRemoteChain(responseObject, 0);
+                    }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogException(ex, $"Failed to synchronize with peer {nodeAddress}");
+            }
         }
     }
 
@@ -267,25 +334,21 @@ public class BlockchainServer
        
     public static SignalRClient SignalR { get; set; }
 
-    private static async Task<SignalRClient> CreatePeerConnection(string signalHub, Blockchain blockchain) 
+    private static async Task<SignalRClient> CreatePeerConnection(string signalHub, Blockchain blockchain)
     {
         // Load your secret for JWT
         var signalRSigningKey = Environment.GetEnvironmentVariable("SIGNALR_PASSWORD");
         var name = "smartXchain";
 
         // Instantiate our SignalR client
-        var signalRClient = new SignalRClient(); 
+        var signalRClient = new SignalRClient();
 
         // Generate a JWT token for the SignalR server
         var jwtToken = GenerateJwtToken(name, signalRSigningKey);
 
         // Connect the SignalR client to the server
-         _ = Task.Run(async () =>
-         {
-             await signalRClient.ConnectAsync(signalHub, jwtToken);
-         });
-         
- 
+        await signalRClient.ConnectAsync(signalHub, jwtToken);
+
         return signalRClient;
     }
      
@@ -465,11 +528,13 @@ public class BlockchainServer
         {
             Blockchain = blockchain;
             Node = node;
-            Server = server;        
-            SignalRClient = signalRClient; 
+            Server = server;
+            SignalRClient = signalRClient;
         }
-         
+
         public SignalRClient SignalRClient { get; set; }
+
+        public RedisNodeRegistry? NodeRegistry { get; set; }
 
         public BlockchainServer Server { get; set; }
 

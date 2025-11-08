@@ -6,5 +6,11 @@ MaxParallelConnections=10
 
 [Miner]
 
+[Redis]
+ConnectionString=localhost:6379
+Namespace=smartxchain-testnet
+HeartbeatSeconds=10
+NodeTtlSeconds=45
+
 [SignalHubs]
 https://netregservice.com:5050/signalrhub
