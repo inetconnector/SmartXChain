@@ -292,7 +292,7 @@ public sealed class RedisNodeRegistry : IAsyncDisposable
         return $"{_nodeKeyPrefix}:{nodeAddress}";
     }
 
-    private readonly record struct RedisNodeEvent(RedisNodeEventType EventType, RedisNodeInfo? Node, string NodeAddress)
+    private sealed record class RedisNodeEvent(RedisNodeEventType EventType, RedisNodeInfo? Node, string NodeAddress)
     {
         public static RedisNodeEvent Join(RedisNodeInfo node) => new(RedisNodeEventType.Join, node, node.NodeAddress);
         public static RedisNodeEvent Refresh(RedisNodeInfo node) => new(RedisNodeEventType.Refresh, node, node.NodeAddress);
