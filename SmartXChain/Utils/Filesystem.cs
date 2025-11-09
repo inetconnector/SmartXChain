@@ -67,6 +67,17 @@ public static class FileSystem
         }
     }
 
+    public static string WWWRoot
+    {
+        get
+        {
+            var wwwRoot = Path.Combine(AppDirectory, "wwwroot");
+            Directory.CreateDirectory(wwwRoot);
+
+            return wwwRoot;
+        }
+    }
+
     /// <summary>
     ///     Creates a zip file from a given directory
     /// </summary>
