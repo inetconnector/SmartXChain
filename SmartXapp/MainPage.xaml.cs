@@ -14,7 +14,7 @@ public partial class MainPage : ContentPage
         Task.Run(async () =>
         {
             await BlockchainHelper.InitializeApplicationAsync();
-            var (_, startup) = await BlockchainHelper.StartServerAsync();
+            _ = await BlockchainHelper.StartServerAsync();
         });
     }
 

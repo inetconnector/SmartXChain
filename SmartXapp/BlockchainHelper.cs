@@ -11,8 +11,6 @@ namespace SmartXapp;
 
 public static class BlockchainHelper
 {
-    private static (BlockchainServer?, BlockchainServer.NodeStartupResult?) _startupServer;
-
     private static BlockchainServer.NodeStartupResult? _startup;
 
     public static string PrivateKey => Default.PrivateKey;
@@ -97,12 +95,11 @@ public static class BlockchainHelper
         return file;
     } 
 
-    public static async Task<(object?, BlockchainServer.NodeStartupResult?)> StartServerAsync()
+    public static async Task<BlockchainServer.NodeStartupResult?> StartServerAsync()
     {
         Logger.LogLine("Starting blockchain server...");
-        _startupServer = await BlockchainServer.StartServerAsync();
-        _startup = _startupServer.Item2;
-        return _startupServer;
+        _startup = await BlockchainServer.StartServerAsync();
+        return _startup;
     }
 
     public static async Task ImportAmountFromFile()
