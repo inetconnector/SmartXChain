@@ -1,23 +1,24 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // === Auth Key Loading (prefer ENV) ===
-string? b64 = Environment.GetEnvironmentVariable("SMARTX_HMAC_B64")
-              ?? builder.Configuration["Auth:HmacKeyBase64"];
+var b64 = Environment.GetEnvironmentVariable("SMARTX_HMAC_B64")
+          ?? builder.Configuration["Auth:HmacKeyBase64"];
 byte[] keyBytes;
 if (string.IsNullOrWhiteSpace(b64))
 {
     // Fallback: generate volatile key (for local test). NOTE: App restarts will invalidate old tokens.
     keyBytes = RandomNumberGenerator.GetBytes(32);
-    Console.WriteLine("WARNING: No HMAC key provided. Generated a volatile key. Set SMARTX_HMAC_B64 in environment or Auth:HmacKeyBase64 in appsettings.json");
+    Console.WriteLine(
+        "WARNING: No HMAC key provided. Generated a volatile key. Set SMARTX_HMAC_B64 in environment or Auth:HmacKeyBase64 in appsettings.json");
 }
 else
 {
@@ -30,8 +31,10 @@ else
         throw new InvalidOperationException("Auth:HmacKeyBase64 / SMARTX_HMAC_B64 is not valid Base64.");
     }
 }
+
 if (keyBytes.Length < 32) // 256-bit recommended
-    throw new InvalidOperationException($"HMAC key too short: {keyBytes.Length} bytes. Provide >= 16 bytes (128-bit), ideally 32 bytes (256-bit).");
+    throw new InvalidOperationException(
+        $"HMAC key too short: {keyBytes.Length} bytes. Provide >= 16 bytes (128-bit), ideally 32 bytes (256-bit).");
 
 var signingKey = new SymmetricSecurityKey(keyBytes);
 
@@ -66,9 +69,7 @@ builder.Services
                 var accessToken = ctx.Request.Query["access_token"];
                 var path = ctx.HttpContext.Request.Path;
                 if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/signalrhub"))
-                {
                     ctx.Token = accessToken;
-                }
                 return Task.CompletedTask;
             }
         };
@@ -132,8 +133,16 @@ public class SmartXHub : Hub
         await Clients.All.SendAsync("broadcast", $"{name}: {message}");
     }
 
-    public Task JoinGroup(string group) => Groups.AddToGroupAsync(Context.ConnectionId, group);
-    public Task LeaveGroup(string group) => Groups.RemoveFromGroupAsync(Context.ConnectionId, group);
+    public Task JoinGroup(string group)
+    {
+        return Groups.AddToGroupAsync(Context.ConnectionId, group);
+    }
+
+    public Task LeaveGroup(string group)
+    {
+        return Groups.RemoveFromGroupAsync(Context.ConnectionId, group);
+    }
+
     public Task SendToGroup(string group, string message)
     {
         var name = Context.User?.Identity?.Name ?? "anonymous";
