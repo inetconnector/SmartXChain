@@ -45,7 +45,7 @@ namespace SmartXChain.BlockchainCore
             }
             catch (JsonException)
             {
-                return new ChainInfo(); // Falls das JSON ungültig ist, wird ein leeres Objekt zurückgegeben
+                return new ChainInfo(); // Return an empty object if the JSON is invalid
             }
         }
     }

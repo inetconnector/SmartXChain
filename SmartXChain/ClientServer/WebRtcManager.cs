@@ -226,6 +226,9 @@ namespace SmartXChain.ClientServer
 }
 
 
+/// <summary>
+///     Provides caching and convenience helpers for establishing WebRTC connections to peer nodes.
+/// </summary>
 public class WebRTCManager
 {
     // Cache for active WebRTC connections, keyed by node address.

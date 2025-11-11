@@ -5,6 +5,9 @@ using SQLite;
 
 namespace SmartXChain.BlockchainCore;
 
+/// <summary>
+///     Provides persistence helpers for storing and retrieving blockchain data using SQLite.
+/// </summary>
 public static class BlockchainStorage
 {
     /// <summary>
@@ -432,6 +435,9 @@ public static class BlockchainStorage
         }
     }
 
+    /// <summary>
+    ///     Represents a transaction record as stored in the SQLite database.
+    /// </summary>
     public class DBTransaction
     {
         public Guid ID { get; set; }
@@ -445,6 +451,9 @@ public static class BlockchainStorage
         public string Info { get; set; }
     }
 
+    /// <summary>
+    ///     Represents a block record as stored in the SQLite database.
+    /// </summary>
     public class DBBlock
     {
         public DateTime Timestamp { get; set; } = DateTime.MinValue;

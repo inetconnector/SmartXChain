@@ -9,6 +9,9 @@ using Account = Nethereum.Web3.Accounts.Account;
 
 namespace SmartXChain.BlockchainCore;
 
+/// <summary>
+///     Represents a SmartXChain transaction including metadata, participants, amounts, and helper utilities.
+/// </summary>
 public class Transaction
 {
     public enum TransactionTypes
@@ -32,6 +35,9 @@ public class Transaction
     private string _info;
     private string _sender;
 
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="Transaction" /> class with default SmartXChain values.
+    /// </summary>
     public Transaction()
     {
         const ulong initialSupply = 10000000000;

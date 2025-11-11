@@ -5,18 +5,53 @@ using Microsoft.AspNetCore.SignalR.Client;
 
 namespace SmartXChain.ClientServer;
 
+/// <summary>
+///     Encapsulates SignalR hub communication for SmartXChain nodes, including messaging and WebRTC signaling helpers.
+/// </summary>
 public class SignalRClient
 {
     private readonly ConcurrentDictionary<string, TaskCompletionSource<string?>> _pendingRequests = new();
+    
+    /// <summary>
+    ///     Gets the underlying SignalR hub connection used for communication.
+    /// </summary>
     public HubConnection Connection { get; private set; }
+
+    /// <summary>
+    ///     Gets the URL of the SignalR server this client is connected to.
+    /// </summary>
     public string ServerUrl { get; private set; } = string.Empty;
 
+    /// <summary>
+    ///     Raised when a broadcast message is received from the hub.
+    /// </summary>
     public event Action<string> OnBroadcastMessageReceived;
+
+    /// <summary>
+    ///     Raised when a WebRTC offer is received via the hub.
+    /// </summary>
     public event Action<string> OnOfferReceived;
+
+    /// <summary>
+    ///     Raised when a WebRTC answer is received via the hub.
+    /// </summary>
     public event Action<string> OnAnswerReceived;
+
+    /// <summary>
+    ///     Raised when another node requests an SDP offer from the client.
+    /// </summary>
     public event Action<string> OnGetOfferReceived;
+
+    /// <summary>
+    ///     Raised when a remote ICE candidate is received.
+    /// </summary>
     public event Action<string> OnIceCandidateReceived;
 
+    /// <summary>
+    ///     Establishes a connection to the provided SignalR server using the supplied JWT token.
+    /// </summary>
+    /// <param name="serverUrl">The SignalR hub URL.</param>
+    /// <param name="jwtToken">JWT token used for authentication.</param>
     public async Task ConnectAsync(string serverUrl, string jwtToken)
     {
         ServerUrl = serverUrl;
@@ -29,6 +64,12 @@ public class SignalRClient
         await StartConnectionAsync();
     }
 
+    /// <summary>
+    ///     Waits until the hub connection is assigned a connection identifier or the timeout expires.
+    /// </summary>
+    /// <param name="timeout">The maximum time to wait for the identifier.</param>
+    /// <param name="cancellationToken">Token used to cancel the wait operation.</param>
+    /// <returns>The connection identifier if available; otherwise, an empty string.</returns>
     public async Task<string> WaitForConnectionIdAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         if (Connection == null)
@@ -143,6 +184,13 @@ public class SignalRClient
         }
     }
 
+    /// <summary>
+    ///     Sends a request message to the specified target and awaits a correlated response.
+    /// </summary>
+    /// <param name="targetUser">The SignalR user identifier of the target node.</param>
+    /// <param name="payload">The JSON payload to send.</param>
+    /// <param name="timeoutMs">Timeout in milliseconds to wait for a response.</param>
+    /// <returns>The response payload, a timeout message, or <c>null</c> if the target returned no payload.</returns>
     public async Task<string?> SendRequestAsync(string targetUser, string payload, int timeoutMs = 5000)
     {
         if (Connection.State != HubConnectionState.Connected) return "SignalR not connected.";
@@ -191,25 +239,50 @@ public class SignalRClient
             }
     }
 
+    /// <summary>
+    ///     Sends a WebRTC SDP offer to the specified peer via the hub.
+    /// </summary>
+    /// <param name="targetUser">The target node identifier.</param>
+    /// <param name="offer">The SDP offer to send.</param>
     public async Task SendOffer(string targetUser, string offer)
     {
         await SafeInvokeAsync(() => Connection.InvokeAsync("SendOffer", targetUser, offer));
     }
 
+    /// <summary>
+    ///     Sends a WebRTC SDP answer to the specified peer via the hub.
+    /// </summary>
+    /// <param name="targetUser">The target node identifier.</param>
+    /// <param name="answer">The SDP answer to send.</param>
     public async Task SendAnswer(string targetUser, string answer)
     {
         await SafeInvokeAsync(() => Connection.InvokeAsync("SendAnswer", targetUser, answer));
     }
 
+    /// <summary>
+    ///     Sends an ICE candidate message to the specified peer via the hub.
+    /// </summary>
+    /// <param name="targetUser">The target node identifier.</param>
+    /// <param name="candidate">The ICE candidate payload.</param>
     public async Task SendIceCandidate(string targetUser, string candidate)
     {
         await SafeInvokeAsync(() => Connection.InvokeAsync("SendIceCandidate", targetUser, candidate));
     }
 
+    /// <summary>
+    ///     Broadcasts a message to all connected hub clients.
+    /// </summary>
+    /// <param name="message">The message payload to broadcast.</param>
     public async Task BroadcastMessage(string message)
     {
         await SafeInvokeAsync(() => Connection.InvokeAsync("BroadcastMessage", message));
     }
+
+    /// <summary>
+    ///     Requests a WebRTC SDP offer from a remote node through the hub.
+    /// </summary>
+    /// <param name="nodeAddress">The node address to request the offer from.</param>
+    /// <returns>The SDP offer if available; otherwise, an empty string.</returns>
     public async Task<string> GetOfferFromServer(string nodeAddress)
     {
         if (Connection.State != HubConnectionState.Connected)
