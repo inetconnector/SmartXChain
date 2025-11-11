@@ -8,43 +8,62 @@ using SmartXChain.Utils;
 namespace SmartXChain.BlockchainCore;
 
 /// <summary>
-/// Represents a blockchain block containing transactions, hash, issuer and optional smart contracts.
+/// Represents a blockchain block containing transactions, hash, issuer, and optional smart contracts.
 /// </summary>
 public sealed class Block
 {
     /// <summary>
-    /// Creates a new block with a list of transactions and a link to the previous block hash.
+    /// Initializes a new instance of the <see cref="Block"/> class with the specified transactions and previous hash.
     /// </summary>
-    public Block(List<Transaction> transactions, string previousHash)
+    /// <param name="transactions">The list of transactions included in this block.</param>
+    /// <param name="previousHash">The hash of the previous block in the chain.</param>
+    public Block(List<Transaction>? transactions, string? previousHash)
     {
         Timestamp = DateTime.UtcNow;
         Transactions = transactions ?? new List<Transaction>();
         PreviousHash = previousHash ?? string.Empty;
         Hash = CalculateHash();
+        Issuer = Config.Default.MinerAddress;
+        NodeAddress = Config.Default.NodeAddress;
     }
 
     /// <summary>
-    /// Default constructor (mainly for deserialization).
+    /// Initializes a new instance of the <see cref="Block"/> class for deserialization.
     /// </summary>
     public Block()
     {
+        Timestamp = DateTime.UtcNow;
         Transactions = new List<Transaction>();
         PreviousHash = string.Empty;
         Hash = string.Empty;
         Issuer = string.Empty;
         NodeAddress = string.Empty;
+        Nonce = 0;
     }
 
-    [JsonInclude] public DateTime Timestamp { get; internal set; } = DateTime.UtcNow;
+    /// <summary>Gets or sets the UTC timestamp when this block was created.</summary>
+    [JsonInclude] public DateTime Timestamp { get; internal set; }
+
+    /// <summary>Gets or sets the list of transactions contained in this block.</summary>
     [JsonInclude] public List<Transaction> Transactions { get; internal set; } = new();
+
+    /// <summary>Gets or sets the hash of the previous block in the chain.</summary>
     [JsonInclude] public string PreviousHash { get; internal set; } = string.Empty;
+
+    /// <summary>Gets or sets the unique hash of this block.</summary>
     [JsonInclude] public string Hash { get; internal set; } = string.Empty;
+
+    /// <summary>Gets or sets the address of the node that mined or issued this block.</summary>
     [JsonInclude] public string Issuer { get; internal set; } = string.Empty;
+
+    /// <summary>Gets or sets the network node address that created this block.</summary>
     [JsonInclude] public string NodeAddress { get; internal set; } = string.Empty;
+
+    /// <summary>Gets or sets the nonce value used in proof-of-work mining.</summary>
     [JsonInclude] public int Nonce { get; internal set; }
 
     /// <summary>
-    /// Dictionary of deployed SmartContracts extracted from this block.
+    /// Gets a dictionary of <see cref="SmartContract"/> objects deployed within this block.
     /// </summary>
     [JsonInclude]
     public Dictionary<string, SmartContract?> SmartContracts
@@ -82,14 +101,18 @@ public sealed class Block
         }
     }
 
+    /// <summary>Gets the Base64-encoded serialized form of this block.</summary>
     [JsonIgnore]
     public string Base64Encoded => Convert.ToBase64String(GetBytes());
 
-    /// <summary>List of transaction hashes that approve this block (used in Tangle structure).</summary>
+    /// <summary>Gets the list of hashes from transactions that approve this block (used in Tangle structures).</summary>
     [JsonInclude]
     public List<string> Approves { get; private set; } = new();
 
-    /// <summary>Calculates the SHA-256 hash of the block.</summary>
+    /// <summary>
+    /// Calculates the SHA-256 hash of this block.
+    /// </summary>
+    /// <returns>The Base64-encoded SHA-256 hash string.</returns>
     public string CalculateHash()
     {
         using var sha256 = SHA256.Create();
@@ -104,8 +127,9 @@ public sealed class Block
     }
 
     /// <summary>
-    /// Mines the block by incrementing the nonce until the hash satisfies the difficulty.
+    /// Mines the block by incrementing the nonce until the hash meets the specified difficulty.
     /// </summary>
+    /// <param name="difficulty">The number of leading zeros required in the hash prefix.</param>
     public void Mine(int difficulty)
     {
         if (difficulty <= 0)
@@ -127,17 +151,27 @@ public sealed class Block
         Logger.Log($"Block mined: {Hash}");
     }
 
-    /// <summary>Serializes and compresses the block to bytes.</summary>
+    /// <summary>
+    /// Serializes and compresses this block into a byte array.
+    /// </summary>
+    /// <returns>The compressed byte array representing this block.</returns>
     public byte[] GetBytes()
     {
         var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
         return Compress.CompressString(json);
     }
 
-    /// <summary>Encodes the block as a Base64 string.</summary>
+    /// <summary>
+    /// Converts this block to a Base64 string representation.
+    /// </summary>
+    /// <returns>The Base64-encoded string representing this block.</returns>
     public string ToBase64() => Convert.ToBase64String(GetBytes());
 
-    /// <summary>Reconstructs a block from a Base64 string.</summary>
+    /// <summary>
+    /// Reconstructs a <see cref="Block"/> instance from a Base64 string.
+    /// </summary>
+    /// <param name="base64">The Base64-encoded block data.</param>
+    /// <returns>The deserialized <see cref="Block"/> instance, or <c>null</c> if deserialization fails.</returns>
     public static Block? FromBase64(string base64)
     {
         try
@@ -153,14 +187,21 @@ public sealed class Block
         }
     }
 
-    /// <summary>Saves the block to disk as compressed data.</summary>
+    /// <summary>
+    /// Saves this block to disk as compressed data.
+    /// </summary>
+    /// <param name="path">The file path where the block should be stored.</param>
     public void Save(string path)
     {
         File.WriteAllBytes(path, GetBytes());
         Logger.Log($"Block saved to {path}");
     }
 
-    /// <summary>Loads a block from compressed file data.</summary>
+    /// <summary>
+    /// Loads a <see cref="Block"/> from compressed file data.
+    /// </summary>
+    /// <param name="path">The path to the file containing the serialized block.</param>
+    /// <returns>The deserialized <see cref="Block"/> instance.</returns>
     public static Block? Load(string path)
     {
         var bytes = File.ReadAllBytes(path);
@@ -168,7 +209,10 @@ public sealed class Block
         return JsonSerializer.Deserialize<Block>(json);
     }
 
-    /// <summary>Returns a formatted JSON representation of the block.</summary>
+    /// <summary>
+    /// Returns a formatted JSON string representation of the block for debugging and logging.
+    /// </summary>
+    /// <returns>A human-readable JSON string describing the block.</returns>
     public override string ToString()
     {
         var info = new
@@ -180,7 +224,11 @@ public sealed class Block
             Transactions,
             SmartContracts
         };
-        var options = new JsonSerializerOptions { WriteIndented = true, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
         return JsonSerializer.Serialize(info, options);
     }
 }

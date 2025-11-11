@@ -17,22 +17,22 @@ internal sealed class GasAndRewardCalculator
     /// <summary>
     ///     Gets or sets the transaction data.
     /// </summary>
-    public string Data { get; set; }
+    public string? Data { get; set; }
 
     /// <summary>
     ///     Gets or sets additional information for the transaction.
     /// </summary>
-    public string Info { get; set; }
+    public string? Info { get; set; }
 
     /// <summary>
     ///     Gets or sets the serialized code of a smart contract.
     /// </summary>
-    public string SerializedContractCode { get; set; }
+    public string? SerializedContractCode { get; set; }
 
     /// <summary>
     ///     Gets or sets the address of the transaction sender.
     /// </summary>
-    public string Sender { get; set; }
+    public string? Sender { get; set; }
 
     /// <summary>
     ///     Calculates the gas required for a standard transaction based on the lengths of data,
