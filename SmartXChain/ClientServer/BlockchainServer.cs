@@ -1,8 +1,10 @@
 ﻿using System.Collections.Concurrent;
+using System.Linq;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.IdentityModel.Tokens; 
@@ -220,65 +222,128 @@ public class BlockchainServer
         Node.AddNode(nodeInfo.NodeAddress, sdp);
     }
 
+
     internal static async Task Sync()
     {
-        foreach (var nodeAddress in Node.CurrentNodes)
+        try
         {
-            if (nodeAddress == Config.Default.NodeAddress)
-                continue;
+            Node.PruneInactiveNodes(TimeSpan.FromSeconds(Config.Default.NodeStaleTimeoutSeconds));
 
-            if (!Node.CurrentNodes_SDP.TryGetValue(nodeAddress, out var sdpAddress) ||
-                string.IsNullOrEmpty(sdpAddress))
-            {
-                sdpAddress = await SignalR.GetOfferFromServer(nodeAddress);
-                if (string.IsNullOrEmpty(sdpAddress))
-                {
-                    Logger.LogWarning($"Synchronization skipped: missing SDP for {nodeAddress}.");
-                    continue;
-                }
+            var nodesSnapshot = Node.CurrentNodes.ToArray();
+            if (nodesSnapshot.Length == 0)
+                return;
 
-                Node.CurrentNodes_SDP[nodeAddress] = sdpAddress;
-            }
+            var configuredParallelism = Config.Default.SyncParallelism > 0
+                ? Config.Default.SyncParallelism
+                : Config.Default.MaxParallelConnections;
+            var concurrency = Math.Max(1,
+                configuredParallelism > 0 ? configuredParallelism : Environment.ProcessorCount);
 
-            try
-            {
-                var infoPayload = (await Info(nodeAddress)).ToString();
-                var response = await WebRTC.Manager.InitOpenAndSendAsync(nodeAddress, sdpAddress, "Nodes", infoPayload);
+            using var throttler = new SemaphoreSlim(concurrency, concurrency);
+            var syncTasks = nodesSnapshot
+                .Where(nodeAddress => nodeAddress != Config.Default.NodeAddress)
+                .Select(nodeAddress => SyncWithNodeAsync(nodeAddress, throttler));
 
-                if (string.IsNullOrEmpty(response))
-                {
-                    Logger.LogError($"Synchronization with peer {nodeAddress} failed or returned no response.");
-                    continue;
-                }
-
-                var responseObject = JsonSerializer.Deserialize<ChainInfo>(response);
-                if (responseObject == null)
-                {
-                    Logger.LogError("ChainInfo Deserialize failed: Invalid response structure");
-                    continue;
-                }
-
-                if (Config.Default.Debug)
-                    Logger.Log($"SynchronizeWithPeers  {nodeAddress} Result: {responseObject.Message}");
-
-                foreach (var chain in Blockchain.Blockchains)
-                    if (responseObject.FirstHash == chain.Chain.First().Hash &&
-                        Startup.Blockchain != null && Startup.Blockchain.IsValid())
-                    {
-                        if (responseObject.BlockCount > chain.Chain.Count)
-                            await GetRemoteChain(responseObject, chain.Chain.Count);
-                    }
-                    else
-                    {
-                        await GetRemoteChain(responseObject, 0);
-                    }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogException(ex, $"Failed to synchronize with peer {nodeAddress}");
-            }
+            await Task.WhenAll(syncTasks);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex, "synchronizing with peers");
         }
     }
+
+    private static async Task SyncWithNodeAsync(string nodeAddress, SemaphoreSlim throttler)
+    {
+        await throttler.WaitAsync();
+        try
+        {
+            await SynchronizeWithNodeInternal(nodeAddress);
+        }
+        finally
+        {
+            throttler.Release();
+        }
+    }
+
+    private static async Task SynchronizeWithNodeInternal(string nodeAddress)
+    {
+        if (nodeAddress == Config.Default.NodeAddress)
+            return;
+
+        if (!Node.CurrentNodes_SDP.TryGetValue(nodeAddress, out var sdpAddress) ||
+            string.IsNullOrEmpty(sdpAddress))
+        {
+            sdpAddress = await SignalR.GetOfferFromServer(nodeAddress);
+            if (string.IsNullOrEmpty(sdpAddress))
+            {
+                Logger.LogWarning($"Synchronization skipped: missing SDP for {nodeAddress}.");
+                Node.RegisterSyncFailure(nodeAddress);
+                return;
+            }
+
+            Node.CurrentNodes_SDP[nodeAddress] = sdpAddress;
+        }
+
+        ChainInfo info;
+        try
+        {
+            info = await Info(nodeAddress);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex, $"building sync payload for {nodeAddress}");
+            Node.RegisterSyncFailure(nodeAddress);
+            return;
+        }
+
+        var response = await SendWithTimeout(
+            () => WebRTC.Manager.InitOpenAndSendAsync(nodeAddress, sdpAddress, "Nodes", info.ToString()),
+            nodeAddress,
+            "Synchronization");
+
+        if (string.IsNullOrEmpty(response))
+        {
+            Node.RegisterSyncFailure(nodeAddress);
+            return;
+        }
+
+        ChainInfo? responseObject;
+        try
+        {
+            responseObject = JsonSerializer.Deserialize<ChainInfo>(response);
+        }
+        catch (JsonException jsonEx)
+        {
+            Logger.LogException(jsonEx, $"deserializing ChainInfo from {nodeAddress}");
+            Node.RegisterSyncFailure(nodeAddress);
+            return;
+        }
+
+        if (responseObject == null)
+        {
+            Logger.LogError("ChainInfo Deserialize failed: Invalid response structure");
+            Node.RegisterSyncFailure(nodeAddress);
+            return;
+        }
+
+        if (Config.Default.Debug)
+            Logger.Log($"SynchronizeWithPeers  {nodeAddress} Result: {responseObject.Message}");
+
+        Node.MarkNodeActive(nodeAddress);
+
+        foreach (var chain in Blockchain.Blockchains)
+            if (responseObject.FirstHash == chain.Chain.First().Hash &&
+                Startup.Blockchain != null && Startup.Blockchain.IsValid())
+            {
+                if (responseObject.BlockCount > chain.Chain.Count)
+                    await GetRemoteChain(responseObject, sdpAddress, chain.Chain.Count);
+            }
+            else
+            {
+                await GetRemoteChain(responseObject, sdpAddress, 0);
+            }
+    }
+
 
     private static async void SignalR_OnBroadcastMessageReceived(string message)
     {
@@ -375,60 +440,118 @@ public class BlockchainServer
     }
       
      
-    private static async Task GetRemoteChain(ChainInfo responseObject, int fromBlock,
-        int chunkSize = 40)
+
+    private static async Task GetRemoteChain(ChainInfo responseObject, string sdpAddress, int fromBlock,
+        int? chunkSizeOverride = null)
     {
+        if (Startup.Blockchain == null)
+            return;
+
+        var chunkSize = Math.Max(1, chunkSizeOverride ?? Config.Default.SyncChunkSize);
+
         for (var block = fromBlock; block < responseObject.BlockCount; block += chunkSize)
         {
             var toBlock = Math.Min(block + chunkSize - 1, responseObject.BlockCount - 1);
 
-            try
-            { 
-                var sdpAddress = await SignalR.GetOfferFromServer(responseObject.NodeAddress);
+            var response = await SendWithTimeout(
+                () => WebRTC.Manager.InitOpenAndSendAsync(responseObject.NodeAddress, sdpAddress, "GetBlocks",
+                    $"{block}-{toBlock}"),
+                responseObject.NodeAddress,
+                $"GetBlocks {block}-{toBlock}");
 
-                string response = await WebRTC.Manager.InitOpenAndSendAsync(responseObject.NodeAddress, sdpAddress, "GetBlocks", $"{block}-{toBlock}");
-                if (!string.IsNullOrEmpty(response))
-                {
-                    var chainInfo = JsonSerializer.Deserialize<ChainInfo>(response);
-                    if (chainInfo != null && Startup.Blockchain != null)
-                    {
-                        if (Config.Default.Debug)
-                            Logger.Log($"GetBlocks {block}-{toBlock} from {responseObject.NodeAddress} Success");
-
-                        if (!string.IsNullOrEmpty(chainInfo.Message))
-                        {
-                            if (!chainInfo.Message.StartsWith("Error"))
-                                try
-                                {
-                                    var blocksString = JsonSerializer.Deserialize<List<string>>(chainInfo.Message);
-
-                                    if (blocksString != null)
-                                        foreach (var newBlockString in blocksString)
-                                        {
-                                            var newBlock = Block.FromBase64(newBlockString);
-                                            if (newBlock != null && newBlock.Nonce == -1)
-                                                Startup.Blockchain.Clear();
-
-                                            Startup.Blockchain.AddBlock(newBlock, false);
-                                        }
-                                }
-                                catch (JsonException jsonEx)
-                                {
-                                    Logger.LogException(jsonEx,
-                                        $"JSON deserialization failed for blocks in range {block}-{toBlock} from {responseObject.NodeAddress}");
-                                }
-                            else
-                                Logger.LogError(chainInfo.NodeAddress + ": " + chainInfo.Message);
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
+            if (string.IsNullOrEmpty(response))
             {
-                Logger.LogException(ex, $"Failed to GetBlocks {block}-{toBlock} from {responseObject.NodeAddress}");
+                Node.RegisterSyncFailure(responseObject.NodeAddress);
+                break;
+            }
+
+            ChainInfo? chainInfo;
+            try
+            {
+                chainInfo = JsonSerializer.Deserialize<ChainInfo>(response);
+            }
+            catch (JsonException jsonEx)
+            {
+                Logger.LogException(jsonEx,
+                    $"JSON deserialization failed for blocks in range {block}-{toBlock} from {responseObject.NodeAddress}");
+                Node.RegisterSyncFailure(responseObject.NodeAddress);
+                break;
+            }
+
+            if (chainInfo == null)
+                continue;
+
+            if (Config.Default.Debug)
+                Logger.Log($"GetBlocks {block}-{toBlock} from {responseObject.NodeAddress} Success");
+
+            if (string.IsNullOrEmpty(chainInfo.Message))
+                continue;
+
+            if (chainInfo.Message.StartsWith("Error"))
+            {
+                Logger.LogError(chainInfo.NodeAddress + ": " + chainInfo.Message);
+                Node.RegisterSyncFailure(responseObject.NodeAddress);
+                break;
+            }
+
+            try
+            {
+                var blocksString = JsonSerializer.Deserialize<List<string>>(chainInfo.Message);
+
+                if (blocksString == null)
+                    continue;
+
+                foreach (var newBlockString in blocksString)
+                {
+                    var newBlock = Block.FromBase64(newBlockString);
+                    if (newBlock != null && newBlock.Nonce == -1)
+                        Startup.Blockchain.Clear();
+
+                    Startup.Blockchain.AddBlock(newBlock, false);
+                }
+
+                Node.MarkNodeActive(responseObject.NodeAddress);
+            }
+            catch (JsonException jsonEx)
+            {
+                Logger.LogException(jsonEx,
+                    $"JSON deserialization failed for blocks in range {block}-{toBlock} from {responseObject.NodeAddress}");
             }
         }
     }
+
+    private static async Task<string?> SendWithTimeout(Func<Task<string>> sendAction, string nodeAddress,
+        string operationDescription)
+    {
+        try
+        {
+            var timeout = TimeSpan.FromSeconds(Math.Max(1, Config.Default.SyncRequestTimeoutSeconds));
+            var sendTask = sendAction();
+            var completedTask = await Task.WhenAny(sendTask, Task.Delay(timeout));
+
+            if (completedTask != sendTask)
+            {
+                Logger.LogWarning($"{operationDescription} with peer {nodeAddress} timed out after {timeout.TotalSeconds} seconds.");
+                return null;
+            }
+
+            var result = await sendTask;
+            if (string.IsNullOrEmpty(result) ||
+                result.StartsWith("Timeout", StringComparison.OrdinalIgnoreCase))
+            {
+                Logger.LogWarning($"{operationDescription} with peer {nodeAddress} returned no data.");
+                return null;
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex, $"{operationDescription} with peer {nodeAddress} failed");
+            return null;
+        }
+    }
+
 
     /// <summary>
     ///     Sends a vote request to a target validator for a specific block.

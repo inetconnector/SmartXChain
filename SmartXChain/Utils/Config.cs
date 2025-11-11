@@ -53,6 +53,12 @@ public class Config
         RedisNamespace = "smartxchain";
         RedisHeartbeatSeconds = 10;
         RedisNodeTtlSeconds = 45;
+        MaxParallelConnections = 10;
+        SyncChunkSize = 200;
+        SyncRequestTimeoutSeconds = 15;
+        NodeStaleTimeoutSeconds = 180;
+        MaxSyncFailures = 3;
+        SyncParallelism = 4;
         LoadConfig(filePath);
         SetBlockchainPath(FileSystem.BlockchainDirectory);
     }
@@ -62,7 +68,7 @@ public class Config
     public string Mnemonic { get; private set; }
     public int MaxParallelConnections { get; private set; }
     public string WalletPrivateKey { get; private set; }
-    public List<string> SignalHubs { get; } 
+    public List<string> SignalHubs { get; }
     public string NodeAddress {get; internal set;}
     public bool Debug { get; private set; }
     public string BlockchainPath { get; private set; }
@@ -70,6 +76,11 @@ public class Config
     public string PublicKey { get; private set; }
     public string PrivateKey { get; private set; }
     public int ResponseTimeoutMilliseconds { get; set; } = 1000;
+    public int SyncChunkSize { get; private set; }
+    public int SyncRequestTimeoutSeconds { get; private set; }
+    public int NodeStaleTimeoutSeconds { get; private set; }
+    public int MaxSyncFailures { get; private set; }
+    public int SyncParallelism { get; private set; }
     public string RedisConnectionString { get; private set; }
     public string RedisNamespace { get; private set; }
     public int RedisHeartbeatSeconds { get; private set; }
@@ -132,6 +143,11 @@ public class Config
         BlockchainPath = "";
         SSLCertificate = "";
         MaxParallelConnections = 10;
+        SyncChunkSize = 200;
+        SyncRequestTimeoutSeconds = 15;
+        NodeStaleTimeoutSeconds = 180;
+        MaxSyncFailures = 3;
+        SyncParallelism = 4;
         RedisConnectionString = string.Empty;
         RedisNamespace = "smartxchain";
         RedisHeartbeatSeconds = 10;
@@ -349,9 +365,24 @@ public class Config
                         if (key.Equals("ChainId", StringComparison.OrdinalIgnoreCase))
                             ChainId = value;
                         if (key.Equals("NodeAddress", StringComparison.OrdinalIgnoreCase))
-                            NodeAddress = value; 
+                            NodeAddress = value;
                         if (key.Equals("MaxParallelConnections", StringComparison.OrdinalIgnoreCase))
                             MaxParallelConnections = Convert.ToInt16(value);
+                        if (key.Equals("SyncChunkSize", StringComparison.OrdinalIgnoreCase) &&
+                            int.TryParse(value, out var chunkSize))
+                            SyncChunkSize = Math.Max(1, chunkSize);
+                        if (key.Equals("SyncRequestTimeoutSeconds", StringComparison.OrdinalIgnoreCase) &&
+                            int.TryParse(value, out var timeoutSeconds))
+                            SyncRequestTimeoutSeconds = Math.Max(1, timeoutSeconds);
+                        if (key.Equals("NodeStaleTimeoutSeconds", StringComparison.OrdinalIgnoreCase) &&
+                            int.TryParse(value, out var nodeTimeout))
+                            NodeStaleTimeoutSeconds = Math.Max(10, nodeTimeout);
+                        if (key.Equals("MaxSyncFailures", StringComparison.OrdinalIgnoreCase) &&
+                            int.TryParse(value, out var maxFailures))
+                            MaxSyncFailures = Math.Max(1, maxFailures);
+                        if (key.Equals("SyncParallelism", StringComparison.OrdinalIgnoreCase) &&
+                            int.TryParse(value, out var parallelism))
+                            SyncParallelism = Math.Max(1, parallelism);
                         break;
 
                     case "[Miner]":
