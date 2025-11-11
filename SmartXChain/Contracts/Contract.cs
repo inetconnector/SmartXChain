@@ -9,17 +9,33 @@ using System.Threading.Tasks;
 using System.Net.Http;
 
 /// ---------BEGIN BASE CLASSES----------
+/// <summary>
+///     Base class for SmartXChain contracts providing event subscription management and serialization helpers.
+/// </summary>
 public class Contract : Authenticate
 {
     private readonly Dictionary<string, List<(string RpcUrl, string Owner)>> _eventSubscriptions;
 
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="Contract" /> class.
+    /// </summary>
     public Contract()
     {
         _eventSubscriptions = new Dictionary<string, List<(string RpcUrl, string Owner)>>();
     }
 
-    [JsonInclude] public string Name { get; protected set; }
+    /// <summary>
+    ///     Gets the logical name of the contract.
+    /// </summary>
+    [JsonInclude]
+    public string Name { get; protected set; }
 
+    /// <summary>
+    ///     Registers an event handler endpoint for the specified contract event.
+    /// </summary>
+    /// <param name="eventName">The name of the event to subscribe to.</param>
+    /// <param name="rpcUrl">The URL of the handler that should receive event notifications.</param>
+    /// <param name="owner">The identifier of the handler owner.</param>
     public void RegisterHandler(string eventName, string rpcUrl, string owner)
     {
         if (!_eventSubscriptions.ContainsKey(eventName))
@@ -29,6 +45,12 @@ public class Contract : Authenticate
         Log($"Registered {rpcUrl} for event {eventName} by owner {owner}");
     }
 
+    /// <summary>
+    ///     Removes an event handler for the specified event if requested by the owner of the registration.
+    /// </summary>
+    /// <param name="eventName">The name of the event to unsubscribe from.</param>
+    /// <param name="rpcUrl">The URL of the handler to remove.</param>
+    /// <param name="requester">The identifier of the caller requesting the removal.</param>
     public void UnregisterHandler(string eventName, string rpcUrl, string requester)
     {
         if (_eventSubscriptions.ContainsKey(eventName))
@@ -46,6 +68,13 @@ public class Contract : Authenticate
         }
     }
 
+    /// <summary>
+    ///     Invokes all registered handlers for the specified event by posting the provided payload.
+    /// </summary>
+    /// <param name="eventName">The name of the event to trigger.</param>
+    /// <param name="eventData">The serialized event data to send to handlers.</param>
+    /// <param name="bearerToken">Optional bearer token forwarded to the handler endpoint.</param>
+    /// <returns>A task that completes when all handler requests have finished.</returns>
     public async Task TriggerHandlers(string eventName, string eventData, string bearerToken = "")
     {
         if (_eventSubscriptions.ContainsKey(eventName))
@@ -73,6 +102,11 @@ public class Contract : Authenticate
         }
     }
 
+    /// <summary>
+    ///     Validates whether the provided address matches the SmartXChain address format.
+    /// </summary>
+    /// <param name="address">The address to validate.</param>
+    /// <returns><c>true</c> if the address is valid; otherwise, <c>false</c>.</returns>
     public bool IsValidAddress(string address)
     {
         return !string.IsNullOrWhiteSpace(address) && address.Length >= 5 && address.StartsWith("smartX");
@@ -85,6 +119,12 @@ public class Contract : Authenticate
         return Convert.ToBase64String(hashedBytes);
     }
 
+    /// <summary>
+    ///     Serializes the provided instance into a Base64-encoded JSON string compressed with GZip.
+    /// </summary>
+    /// <typeparam name="T">The type of the instance to serialize.</typeparam>
+    /// <param name="instance">The instance to serialize.</param>
+    /// <returns>A Base64-encoded string representing the compressed JSON payload.</returns>
     public static string SerializeToBase64<T>(T instance)
     {
         var json = JsonSerializer.Serialize(instance, new JsonSerializerOptions { WriteIndented = true });
@@ -99,6 +139,12 @@ public class Contract : Authenticate
         }
     }
 
+    /// <summary>
+    ///     Deserializes a Base64-encoded, GZip-compressed JSON string into an instance of <typeparamref name="T" />.
+    /// </summary>
+    /// <typeparam name="T">The target type to deserialize.</typeparam>
+    /// <param name="base64Data">The Base64-encoded data to deserialize.</param>
+    /// <returns>The deserialized instance of <typeparamref name="T" />.</returns>
     public static T DeserializeFromBase64<T>(string base64Data) where T : class
     {
         var compressedData = Convert.FromBase64String(base64Data);
@@ -112,11 +158,22 @@ public class Contract : Authenticate
         }
     }
 
+    /// <summary>
+    ///     Writes a message to the shared logger, prefixed with the contract name.
+    /// </summary>
+    /// <param name="message">The message to log.</param>
+    /// <param name="trim">Indicates whether the message should be trimmed for console output.</param>
     public void Log(string message = "", bool trim = true)
     {
-        Logger.Log($"[{Name}] " + message);
+        Logger.Log($"[{Name}] " + message, trim);
     }
 
+    /// <summary>
+    ///     Writes an exception to the shared logger, including the contract name context.
+    /// </summary>
+    /// <param name="ex">The exception to log.</param>
+    /// <param name="message">Optional message providing additional context.</param>
+    /// <param name="trim">Reserved for future use.</param>
     public void LogException(Exception ex, string message = "", bool trim = false)
     {
         Logger.LogException(ex, $"[{Name}] {message}");

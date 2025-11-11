@@ -35,10 +35,14 @@ public class Node
     ///     A Thread safe list of IP addresses for nodes currently known to the system.
     /// </summary>
     public static ConcurrentList<string> CurrentNodes { get; set; } = new();
-    public static ConcurrentDictionary <string,string> CurrentNodes_SDP{ get; set; } = new();
 
     /// <summary>
-    ///     A dictionary of IP addresses for nodes with las activity currently known to the system.
+    ///     Stores cached SDP offers for known nodes, keyed by node address.
+    /// </summary>
+    public static ConcurrentDictionary<string, string> CurrentNodes_SDP { get; set; } = new();
+
+    /// <summary>
+    ///     A dictionary of IP addresses for nodes with last activity timestamps currently known to the system.
     /// </summary>
     public static ConcurrentDictionary<string, DateTime> CurrentNodes_LastActive { get; set; } = new();
 

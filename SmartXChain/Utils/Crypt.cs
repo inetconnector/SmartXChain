@@ -6,6 +6,9 @@ using SmartXChain.BlockchainCore;
 
 namespace SmartXChain.Utils;
 
+/// <summary>
+///     Provides cryptographic helper utilities for key generation, hashing, and assembly fingerprinting.
+/// </summary>
 public class Crypt
 {
     public static readonly Crypt Default = new();
@@ -14,6 +17,9 @@ public class Crypt
 
     private static readonly ConcurrentDictionary<string, string> _dllFingerprints = new();
 
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="Crypt" /> class and generates an ECDSA key pair.
+    /// </summary>
     public Crypt()
     {
         using var ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
@@ -21,16 +27,27 @@ public class Crypt
         PublicKey = Convert.ToBase64String(ecdsa.ExportSubjectPublicKeyInfo());
     }
 
+    /// <summary>
+    ///     Gets the base64-encoded private key generated for the current instance.
+    /// </summary>
     public string PrivateKey { get; }
+
+    /// <summary>
+    ///     Gets the base64-encoded public key corresponding to <see cref="PrivateKey" />.
+    /// </summary>
     public string PublicKey { get; }
+
+    /// <summary>
+    ///     Gets a cached fingerprint representing the assembly that contains the <see cref="Blockchain" /> type.
+    /// </summary>
     public static string AssemblyFingerprint => _assemblyFingerprint.Value;
 
     /// <summary>
-    ///     Generates Hash from a dll and stores it in local cache
+    ///     Generates a hash for a DLL file and stores the result in a local cache for reuse.
     /// </summary>
-    /// <param name="dllPath"></param>
-    /// <returns></returns>
-    /// <exception cref="FileNotFoundException"></exception>
+    /// <param name="dllPath">The absolute path of the DLL file to fingerprint.</param>
+    /// <returns>A base64-encoded SHA-256 hash of the DLL contents.</returns>
+    /// <exception cref="FileNotFoundException">Thrown when the specified DLL cannot be found.</exception>
     public static string GenerateFileFingerprint(string dllPath)
     {
         if (_dllFingerprints.TryGetValue(dllPath, out var binaryFingerprint))
