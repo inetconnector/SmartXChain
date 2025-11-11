@@ -102,48 +102,44 @@ public static class BlockchainHelper
         return _startup;
     }
 
-    public static async Task ImportAmountFromFile()
+    public static async Task<bool> ImportAmountFromFile(string recipient, string fileContent)
     {
-        Logger.Log("Enter recipient address:");
-        var recipient = Console.ReadLine();
-
-        Logger.Log("Enter file name to import SCX tokens:");
-        var fileName = Console.ReadLine();
-
-        if (string.IsNullOrWhiteSpace(recipient) || string.IsNullOrWhiteSpace(fileName))
+        if (string.IsNullOrWhiteSpace(recipient))
         {
-            Logger.Log("Recipient or file name is invalid.");
-            return;
+            Logger.Log("Recipient is invalid.");
+            return false;
         }
 
-        if (!File.Exists(fileName))
+        if (string.IsNullOrWhiteSpace(fileContent))
         {
-            Logger.Log("File does not exist.");
-            return;
+            Logger.Log("File content is empty.");
+            return false;
         }
 
         try
         {
-            var fileContent = File.ReadAllText(fileName);
             if (_startup?.Blockchain != null)
             {
                 var (success, message) =
                     await Transaction.ImportFromFileToAccount(_startup.Blockchain, fileContent, recipient);
                 Logger.Log(success ? $"Import successful: {message}" : $"Import failed: {message}");
+                return success;
             }
         }
         catch (Exception ex)
         {
             Logger.Log($"Error importing tokens: {ex.Message}");
         }
+
+        return false;
     }
 
-    public static async Task SendNativeTokens(string recipient, decimal amount)
+    public static async Task<bool> SendNativeTokens(string recipient, decimal amount, string? data = null)
     {
         if (_startup?.Blockchain == null)
         {
             Logger.Log("Blockchain not initialized.");
-            return;
+            return false;
         }
 
         var walletAddresses = SmartXWallet.LoadWalletAdresses();
@@ -152,16 +148,14 @@ public static class BlockchainHelper
         if (sender == null)
         {
             Logger.Log("Sender address not found.");
-            return;
+            return false;
         }
 
-        Logger.Log("Enter additional data (optional):");
-        var data = Console.ReadLine() ?? string.Empty;
-
         var success = await Transaction.Transfer(
-            _startup.Blockchain, sender, recipient, amount, PrivateKey, "native transfer", data);
+            _startup.Blockchain, sender, recipient, amount, PrivateKey, "native transfer", data ?? string.Empty);
 
         Logger.Log(success.Item1 ? "Transfer successful." : $"Transfer failed: {success.Item2}");
+        return success.Item1;
     }
 
     public static Task<string> GetBlockchainState()
@@ -183,15 +177,14 @@ public static class BlockchainHelper
         return Task.FromResult($"Wallet Balances:\n{result}");
     }
 
-    public static async Task<bool> UploadSmartContract(string fileName)
+    public static async Task<bool> UploadSmartContract(string fileName, string contractCode)
     {
-        if (!File.Exists(fileName) || Path.GetExtension(fileName)?.ToLower() != ".cs")
+        if (Path.GetExtension(fileName)?.ToLower() != ".cs")
         {
             Logger.Log("Invalid file specified.");
             return false;
         }
 
-        var contractCode = File.ReadAllText(fileName);
         var match = Regex.Match(contractCode, @"\bclass\s+(\w+)");
         var contractName = match.Success ? match.Groups[1].Value : "UnnamedContract";
 
