@@ -36,26 +36,105 @@ public sealed class GasConfiguration
     private static readonly Lazy<GasConfiguration> _instance = new(() => new GasConfiguration());
 
     /// <summary>
-    ///     Singleton instance of  gas configuration.
+    ///     Gets the singleton <see cref="GasConfiguration" /> instance used throughout the application.
     /// </summary>
     public static GasConfiguration Instance => _instance.Value;
 
-    [JsonInclude] public decimal BaseGasTransaction { get; set; } = 5;
-    [JsonInclude] public decimal BaseGasContract { get; set; } = 10;
-    [JsonInclude] public decimal GasPerCharacter { get; set; } = 2;
-    [JsonInclude] public decimal MinerInitialReward { get; set; } = 0.1m;
-    [JsonInclude] public decimal ValidatorInitialReward { get; set; } = 0.05m;
-    [JsonInclude] public decimal MinerDecayFactor { get; set; } = 0.98m;
-    [JsonInclude] public decimal ValidatorDecayFactor { get; set; } = 0.99m;
-    [JsonInclude] public decimal MinerMinimumReward { get; set; } = 0.01m;
-    [JsonInclude] public decimal ValidatorMinimumReward { get; set; } = 0.005m;
-    [JsonInclude] public decimal GasFactor { get; set; } = 1000;
-    [JsonInclude] public decimal CurrentNetworkLoadGT { get; set; } = 0.75m;
-    [JsonInclude] public decimal CurrentNetworkLoadLT { get; set; } = 0.25m;
-    [JsonInclude] public decimal CurrentNetworkLoadGTMultiply { get; set; } = 1.2m;
-    [JsonInclude] public decimal CurrentNetworkLoadLTMultiply { get; set; } = 0.8m;
-    [JsonInclude] public decimal ContractDataLengthMin { get; set; } = 1000;
-    [JsonInclude] public decimal ContractDataLengthGasFactor { get; set; } = 0.8m;
+    /// <summary>
+    ///     Gets or sets the base gas amount required for a regular transaction.
+    /// </summary>
+    [JsonInclude]
+    public decimal BaseGasTransaction { get; set; } = 5;
+
+    /// <summary>
+    ///     Gets or sets the base gas amount required for deploying a contract.
+    /// </summary>
+    [JsonInclude]
+    public decimal BaseGasContract { get; set; } = 10;
+
+    /// <summary>
+    ///     Gets or sets the additional gas cost per character of contract data.
+    /// </summary>
+    [JsonInclude]
+    public decimal GasPerCharacter { get; set; } = 2;
+
+    /// <summary>
+    ///     Gets or sets the initial reward distributed to miners.
+    /// </summary>
+    [JsonInclude]
+    public decimal MinerInitialReward { get; set; } = 0.1m;
+
+    /// <summary>
+    ///     Gets or sets the initial reward distributed to validators.
+    /// </summary>
+    [JsonInclude]
+    public decimal ValidatorInitialReward { get; set; } = 0.05m;
+
+    /// <summary>
+    ///     Gets or sets the factor by which miner rewards decay over time.
+    /// </summary>
+    [JsonInclude]
+    public decimal MinerDecayFactor { get; set; } = 0.98m;
+
+    /// <summary>
+    ///     Gets or sets the factor by which validator rewards decay over time.
+    /// </summary>
+    [JsonInclude]
+    public decimal ValidatorDecayFactor { get; set; } = 0.99m;
+
+    /// <summary>
+    ///     Gets or sets the minimum reward value for miners.
+    /// </summary>
+    [JsonInclude]
+    public decimal MinerMinimumReward { get; set; } = 0.01m;
+
+    /// <summary>
+    ///     Gets or sets the minimum reward value for validators.
+    /// </summary>
+    [JsonInclude]
+    public decimal ValidatorMinimumReward { get; set; } = 0.005m;
+
+    /// <summary>
+    ///     Gets or sets the global multiplier applied to calculated gas values.
+    /// </summary>
+    [JsonInclude]
+    public decimal GasFactor { get; set; } = 1000;
+
+    /// <summary>
+    ///     Gets or sets the threshold at which the network is considered under heavy load.
+    /// </summary>
+    [JsonInclude]
+    public decimal CurrentNetworkLoadGT { get; set; } = 0.75m;
+
+    /// <summary>
+    ///     Gets or sets the threshold at which the network is considered under light load.
+    /// </summary>
+    [JsonInclude]
+    public decimal CurrentNetworkLoadLT { get; set; } = 0.25m;
+
+    /// <summary>
+    ///     Gets or sets the multiplier applied to gas when the network load exceeds <see cref="CurrentNetworkLoadGT" />.
+    /// </summary>
+    [JsonInclude]
+    public decimal CurrentNetworkLoadGTMultiply { get; set; } = 1.2m;
+
+    /// <summary>
+    ///     Gets or sets the multiplier applied to gas when the network load falls below <see cref="CurrentNetworkLoadLT" />.
+    /// </summary>
+    [JsonInclude]
+    public decimal CurrentNetworkLoadLTMultiply { get; set; } = 0.8m;
+
+    /// <summary>
+    ///     Gets or sets the minimum size of contract data before additional gas adjustments are applied.
+    /// </summary>
+    [JsonInclude]
+    public decimal ContractDataLengthMin { get; set; } = 1000;
+
+    /// <summary>
+    ///     Gets or sets the factor used to adjust gas consumption based on contract data length.
+    /// </summary>
+    [JsonInclude]
+    public decimal ContractDataLengthGasFactor { get; set; } = 0.8m;
 
     /// <summary>
     ///     Prints the current gas and reward configuration to the console.

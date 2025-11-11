@@ -8,7 +8,16 @@ namespace SmartXChain.Contracts.Execution.Protocol;
 /// </summary>
 public sealed class ContractExecutorEnvelope
 {
-    [JsonPropertyName("type")] public required string Type { get; init; }
+    /// <summary>
+    ///     Gets the discriminator describing the payload content.
+    /// </summary>
+    [JsonPropertyName("type")]
+    public required string Type { get; init; }
 
-    [JsonPropertyName("payload")] public required object Payload { get; init; }
+    /// <summary>
+    ///     Gets the serialized payload delivered to or from the sandbox.
+    /// </summary>
+    [JsonPropertyName("payload")]
+    public required object Payload { get; init; }
 }
+

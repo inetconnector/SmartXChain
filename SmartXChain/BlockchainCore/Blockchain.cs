@@ -16,7 +16,14 @@ namespace SmartXChain.BlockchainCore;
 /// </summary>
 public class Blockchain
 {
+    /// <summary>
+    ///     Address reserved for system-level transactions such as rewards and configuration updates.
+    /// </summary>
     public const string SystemAddress = "smartX0000000000000000000000000000000000000000";
+
+    /// <summary>
+    ///     Address used to denote an unknown or unresolved participant.
+    /// </summary>
     public const string UnknownAddress = "smartXFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF";
 
     [JsonInclude] private readonly int _difficulty;
@@ -41,13 +48,23 @@ public class Blockchain
         Blockchains.Add(this);
     }
 
+    /// <summary>
+    ///     Gets the list of blockchain instances known to the current node.
+    /// </summary>
     public static List<Blockchain> Blockchains { get; } = new();
     [JsonInclude] internal string ChainId { get; }
     [JsonInclude] internal string MinerAdress { get; }
-    [JsonInclude] public List<Block> Chain { get; internal set; }
+    /// <summary>
+    ///     Gets the ordered collection of blocks that make up the chain.
+    /// </summary>
+    [JsonInclude]
+    public List<Block> Chain { get; internal set; }
     [JsonInclude] internal List<Transaction> PendingTransactions { get; private set; }
     [JsonInclude] internal static decimal CurrentNetworkLoad { get; private set; } = (decimal).5;
 
+    /// <summary>
+    ///     Gets all smart contracts deployed on the chain, keyed by their contract name.
+    /// </summary>
     public IReadOnlyDictionary<string, SmartContract?> SmartContracts
     {
         get
