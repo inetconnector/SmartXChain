@@ -108,6 +108,13 @@ public static class BlockchainStorage
         }
     }
 
+    /// <summary>
+    ///     Retrieves a block's metadata by its hash without loading transactions.
+    /// </summary>
+    /// <param name="hash">The hash identifying the block.</param>
+    /// <param name="blockchainPath">The filesystem path containing blockchain databases.</param>
+    /// <param name="chainId">The identifier of the target chain.</param>
+    /// <returns>The matching <see cref="Block" /> instance or <c>null</c> if not found.</returns>
     public static Block? GetBlockByHash(string hash, string blockchainPath, string chainId)
     {
         var databasePath = Path.Combine(blockchainPath, chainId + ".db");
@@ -194,8 +201,12 @@ public static class BlockchainStorage
 
 
     /// <summary>
-    ///     Retrieves all transactions for a given user from the blockchain database as a JSON string.
+    ///     Retrieves all transactions that involve the specified user encoded as a JSON array.
     /// </summary>
+    /// <param name="user">The address to search for.</param>
+    /// <param name="blockchainPath">The filesystem path containing blockchain databases.</param>
+    /// <param name="chainId">The identifier of the target chain.</param>
+    /// <returns>A JSON string describing the matching transactions.</returns>
     public static string GetUserTransactions(string user, string blockchainPath, string chainId)
     {
         var databasePath = Path.Combine(blockchainPath, chainId + ".db");
@@ -464,3 +475,4 @@ public static class BlockchainStorage
         public string ApprovesJson { get; set; } = string.Empty;
     }
 }
+

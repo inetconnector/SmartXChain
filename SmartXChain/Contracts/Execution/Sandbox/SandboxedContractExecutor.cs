@@ -18,6 +18,12 @@ public sealed class SandboxedContractExecutor : IContractExecutor
     private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(10);
     private const long MemoryLimitBytes = 128 * 1024 * 1024; // 128 MB
 
+    /// <summary>
+    ///     Compiles the supplied contract code inside the sandbox host and returns an execution session.
+    /// </summary>
+    /// <param name="contractCode">The raw C# contract code.</param>
+    /// <param name="cancellationToken">Token used to cancel the compilation request.</param>
+    /// <returns>An <see cref="IContractExecutionSession" /> bound to the sandbox process.</returns>
     public async Task<IContractExecutionSession> CompileAsync(string contractCode, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(contractCode))
@@ -53,6 +59,13 @@ public sealed class SandboxedContractExecutor : IContractExecutor
         }
     }
 
+    /// <summary>
+    ///     Transfers serialized contract state into the sandbox and returns the normalized representation.
+    /// </summary>
+    /// <param name="session">The session obtained from <see cref="CompileAsync" />.</param>
+    /// <param name="serializedState">The serialized contract state to transfer.</param>
+    /// <param name="cancellationToken">Token used to cancel the operation.</param>
+    /// <returns>The sanitized serialized state provided by the sandbox.</returns>
     public Task<string> TransferStateAsync(IContractExecutionSession session, string serializedState,
         CancellationToken cancellationToken)
     {
@@ -62,6 +75,14 @@ public sealed class SandboxedContractExecutor : IContractExecutor
         return TransferStateInternalAsync(sandboxSession, serializedState, cancellationToken);
     }
 
+    /// <summary>
+    ///     Executes the compiled contract with the supplied inputs and state within the sandbox.
+    /// </summary>
+    /// <param name="session">The execution session bound to the sandbox.</param>
+    /// <param name="inputs">Invocation parameters for the contract.</param>
+    /// <param name="serializedState">The serialized state used for execution.</param>
+    /// <param name="cancellationToken">Token used to cancel the execution.</param>
+    /// <returns>The contract execution result including the updated state.</returns>
     public Task<ContractExecutionResult> ExecuteAsync(IContractExecutionSession session, string[] inputs,
         string serializedState, CancellationToken cancellationToken)
     {
@@ -336,3 +357,4 @@ public sealed class SandboxedContractExecutor : IContractExecutor
         }
     }
 }
+
