@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Linq;
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -403,6 +404,13 @@ public class BlockchainServer
     {
         // Load your secret for JWT
         var signalRSigningKey = Environment.GetEnvironmentVariable("SIGNALR_PASSWORD");
+        if (string.IsNullOrWhiteSpace(signalRSigningKey))
+            throw new InvalidOperationException(
+                "SIGNALR_PASSWORD environment variable must be set to establish a secure SignalR connection.");
+
+        if (signalRSigningKey.Length < 16)
+            throw new InvalidOperationException("SignalR signing key must be at least 16 characters long.");
+
         var name = "smartXchain";
 
         // Instantiate our SignalR client
@@ -421,22 +429,36 @@ public class BlockchainServer
     // JWT generator for SignalR authentication
     private static string GenerateJwtToken(string issuer, string signingKey)
     {
+        if (string.IsNullOrWhiteSpace(issuer))
+            throw new ArgumentException("Issuer is required to generate a JWT token.", nameof(issuer));
+
+        if (string.IsNullOrWhiteSpace(signingKey))
+            throw new ArgumentException("Signing key is required to generate a JWT token.", nameof(signingKey));
+
         var tokenHandler = new JwtSecurityTokenHandler();
-        var key = Encoding.UTF8.GetBytes(issuer + signingKey);
+        var keyMaterial = DeriveSignalRKey(issuer, signingKey);
 
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Issuer = issuer,
             Audience = issuer,
+            IssuedAt = DateTime.UtcNow,
+            NotBefore = DateTime.UtcNow,
             Expires = DateTime.UtcNow.AddHours(1),
             SigningCredentials = new SigningCredentials(
-                new SymmetricSecurityKey(key),
+                new SymmetricSecurityKey(keyMaterial),
                 SecurityAlgorithms.HmacSha256Signature
             )
         };
 
         var token = tokenHandler.CreateToken(tokenDescriptor);
         return tokenHandler.WriteToken(token);
+    }
+
+    private static byte[] DeriveSignalRKey(string issuer, string signingKey)
+    {
+        var combined = Encoding.UTF8.GetBytes($"{issuer}:{signingKey}");
+        return SHA256.HashData(combined);
     }
       
      
