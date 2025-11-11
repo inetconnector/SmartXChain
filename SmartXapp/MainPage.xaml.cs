@@ -1,6 +1,11 @@
 ﻿using System.Diagnostics;
+using System.IO;
+using Microsoft.Maui.Devices;
+using Microsoft.Maui.Storage;
 using SmartXChain.Utils;
 using FileSystem = SmartXChain.Utils.FileSystem;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace SmartXapp;
 
@@ -29,8 +34,32 @@ public partial class MainPage : ContentPage
 
     private async void OnImportSCXTokensClicked(object sender, EventArgs e)
     {
-        // Logic to import SCX tokens
-        await BlockchainHelper.ImportAmountFromFile();
+        var recipient = await DisplayPromptAsync("Import SCX Tokens", "Enter recipient address:");
+        if (string.IsNullOrWhiteSpace(recipient))
+        {
+            await DisplayAlert("Import SCX Tokens", "Recipient is required.", "OK");
+            return;
+        }
+
+        var fileResult = await FilePicker.Default.PickAsync(new PickOptions
+        {
+            PickerTitle = "Select SCX token export",
+            FileTypes = FilePickerFileType.PlainText
+        });
+
+        if (fileResult == null)
+        {
+            Logger.Log("Token import cancelled by user.");
+            return;
+        }
+
+        await using var stream = await fileResult.OpenReadAsync();
+        using var reader = new StreamReader(stream);
+        var fileContent = await reader.ReadToEndAsync();
+
+        var success = await BlockchainHelper.ImportAmountFromFile(recipient, fileContent);
+        await DisplayAlert("Import SCX Tokens",
+            success ? "Tokens imported successfully." : "Token import failed.", "OK");
     }
 
     private async void OnSendSCXTokensClicked(object sender, EventArgs e)
@@ -40,8 +69,10 @@ public partial class MainPage : ContentPage
         var amount = await DisplayPromptAsync("Send SCX Tokens", "Enter amount:");
         if (!string.IsNullOrEmpty(recipient) && decimal.TryParse(amount, out var parsedAmount))
         {
-            await BlockchainHelper.SendNativeTokens(recipient, parsedAmount);
-            await DisplayAlert("Success", "Tokens sent successfully.", "OK");
+            var data = await DisplayPromptAsync("Send SCX Tokens", "Enter additional data (optional):", "OK", "Skip");
+            var success = await BlockchainHelper.SendNativeTokens(recipient, parsedAmount, data);
+            await DisplayAlert(success ? "Success" : "Error",
+                success ? "Tokens sent successfully." : "Token transfer failed.", "OK");
         }
         else
         {
@@ -66,13 +97,31 @@ public partial class MainPage : ContentPage
     private async void OnUploadSmartContractClicked(object sender, EventArgs e)
     {
         // Logic to upload smart contract
-        var fileName = await DisplayPromptAsync("Upload Contract", "Enter contract filename:");
-        if (!string.IsNullOrEmpty(fileName))
+        var fileResult = await FilePicker.Default.PickAsync(new PickOptions
         {
-            var success = await BlockchainHelper.UploadSmartContract(fileName);
-            await DisplayAlert("Upload Contract",
-                success ? "Contract uploaded successfully." : "Failed to upload contract.", "OK");
+            PickerTitle = "Select C# smart contract",
+            FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+            {
+                { DevicePlatform.Android, new[] { "text/plain", "application/octet-stream" } },
+                { DevicePlatform.WinUI, new[] { ".cs" } },
+                { DevicePlatform.MacCatalyst, new[] { "public.c-sharp-source" } },
+                { DevicePlatform.iOS, new[] { "public.c-sharp-source" } }
+            })
+        });
+
+        if (fileResult == null)
+        {
+            Logger.Log("Smart contract upload cancelled by user.");
+            return;
         }
+
+        await using var stream = await fileResult.OpenReadAsync();
+        using var reader = new StreamReader(stream);
+        var contractCode = await reader.ReadToEndAsync();
+
+        var success = await BlockchainHelper.UploadSmartContract(fileResult.FileName, contractCode);
+        await DisplayAlert("Upload Contract",
+            success ? "Contract uploaded successfully." : "Failed to upload contract.", "OK");
     }
 
     private async void OnRunSmartContractDemoClicked(object sender, EventArgs e)
@@ -99,15 +148,23 @@ public partial class MainPage : ContentPage
 
                 var restartConfirmed = await DisplayAlert("Restart Required",
                     "The application needs to restart to apply changes. Restart now?", "Yes", "No");
-                if (restartConfirmed) RestartApplication();
+                if (restartConfirmed) await RestartApplicationAsync();
             }
         };
 
         await Navigation.PushModalAsync(editConfigPage);
     }
 
-    private void RestartApplication()
+    private async Task RestartApplicationAsync()
     {
+        if (DeviceInfo.Current.Platform == DevicePlatform.Android)
+        {
+            await DisplayAlert("Restart Required", "Please close and reopen the app to apply changes.", "OK");
+            Application.Current?.Quit();
+            return;
+        }
+
+#if WINDOWS
         var startupPath = Environment.ProcessPath;
         if (!string.IsNullOrEmpty(startupPath))
         {
@@ -116,9 +173,11 @@ public partial class MainPage : ContentPage
                 FileName = startupPath,
                 UseShellExecute = true
             });
-            Thread.Sleep(500);
-            if (Application.Current != null) Application.Current.Quit();
+            await Task.Delay(500);
         }
+#endif
+
+        Application.Current?.Quit();
     }
 
     private void OnExtendedLoggingClicked(object? sender, EventArgs e)
