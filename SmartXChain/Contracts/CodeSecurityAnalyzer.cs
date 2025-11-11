@@ -1,4 +1,5 @@
 ﻿using System.Text.RegularExpressions;
+using System.IO;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SmartXChain.BlockchainCore;
@@ -21,6 +22,7 @@ public class CodeSecurityAnalyzer
         "System.Threading",
         "System.Threading.Tasks",
         "SmartXChain.Utils",
+        "SmartXChain.Contracts.Execution",
         "System.Diagnostics",
         "System.Net.Http",
         "System.Xml",
@@ -64,6 +66,20 @@ public class CodeSecurityAnalyzer
     {
         "typeof", "Activator.CreateInstance", "MethodInfo", "PropertyInfo", "FieldInfo", "GetType"
     };
+
+    private static readonly HashSet<string> AllowedAssemblyReferences = new(
+        new[]
+        {
+            "System.Runtime",
+            "System.Private.CoreLib",
+            "System.Collections",
+            "System.Collections.Concurrent",
+            "System.Linq",
+            "System.Text.Json",
+            "System.Text",
+            "System.Runtime.Extensions"
+        },
+        StringComparer.OrdinalIgnoreCase);
 
     private static readonly string[] ForbiddenPaths = { "C:\\", "/etc/", "%TEMP%", "%APPDATA%" };
 
@@ -255,6 +271,24 @@ public class CodeSecurityAnalyzer
             {
                 messages.Add(message);
                 Logger.Log("Unsafe command detected.");
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public static bool AreAssemblyReferencesSafe(string code, ref string message)
+    {
+        var referencePattern = new Regex("#r\\s+\"(?<assembly>[^\"]+)\"", RegexOptions.IgnoreCase);
+        foreach (Match match in referencePattern.Matches(code))
+        {
+            var reference = match.Groups["assembly"].Value;
+            var assemblyName = Path.GetFileNameWithoutExtension(reference);
+            if (!AllowedAssemblyReferences.Contains(assemblyName ?? string.Empty))
+            {
+                message = $"Assembly reference '{reference}' is not permitted.";
+                Logger.Log(message);
                 return false;
             }
         }
