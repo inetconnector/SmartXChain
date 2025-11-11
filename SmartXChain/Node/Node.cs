@@ -1,7 +1,5 @@
 ﻿using System.Collections.Concurrent;
-using System.Linq;
 using SmartXChain.Utils;
-using static SmartXChain.ClientServer.BlockchainServer;
 
 namespace SmartXChain.Validators;
 
@@ -18,6 +16,7 @@ public class Node
     /// </summary>
     /// <returns>A Task representing the asynchronous operation.</returns>
     private static readonly ConcurrentDictionary<string, DateTime> LastResponseTimes = new();
+
     private static readonly ConcurrentDictionary<string, int> SyncFailureCounts = new();
 
     /// <summary>
@@ -76,11 +75,9 @@ public class Node
         if (Config.Default.SignalHubs.Count == 0)
         {
             Logger.Log("No active signalHubs found. Waiting for a server...");
-            while (Config.Default.SignalHubs.Count == 0)
-            {
-                await Task.Delay(5000);
-            }
+            while (Config.Default.SignalHubs.Count == 0) await Task.Delay(5000);
         }
+
         return node;
     }
 

@@ -13,4 +13,3 @@ public sealed class ContractStateTransferRequest
     [JsonPropertyName("state")]
     public required string SerializedState { get; init; }
 }
-

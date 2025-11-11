@@ -1,11 +1,5 @@
-﻿using System.Diagnostics;
-using System.IO;
-using Microsoft.Maui.Devices;
-using Microsoft.Maui.Storage;
-using SmartXChain.Utils;
+﻿using SmartXChain.Utils;
 using FileSystem = SmartXChain.Utils.FileSystem;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace SmartXapp;
 

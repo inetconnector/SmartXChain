@@ -7,10 +7,10 @@ MaxParallelConnections=10
 [Miner]
 
 [Redis]
-ConnectionString=localhost:6379
+ConnectionString=discovery.netregservice.com:6379
 Namespace=smartxchain
 HeartbeatSeconds=10
 NodeTtlSeconds=45
 
 [SignalHubs]
-https://netregservice.com:5050/signalrhub
+https://discovery.netregservice.com:5050

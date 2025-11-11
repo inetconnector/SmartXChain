@@ -13,4 +13,3 @@ public sealed class ContractCompilationRequest
     [JsonPropertyName("code")]
     public required string Code { get; init; }
 }
-

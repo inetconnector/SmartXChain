@@ -17,7 +17,7 @@ public static class FileSystem
             return blockchainPath;
         }
     }
-     
+
     public static string ContractsDir
     {
         get
@@ -137,7 +137,7 @@ public static class FileSystem
             ChainName.ToString());
 
         if (Directory.Exists(appDir))
-        {  
+        {
             if (Directory.Exists(BlockchainPath))
                 Directory.Delete(BlockchainPath, true);
 

@@ -1,10 +1,8 @@
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using SmartXChain.Contracts.Execution.Protocol;
-using SmartXChain.Utils;
 
 namespace SmartXChain.Contracts.Execution.Sandbox;
 
@@ -15,8 +13,8 @@ namespace SmartXChain.Contracts.Execution.Sandbox;
 /// </summary>
 public sealed class SandboxedContractExecutor : IContractExecutor
 {
-    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(10);
     private const long MemoryLimitBytes = 128 * 1024 * 1024; // 128 MB
+    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>
     ///     Compiles the supplied contract code inside the sandbox host and returns an execution session.
@@ -136,7 +134,8 @@ public sealed class SandboxedContractExecutor : IContractExecutor
         if (File.Exists(candidate))
             return candidate;
 
-        candidate = Path.Combine(baseDirectory, "SmartXChain.ContractExecutorHost", "SmartXChain.ContractExecutorHost.dll");
+        candidate = Path.Combine(baseDirectory, "SmartXChain.ContractExecutorHost",
+            "SmartXChain.ContractExecutorHost.dll");
         if (File.Exists(candidate))
             return candidate;
 
@@ -197,7 +196,8 @@ public sealed class SandboxedContractExecutor : IContractExecutor
             return new ContractExecutionResult(response.Result ?? "ok",
                 response.SerializedState ?? serializedState);
         }
-        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested &&
+                                                 !cancellationToken.IsCancellationRequested)
         {
             await session.TerminateAsync().ConfigureAwait(false);
             return ContractExecutionResult.Error("Execution timeout", serializedState);
@@ -211,18 +211,20 @@ public sealed class SandboxedContractExecutor : IContractExecutor
 
     private sealed class SandboxedContractExecutionSession : IContractExecutionSession
     {
+        private readonly long _memoryLimitBytes;
+        private readonly CancellationTokenSource _monitorCts = new();
+        private readonly Task _monitorTask;
+
+        private readonly Process _process;
+
         private readonly JsonSerializerOptions _serializerOptions = new()
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
 
-        private readonly Process _process;
         private readonly StreamWriter _stdin;
         private readonly StreamReader _stdout;
-        private readonly CancellationTokenSource _monitorCts = new();
-        private readonly Task _monitorTask;
-        private readonly long _memoryLimitBytes;
 
         public SandboxedContractExecutionSession(Process process, long memoryLimitBytes)
         {
@@ -256,17 +258,15 @@ public sealed class SandboxedContractExecutor : IContractExecutor
                 await _monitorTask.ConfigureAwait(false);
 
                 if (!_process.HasExited)
-                {
                     try
                     {
                         if (!_process.WaitForExit(200))
-                            _process.Kill(entireProcessTree: true);
+                            _process.Kill(true);
                     }
                     catch
                     {
                         // ignored
                     }
-                }
 
                 _stdin.Dispose();
                 _stdout.Dispose();
@@ -279,7 +279,7 @@ public sealed class SandboxedContractExecutor : IContractExecutor
             try
             {
                 if (!_process.HasExited)
-                    _process.Kill(entireProcessTree: true);
+                    _process.Kill(true);
             }
             catch
             {
@@ -357,4 +357,3 @@ public sealed class SandboxedContractExecutor : IContractExecutor
         }
     }
 }
-

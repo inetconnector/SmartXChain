@@ -1,28 +1,24 @@
-using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using StackExchange.Redis;
 
 namespace SmartXChain.ClientServer;
 
 public sealed class RedisNodeRegistry : IAsyncDisposable
 {
+    private readonly CancellationTokenSource _cancellationTokenSource = new();
+    private readonly string _chainId;
+    private readonly string _channelName;
     private readonly ConnectionMultiplexer _connection;
     private readonly IDatabase _database;
-    private readonly ISubscriber _subscriber;
-    private readonly CancellationTokenSource _cancellationTokenSource = new();
     private readonly TimeSpan _heartbeatInterval;
-    private readonly TimeSpan _nodeEntryTtl;
-    private readonly string _nodeSetKey;
-    private readonly string _channelName;
-    private readonly string _nodeKeyPrefix;
     private readonly string _nodeAddress;
-    private readonly string _chainId;
-    private string _signalHub = string.Empty;
-    private string _sdp = string.Empty;
+    private readonly TimeSpan _nodeEntryTtl;
+    private readonly string _nodeKeyPrefix;
+    private readonly string _nodeSetKey;
+    private readonly ISubscriber _subscriber;
     private Task _heartbeatTask = Task.CompletedTask;
+    private string _sdp = string.Empty;
+    private string _signalHub = string.Empty;
 
     private RedisNodeRegistry(ConnectionMultiplexer connection, IDatabase database, ISubscriber subscriber,
         string redisNamespace, string chainId, string nodeAddress, TimeSpan heartbeatInterval, TimeSpan nodeEntryTtl)
@@ -38,6 +34,27 @@ public sealed class RedisNodeRegistry : IAsyncDisposable
         _nodeKeyPrefix = $"{redisNamespace}:nodes:{chainId}";
         _nodeSetKey = _nodeKeyPrefix;
         _channelName = $"{_nodeKeyPrefix}:events";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _cancellationTokenSource.Cancel();
+        try
+        {
+            await _heartbeatTask.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        await PublishAsync(RedisNodeEvent.Leave(_nodeAddress));
+        await _database.SetRemoveAsync(_nodeSetKey, _nodeAddress);
+        await _database.KeyDeleteAsync(BuildNodeKey(_nodeAddress));
+
+        await _subscriber.UnsubscribeAsync(_channelName);
+        await _connection.CloseAsync();
+        _connection.Dispose();
+        _cancellationTokenSource.Dispose();
     }
 
     public event Func<RedisNodeInfo, Task>? NodeDiscovered;
@@ -85,27 +102,6 @@ public sealed class RedisNodeRegistry : IAsyncDisposable
         }
 
         return result;
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        _cancellationTokenSource.Cancel();
-        try
-        {
-            await _heartbeatTask.ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-
-        await PublishAsync(RedisNodeEvent.Leave(_nodeAddress));
-        await _database.SetRemoveAsync(_nodeSetKey, _nodeAddress);
-        await _database.KeyDeleteAsync(BuildNodeKey(_nodeAddress));
-
-        await _subscriber.UnsubscribeAsync(_channelName);
-        await _connection.CloseAsync();
-        _connection.Dispose();
-        _cancellationTokenSource.Dispose();
     }
 
     private async Task InitializeAsync()
@@ -294,10 +290,20 @@ public sealed class RedisNodeRegistry : IAsyncDisposable
 
     private sealed record class RedisNodeEvent(RedisNodeEventType EventType, RedisNodeInfo? Node, string NodeAddress)
     {
-        public static RedisNodeEvent Join(RedisNodeInfo node) => new(RedisNodeEventType.Join, node, node.NodeAddress);
-        public static RedisNodeEvent Refresh(RedisNodeInfo node) => new(RedisNodeEventType.Refresh, node, node.NodeAddress);
-        public static RedisNodeEvent Leave(string nodeAddress) =>
-            new(RedisNodeEventType.Leave, null, nodeAddress);
+        public static RedisNodeEvent Join(RedisNodeInfo node)
+        {
+            return new RedisNodeEvent(RedisNodeEventType.Join, node, node.NodeAddress);
+        }
+
+        public static RedisNodeEvent Refresh(RedisNodeInfo node)
+        {
+            return new RedisNodeEvent(RedisNodeEventType.Refresh, node, node.NodeAddress);
+        }
+
+        public static RedisNodeEvent Leave(string nodeAddress)
+        {
+            return new RedisNodeEvent(RedisNodeEventType.Leave, null, nodeAddress);
+        }
     }
 
     private enum RedisNodeEventType

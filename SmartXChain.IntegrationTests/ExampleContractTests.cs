@@ -1,7 +1,4 @@
-using System;
 using System.Globalization;
-using System.IO;
-using System.Threading.Tasks;
 using SmartXChain.Contracts;
 using SmartXChain.Utils;
 using Xunit;
@@ -11,6 +8,135 @@ namespace SmartXChain.IntegrationTests;
 public class ExampleContractTests
 {
     private const string OwnerAddress = "smartXowner000000000000000000000000000000000";
+
+    private const string Erc20EntryPoint = """
+                                           using System;
+                                           using System.Globalization;
+                                           using SmartXChain.Contracts.Execution;
+
+                                           public class ERC20ExampleContract
+                                           {
+                                               private const string Owner = "smartXowner000000000000000000000000000000000";
+                                               private const string OwnerPrivateKey = "owner-secret";
+                                               private const string Recipient = "smartXrecipient000000000000000000000000000000";
+                                               private const string RecipientPrivateKey = "recipient-secret";
+
+                                               public ContractExecutionResult Execute(string[] inputs, string state)
+                                               {
+                                                   var action = inputs.Length > 0 ? inputs[0] : "init";
+                                                   var token = string.IsNullOrEmpty(state)
+                                                       ? new ERC20Token("ExampleToken", "EXT", 2, 1000m, Owner)
+                                                       : Contract.DeserializeFromBase64<ERC20Token>(state);
+
+                                                   token.Owner = Owner;
+
+                                                   if (!token.AuthenticatedUsers.ContainsKey(Owner))
+                                                       token.RegisterUser(Owner, OwnerPrivateKey);
+
+                                                   if (!token.AuthenticatedUsers.ContainsKey(Recipient))
+                                                       token.RegisterUser(Recipient, RecipientPrivateKey);
+
+                                                   if (string.Equals(action, "transfer", StringComparison.OrdinalIgnoreCase))
+                                                   {
+                                                       token.Transfer(Owner, Recipient, 150m, OwnerPrivateKey);
+                                                   }
+
+                                                   var serialized = Contract.SerializeToBase64(token);
+                                                   var result = FormattableString.Invariant($"{token.BalanceOf(Owner)}|{token.BalanceOf(Recipient)}");
+                                                   return new ContractExecutionResult(result, serialized);
+                                               }
+                                           }
+                                           """;
+
+    private const string Erc20ExtendedEntryPoint = """
+                                                   using System;
+                                                   using System.Globalization;
+                                                   using SmartXChain.Contracts.Execution;
+
+                                                   public class ERC20ExtendedExampleContract
+                                                   {
+                                                       private const string Owner = "smartXowner000000000000000000000000000000000";
+                                                       private const string OwnerPrivateKey = "owner-secret";
+                                                       private const string Recipient = "smartXrecipient000000000000000000000000000000";
+                                                       private const string RecipientPrivateKey = "recipient-secret";
+
+                                                       public ContractExecutionResult Execute(string[] inputs, string state)
+                                                       {
+                                                           var action = inputs.Length > 0 ? inputs[0] : "init";
+                                                           var token = string.IsNullOrEmpty(state)
+                                                               ? new ERC20Extended("ExtendedToken", "EXT", 2, 500m, Owner)
+                                                               : Contract.DeserializeFromBase64<ERC20Extended>(state);
+
+                                                           token.Owner = Owner;
+
+                                                           if (!token.AuthenticatedUsers.ContainsKey(Owner))
+                                                               token.RegisterUser(Owner, OwnerPrivateKey);
+
+                                                           if (!token.AuthenticatedUsers.ContainsKey(Recipient))
+                                                               token.RegisterUser(Recipient, RecipientPrivateKey);
+
+                                                           if (string.Equals(action, "mint-burn", StringComparison.OrdinalIgnoreCase))
+                                                           {
+                                                               token.Mint(200m, Recipient, Owner, OwnerPrivateKey);
+                                                               token.Burn(50m, Owner, OwnerPrivateKey);
+                                                           }
+
+                                                           var serialized = Contract.SerializeToBase64(token);
+                                                           var result = FormattableString.Invariant($"{token.BalanceOf(Owner)}|{token.BalanceOf(Recipient)}|{token.TotalSupply}");
+                                                           return new ContractExecutionResult(result, serialized);
+                                                       }
+                                                   }
+                                                   """;
+
+    private const string GoldCoinEntryPoint = """
+                                              using System;
+                                              using System.Globalization;
+                                              using System.Threading.Tasks;
+                                              using SmartXChain.Contracts.Execution;
+
+                                              public class GoldCoinExampleContract
+                                              {
+                                                  private const string Owner = "smartXowner000000000000000000000000000000000";
+                                                  private const string OwnerPrivateKey = "owner-secret";
+                                                  private const string Recipient = "smartXrecipient000000000000000000000000000000";
+                                                  private const string RecipientPrivateKey = "recipient-secret";
+                                                  private const string Secondary = "smartXsecondary000000000000000000000000000000";
+                                                  private const string SecondaryPrivateKey = "secondary-secret";
+
+                                                  public async Task<ContractExecutionResult> Execute(string[] inputs, string state)
+                                                  {
+                                                      var action = inputs.Length > 0 ? inputs[0] : "init";
+                                                      var token = string.IsNullOrEmpty(state)
+                                                          ? new GoldCoin("GoldCoin", "GLD", 18, 1_000_000m, Owner)
+                                                          : Contract.DeserializeFromBase64<GoldCoin>(state);
+
+                                                      token.Owner = Owner;
+
+                                                      if (!token.AuthenticatedUsers.ContainsKey(Owner))
+                                                          token.RegisterUser(Owner, OwnerPrivateKey);
+
+                                                      if (!token.AuthenticatedUsers.ContainsKey(Recipient))
+                                                          token.RegisterUser(Recipient, RecipientPrivateKey);
+
+                                                      if (!token.AuthenticatedUsers.ContainsKey(Secondary))
+                                                          token.RegisterUser(Secondary, SecondaryPrivateKey);
+
+                                                      if (string.Equals(action, "transfer", StringComparison.OrdinalIgnoreCase))
+                                                      {
+                                                          token.Transfer(Owner, Recipient, 25_000m, OwnerPrivateKey);
+                                                      }
+                                                      else if (string.Equals(action, "price", StringComparison.OrdinalIgnoreCase))
+                                                      {
+                                                          token.UpdateGoldPriceInterval(TimeSpan.FromMinutes(1), OwnerPrivateKey);
+                                                          await token.UpdateGoldPriceAsync(2_000m, OwnerPrivateKey);
+                                                      }
+
+                                                      var serialized = Contract.SerializeToBase64(token);
+                                                      var result = FormattableString.Invariant($"{token.BalanceOf(Owner)}|{token.BalanceOf(Recipient)}|{token.TotalSupply}|{token.CurrentGoldPrice}");
+                                                      return new ContractExecutionResult(result, serialized);
+                                                  }
+                                              }
+                                              """;
 
     [Fact]
     public async Task Erc20Example_handles_stateful_transfers()
@@ -113,7 +239,8 @@ public class ExampleContractTests
             decimal.Parse(parts[1], CultureInfo.InvariantCulture));
     }
 
-    private static (decimal ownerBalance, decimal recipientBalance, decimal totalSupply) ParseExtendedResult(string result)
+    private static (decimal ownerBalance, decimal recipientBalance, decimal totalSupply) ParseExtendedResult(
+        string result)
     {
         var parts = result.Split('|');
         Assert.Equal(3, parts.Length);
@@ -123,7 +250,8 @@ public class ExampleContractTests
             decimal.Parse(parts[2], CultureInfo.InvariantCulture));
     }
 
-    private static (decimal ownerBalance, decimal recipientBalance, decimal totalSupply, decimal currentPrice) ParseGoldCoinResult(string result)
+    private static (decimal ownerBalance, decimal recipientBalance, decimal totalSupply, decimal currentPrice)
+        ParseGoldCoinResult(string result)
     {
         var parts = result.Split('|');
         Assert.Equal(4, parts.Length);
@@ -134,7 +262,8 @@ public class ExampleContractTests
             decimal.Parse(parts[3], CultureInfo.InvariantCulture));
     }
 
-    private static SmartContract BuildExampleContract(string exampleFileName, string entryPointCode, string contractName)
+    private static SmartContract BuildExampleContract(string exampleFileName, string entryPointCode,
+        string contractName)
     {
         var repositoryRoot = GetRepositoryRoot();
         var baseContractPath = Path.Combine(repositoryRoot, "SmartXChain", "Contracts", "Contract.cs");
@@ -163,133 +292,4 @@ public class ExampleContractTests
 
         throw new InvalidOperationException("Unable to locate repository root.");
     }
-
-    private const string Erc20EntryPoint = """
-using System;
-using System.Globalization;
-using SmartXChain.Contracts.Execution;
-
-public class ERC20ExampleContract
-{
-    private const string Owner = "smartXowner000000000000000000000000000000000";
-    private const string OwnerPrivateKey = "owner-secret";
-    private const string Recipient = "smartXrecipient000000000000000000000000000000";
-    private const string RecipientPrivateKey = "recipient-secret";
-
-    public ContractExecutionResult Execute(string[] inputs, string state)
-    {
-        var action = inputs.Length > 0 ? inputs[0] : "init";
-        var token = string.IsNullOrEmpty(state)
-            ? new ERC20Token("ExampleToken", "EXT", 2, 1000m, Owner)
-            : Contract.DeserializeFromBase64<ERC20Token>(state);
-
-        token.Owner = Owner;
-
-        if (!token.AuthenticatedUsers.ContainsKey(Owner))
-            token.RegisterUser(Owner, OwnerPrivateKey);
-
-        if (!token.AuthenticatedUsers.ContainsKey(Recipient))
-            token.RegisterUser(Recipient, RecipientPrivateKey);
-
-        if (string.Equals(action, "transfer", StringComparison.OrdinalIgnoreCase))
-        {
-            token.Transfer(Owner, Recipient, 150m, OwnerPrivateKey);
-        }
-
-        var serialized = Contract.SerializeToBase64(token);
-        var result = FormattableString.Invariant($"{token.BalanceOf(Owner)}|{token.BalanceOf(Recipient)}");
-        return new ContractExecutionResult(result, serialized);
-    }
-}
-""";
-
-    private const string Erc20ExtendedEntryPoint = """
-using System;
-using System.Globalization;
-using SmartXChain.Contracts.Execution;
-
-public class ERC20ExtendedExampleContract
-{
-    private const string Owner = "smartXowner000000000000000000000000000000000";
-    private const string OwnerPrivateKey = "owner-secret";
-    private const string Recipient = "smartXrecipient000000000000000000000000000000";
-    private const string RecipientPrivateKey = "recipient-secret";
-
-    public ContractExecutionResult Execute(string[] inputs, string state)
-    {
-        var action = inputs.Length > 0 ? inputs[0] : "init";
-        var token = string.IsNullOrEmpty(state)
-            ? new ERC20Extended("ExtendedToken", "EXT", 2, 500m, Owner)
-            : Contract.DeserializeFromBase64<ERC20Extended>(state);
-
-        token.Owner = Owner;
-
-        if (!token.AuthenticatedUsers.ContainsKey(Owner))
-            token.RegisterUser(Owner, OwnerPrivateKey);
-
-        if (!token.AuthenticatedUsers.ContainsKey(Recipient))
-            token.RegisterUser(Recipient, RecipientPrivateKey);
-
-        if (string.Equals(action, "mint-burn", StringComparison.OrdinalIgnoreCase))
-        {
-            token.Mint(200m, Recipient, Owner, OwnerPrivateKey);
-            token.Burn(50m, Owner, OwnerPrivateKey);
-        }
-
-        var serialized = Contract.SerializeToBase64(token);
-        var result = FormattableString.Invariant($"{token.BalanceOf(Owner)}|{token.BalanceOf(Recipient)}|{token.TotalSupply}");
-        return new ContractExecutionResult(result, serialized);
-    }
-}
-""";
-
-    private const string GoldCoinEntryPoint = """
-using System;
-using System.Globalization;
-using System.Threading.Tasks;
-using SmartXChain.Contracts.Execution;
-
-public class GoldCoinExampleContract
-{
-    private const string Owner = "smartXowner000000000000000000000000000000000";
-    private const string OwnerPrivateKey = "owner-secret";
-    private const string Recipient = "smartXrecipient000000000000000000000000000000";
-    private const string RecipientPrivateKey = "recipient-secret";
-    private const string Secondary = "smartXsecondary000000000000000000000000000000";
-    private const string SecondaryPrivateKey = "secondary-secret";
-
-    public async Task<ContractExecutionResult> Execute(string[] inputs, string state)
-    {
-        var action = inputs.Length > 0 ? inputs[0] : "init";
-        var token = string.IsNullOrEmpty(state)
-            ? new GoldCoin("GoldCoin", "GLD", 18, 1_000_000m, Owner)
-            : Contract.DeserializeFromBase64<GoldCoin>(state);
-
-        token.Owner = Owner;
-
-        if (!token.AuthenticatedUsers.ContainsKey(Owner))
-            token.RegisterUser(Owner, OwnerPrivateKey);
-
-        if (!token.AuthenticatedUsers.ContainsKey(Recipient))
-            token.RegisterUser(Recipient, RecipientPrivateKey);
-
-        if (!token.AuthenticatedUsers.ContainsKey(Secondary))
-            token.RegisterUser(Secondary, SecondaryPrivateKey);
-
-        if (string.Equals(action, "transfer", StringComparison.OrdinalIgnoreCase))
-        {
-            token.Transfer(Owner, Recipient, 25_000m, OwnerPrivateKey);
-        }
-        else if (string.Equals(action, "price", StringComparison.OrdinalIgnoreCase))
-        {
-            token.UpdateGoldPriceInterval(TimeSpan.FromMinutes(1), OwnerPrivateKey);
-            await token.UpdateGoldPriceAsync(2_000m, OwnerPrivateKey);
-        }
-
-        var serialized = Contract.SerializeToBase64(token);
-        var result = FormattableString.Invariant($"{token.BalanceOf(Owner)}|{token.BalanceOf(Recipient)}|{token.TotalSupply}|{token.CurrentGoldPrice}");
-        return new ContractExecutionResult(result, serialized);
-    }
-}
-""";
 }

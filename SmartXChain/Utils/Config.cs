@@ -1,6 +1,5 @@
 ﻿using System.Security.Cryptography;
 using System.Text.RegularExpressions;
-using WebSocketSharp;
 
 namespace SmartXChain.Utils;
 
@@ -10,12 +9,6 @@ namespace SmartXChain.Utils;
 /// </summary>
 public class Config
 {
-    private static readonly HashSet<ConfigKey> SensitiveConfigKeys = new()
-    {
-        ConfigKey.Mnemonic,
-        ConfigKey.WalletPrivateKey,
-        ConfigKey.PrivateKey
-    };
     public enum ChainNames
     {
         SmartXChain_Testnet,
@@ -32,17 +25,24 @@ public class Config
         NodeAddress,
         Debug,
         PublicKey,
-        PrivateKey, 
+        PrivateKey,
         SSLCertificate,
         MaxParallelConnections
     }
+
+    private static readonly HashSet<ConfigKey> SensitiveConfigKeys = new()
+    {
+        ConfigKey.Mnemonic,
+        ConfigKey.WalletPrivateKey,
+        ConfigKey.PrivateKey
+    };
 
     private static readonly Lazy<Config> _defaultInstance = new(() =>
     {
         var configFilePath = FileSystem.ConfigFile;
         var fi = new FileInfo(configFilePath);
-        Directory.CreateDirectory(fi.DirectoryName); 
-        var config= new Config(configFilePath);
+        Directory.CreateDirectory(fi.DirectoryName);
+        var config = new Config(configFilePath);
         if (string.IsNullOrEmpty(config.NodeAddress))
             config.NodeAddress = "";
         return config;
@@ -75,7 +75,7 @@ public class Config
     public int MaxParallelConnections { get; private set; }
     public string WalletPrivateKey { get; private set; }
     public List<string> SignalHubs { get; }
-    public string NodeAddress {get; internal set;}
+    public string NodeAddress { get; internal set; }
     public bool Debug { get; private set; }
     public string BlockchainPath { get; private set; }
     public string SSLCertificate { get; private set; }
@@ -536,7 +536,8 @@ public class Config
         }
 
         var lines = File.ReadAllLines(filePath).ToList();
-        var peersSectionIndex = lines.FindIndex(l => l.Trim().Equals("[SignalHubs]", StringComparison.OrdinalIgnoreCase));
+        var peersSectionIndex =
+            lines.FindIndex(l => l.Trim().Equals("[SignalHubs]", StringComparison.OrdinalIgnoreCase));
 
         if (peersSectionIndex >= 0)
         {
@@ -581,7 +582,8 @@ public class Config
         }
 
         var lines = File.ReadAllLines(filePath).ToList();
-        var peersSectionIndex = lines.FindIndex(l => l.Trim().Equals("[SignalHubs]", StringComparison.OrdinalIgnoreCase));
+        var peersSectionIndex =
+            lines.FindIndex(l => l.Trim().Equals("[SignalHubs]", StringComparison.OrdinalIgnoreCase));
 
         if (peersSectionIndex >= 0)
         {

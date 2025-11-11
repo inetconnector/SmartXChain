@@ -20,4 +20,3 @@ public sealed class ContractExecutorEnvelope
     [JsonPropertyName("payload")]
     public required object Payload { get; init; }
 }
-

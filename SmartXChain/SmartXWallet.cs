@@ -27,8 +27,8 @@ public class SmartXWallet
     {
         Key privateKey = null;
         Mnemonic mnemonic = null;
-        string mnemonicSecretId = string.Empty;
-        string privateKeySecretId = string.Empty;
+        var mnemonicSecretId = string.Empty;
+        var privateKeySecretId = string.Empty;
 
         try
         {

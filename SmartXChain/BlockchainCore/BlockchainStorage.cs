@@ -475,4 +475,3 @@ public static class BlockchainStorage
         public string ApprovesJson { get; set; } = string.Empty;
     }
 }
-

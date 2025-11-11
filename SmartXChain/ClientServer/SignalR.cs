@@ -1,6 +1,5 @@
 ﻿using System.Collections.Concurrent;
 using System.Text.Json;
-using System.Threading;
 using Microsoft.AspNetCore.SignalR.Client;
 
 namespace SmartXChain.ClientServer;
@@ -11,7 +10,7 @@ namespace SmartXChain.ClientServer;
 public class SignalRClient
 {
     private readonly ConcurrentDictionary<string, TaskCompletionSource<string?>> _pendingRequests = new();
-    
+
     /// <summary>
     ///     Gets the underlying SignalR hub connection used for communication.
     /// </summary>
@@ -156,19 +155,20 @@ public class SignalRClient
             Logger.Log($"[SignalR] Error handling answer: {ex.Message}");
         }
     }
+
     private void HandleGetOffer(string answer)
     {
         try
         {
             var rtc = new WebRTC();
             rtc.InitializeAsync();
-            var offer =rtc.GetOffer(); 
+            var offer = rtc.GetOffer();
             OnGetOfferReceived?.Invoke(offer);
             Logger.Log($"SignalR Offer sent {offer}");
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, $"[SignalR] Error handling answer");
+            Logger.LogException(ex, "[SignalR] Error handling answer");
         }
     }
 
@@ -180,7 +180,7 @@ public class SignalRClient
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, $"[SignalR] Error handling ICE candidate");
+            Logger.LogException(ex, "[SignalR] Error handling ICE candidate");
         }
     }
 
@@ -218,7 +218,7 @@ public class SignalRClient
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, $"Error while establishing the connection");
+            Logger.LogException(ex, "Error while establishing the connection");
             await HandleReconnection();
         }
     }
@@ -292,8 +292,8 @@ public class SignalRClient
         }
 
         try
-        { 
-            string offer = await Connection.InvokeAsync<string>("GetOffer", nodeAddress);
+        {
+            var offer = await Connection.InvokeAsync<string>("GetOffer", nodeAddress);
             Logger.Log($"Got offer from {nodeAddress}: {offer}");
             return offer;
         }
@@ -320,7 +320,8 @@ public class SignalRClient
                 await invokeFunction();
             }
         }
-    }   
+    }
+
     private class RequestMessage
     {
         public string CorrelationId { get; set; }

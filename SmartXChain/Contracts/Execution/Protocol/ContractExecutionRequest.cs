@@ -19,4 +19,3 @@ public sealed class ContractExecutionRequest
     [JsonPropertyName("state")]
     public required string SerializedState { get; init; }
 }
-

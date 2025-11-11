@@ -1,8 +1,10 @@
 using System.Reflection;
+using System.Runtime.Loader;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SmartXChain.Contracts.Execution;
 using SmartXChain.Contracts.Execution.Protocol;
 
@@ -169,14 +171,15 @@ public static class Program
         var tree = CSharpSyntaxTree.ParseText(code);
         var root = tree.GetRoot();
 
-        var invalidNamespace = root.DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.UsingDirectiveSyntax>()
+        var invalidNamespace = root.DescendantNodes().OfType<UsingDirectiveSyntax>()
             .Select(u => u.Name?.ToString())
             .FirstOrDefault(ns => !string.IsNullOrWhiteSpace(ns) &&
                                   AllowedNamespaces.All(allowed =>
                                       !ns.StartsWith(allowed, StringComparison.Ordinal)));
 
         if (!string.IsNullOrEmpty(invalidNamespace))
-            throw new InvalidOperationException($"Using directive '{invalidNamespace}' is not allowed in sandboxed contracts.");
+            throw new InvalidOperationException(
+                $"Using directive '{invalidNamespace}' is not allowed in sandboxed contracts.");
 
         var references = new List<MetadataReference>
         {
@@ -209,7 +212,6 @@ public static class Program
 
 internal sealed class ContractRuntime
 {
-    private RestrictedLoadContext _loadContext = new();
     private readonly JsonSerializerOptions _jsonSerializerOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -219,6 +221,7 @@ internal sealed class ContractRuntime
     private Assembly? _assembly;
     private Type? _entryType;
     private MethodInfo? _executeMethod;
+    private RestrictedLoadContext _loadContext = new();
 
     public static ContractRuntime Instance { get; } = new();
 
@@ -243,8 +246,8 @@ internal sealed class ContractRuntime
         _entryType = _assembly.GetTypes().FirstOrDefault(IsContractEntryType)
                      ?? throw new InvalidOperationException("No valid contract entry point found.");
         _executeMethod = _entryType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)
-            .FirstOrDefault(m => m.Name.Equals("Execute", StringComparison.OrdinalIgnoreCase) &&
-                                 IsValidSignature(m))
+                             .FirstOrDefault(m => m.Name.Equals("Execute", StringComparison.OrdinalIgnoreCase) &&
+                                                  IsValidSignature(m))
                          ?? throw new InvalidOperationException("No Execute method with valid signature found.");
     }
 
@@ -278,10 +281,12 @@ internal sealed class ContractRuntime
                 args[i] = null;
         }
 
-        object? result = _executeMethod.Invoke(instance, args);
+        var result = _executeMethod.Invoke(instance, args);
 
         if (result is Task<ContractExecutionResult> taskResult)
+        {
             result = await taskResult.ConfigureAwait(false);
+        }
         else if (result is Task task)
         {
             await task.ConfigureAwait(false);
@@ -328,7 +333,7 @@ internal sealed class ContractRuntime
     }
 }
 
-internal sealed class RestrictedLoadContext : System.Runtime.Loader.AssemblyLoadContext
+internal sealed class RestrictedLoadContext : AssemblyLoadContext
 {
     private static readonly HashSet<string> ForbiddenAssemblies = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -338,7 +343,7 @@ internal sealed class RestrictedLoadContext : System.Runtime.Loader.AssemblyLoad
         "System.Reflection.Emit"
     };
 
-    public RestrictedLoadContext() : base(isCollectible: true)
+    public RestrictedLoadContext() : base(true)
     {
     }
 

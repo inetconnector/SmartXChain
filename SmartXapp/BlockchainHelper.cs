@@ -75,7 +75,7 @@ public static class BlockchainHelper
 
         //generate server keys
         if (string.IsNullOrEmpty(Default.PublicKey)) Default.GenerateServerKeys();
-  
+
         await Task.CompletedTask;
     }
 
@@ -93,7 +93,7 @@ public static class BlockchainHelper
         using var r = new StreamReader(s);
         var file = r.ReadToEnd();
         return file;
-    } 
+    }
 
     public static async Task<BlockchainServer.NodeStartupResult?> StartServerAsync()
     {

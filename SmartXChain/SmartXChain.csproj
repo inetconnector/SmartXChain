@@ -10,6 +10,11 @@
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 	</PropertyGroup>
 	<ItemGroup>
+	  <Compile Remove="Resources\**" />
+	  <EmbeddedResource Remove="Resources\**" />
+	  <None Remove="Resources\**" />
+	</ItemGroup>
+	<ItemGroup>
 		<Compile Remove="BlockchainCore\ERC20.cs" />
 		<Compile Remove="ClientServer\ApiController.cs" />
 		<Compile Remove="ClientServer\ApiController.Secure.cs" />
@@ -60,10 +65,6 @@
 			<LastGenOutput>Resources.Designer.cs</LastGenOutput>
 			<CopyToOutputDirectory>Never</CopyToOutputDirectory>
 		</EmbeddedResource>
-	</ItemGroup>
-
-	<ItemGroup>
-		<Folder Include="Resources\" />
 	</ItemGroup> 	
 	<ItemGroup>
 		<None Update="Settings.json">

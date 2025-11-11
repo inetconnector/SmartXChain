@@ -31,4 +31,3 @@ public sealed class ContractExecutionResponse
     [JsonPropertyName("error")]
     public string? Error { get; init; }
 }
-

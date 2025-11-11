@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using System.Threading;
 using SmartXChain.BlockchainCore;
 using SmartXChain.Contracts.Execution;
 using SmartXChain.Utils;

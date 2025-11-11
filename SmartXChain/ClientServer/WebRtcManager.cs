@@ -222,7 +222,7 @@ namespace SmartXChain.ClientServer
             public string ApiName { get; set; }
             public string Parameters { get; set; }
         }
-    } 
+    }
 }
 
 
@@ -255,7 +255,7 @@ public class WebRTCManager
         _connections[nodeAddress] = connection;
         return connection;
     }
-     
+
 
     /// <summary>
     ///     Combines initialization, opening the connection, and sending a message for the given node.

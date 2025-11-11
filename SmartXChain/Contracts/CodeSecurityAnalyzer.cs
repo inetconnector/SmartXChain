@@ -1,5 +1,4 @@
 ﻿using System.Text.RegularExpressions;
-using System.IO;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SmartXChain.BlockchainCore;

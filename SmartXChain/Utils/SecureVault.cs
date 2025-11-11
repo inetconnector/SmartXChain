@@ -4,8 +4,8 @@ using System.Text;
 namespace SmartXChain.Utils;
 
 /// <summary>
-/// Provides functionality for securely persisting and retrieving secrets in an encrypted vault.
-/// The vault is typically located on an external USB storage device for portability and isolation.
+///     Provides functionality for securely persisting and retrieving secrets in an encrypted vault.
+///     The vault is typically located on an external USB storage device for portability and isolation.
 /// </summary>
 public static class SecureVault
 {
@@ -13,14 +13,14 @@ public static class SecureVault
     private static readonly object SyncRoot = new();
 
     /// <summary>
-    /// Stores a secret value in the encrypted vault.
-    /// The secret is encrypted using the current user's data protection API before being persisted.
+    ///     Stores a secret value in the encrypted vault.
+    ///     The secret is encrypted using the current user's data protection API before being persisted.
     /// </summary>
     /// <param name="name">Logical name of the secret to store.</param>
     /// <param name="value">The plaintext secret value.</param>
     /// <returns>The normalized identifier (file name) of the stored secret.</returns>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="name"/> is null or whitespace.</exception>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="value"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="name" /> is null or whitespace.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="value" /> is null.</exception>
     public static string StoreSecret(string name, string value)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -42,7 +42,7 @@ public static class SecureVault
     }
 
     /// <summary>
-    /// Retrieves a secret from the encrypted vault.
+    ///     Retrieves a secret from the encrypted vault.
     /// </summary>
     /// <param name="name">Logical name of the secret.</param>
     /// <returns>The decrypted secret string, or <c>null</c> if not found.</returns>
@@ -62,7 +62,7 @@ public static class SecureVault
     }
 
     /// <summary>
-    /// Deletes a stored secret from the encrypted vault.
+    ///     Deletes a stored secret from the encrypted vault.
     /// </summary>
     /// <param name="name">Logical name of the secret to remove.</param>
     /// <returns><c>true</c> if the secret existed and was deleted; otherwise <c>false</c>.</returns>
@@ -82,7 +82,7 @@ public static class SecureVault
     }
 
     /// <summary>
-    /// Normalizes a logical secret name into a file-safe identifier.
+    ///     Normalizes a logical secret name into a file-safe identifier.
     /// </summary>
     /// <param name="name">The original logical name.</param>
     /// <returns>A normalized identifier for use in the vault file system.</returns>
@@ -92,7 +92,7 @@ public static class SecureVault
     }
 
     /// <summary>
-    /// Builds the full file path for a given secret identifier within the vault directory.
+    ///     Builds the full file path for a given secret identifier within the vault directory.
     /// </summary>
     /// <param name="identifier">The normalized secret name.</param>
     /// <returns>Full path to the secret file.</returns>
@@ -103,7 +103,7 @@ public static class SecureVault
     }
 
     /// <summary>
-    /// Resolves the vault directory path from environment or default location and ensures it exists.
+    ///     Resolves the vault directory path from environment or default location and ensures it exists.
     /// </summary>
     /// <returns>The absolute path to the vault directory.</returns>
     private static string GetVaultDirectory()
@@ -128,7 +128,7 @@ public static class SecureVault
     }
 
     /// <summary>
-    /// Encrypts the specified plaintext string using the current user's data protection scope.
+    ///     Encrypts the specified plaintext string using the current user's data protection scope.
     /// </summary>
     /// <param name="value">The plaintext value to protect.</param>
     /// <returns>Encrypted byte array representing the protected data.</returns>
@@ -139,7 +139,7 @@ public static class SecureVault
     }
 
     /// <summary>
-    /// Decrypts a previously protected byte array back into a plaintext string.
+    ///     Decrypts a previously protected byte array back into a plaintext string.
     /// </summary>
     /// <param name="protectedBytes">The encrypted byte array.</param>
     /// <returns>The decrypted plaintext string.</returns>
@@ -150,7 +150,7 @@ public static class SecureVault
     }
 
     /// <summary>
-    /// Hardens directory permissions to reduce visibility and limit access to the vault directory.
+    ///     Hardens directory permissions to reduce visibility and limit access to the vault directory.
     /// </summary>
     /// <param name="directoryPath">Path to the vault directory.</param>
     private static void HardenDirectoryPermissions(string directoryPath)
@@ -178,7 +178,7 @@ public static class SecureVault
     }
 
     /// <summary>
-    /// Hardens file permissions for a secret file, restricting access to the current user.
+    ///     Hardens file permissions for a secret file, restricting access to the current user.
     /// </summary>
     /// <param name="filePath">Path to the secret file.</param>
     private static void HardenFilePermissions(string filePath)

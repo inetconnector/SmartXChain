@@ -1,4 +1,4 @@
-using System.Threading;
+using SmartXChain.Contracts.Execution.Sandbox;
 
 namespace SmartXChain.Contracts.Execution;
 
@@ -21,7 +21,7 @@ public static class ContractExecutionManager
             if (_executor != null)
                 return _executor;
 
-            Interlocked.CompareExchange(ref _executor, new Sandbox.SandboxedContractExecutor(), null);
+            Interlocked.CompareExchange(ref _executor, new SandboxedContractExecutor(), null);
             return _executor!;
         }
         set => _executor = value ?? throw new ArgumentNullException(nameof(value));

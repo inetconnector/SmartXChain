@@ -34,7 +34,7 @@ public class Blockchain
     ///     Initializes the blockchain with a specified difficulty and miner address.
     ///     Creates a genesis block as the starting point of the blockchain.
     /// </summary>
-    public Blockchain(string minerAdress, string chainId, int difficulty = 0, int maxBlockRetries=20)
+    public Blockchain(string minerAdress, string chainId, int difficulty = 0, int maxBlockRetries = 20)
     {
         Chain = new List<Block>();
         PendingTransactions = new List<Transaction>();
@@ -52,13 +52,16 @@ public class Blockchain
     ///     Gets the list of blockchain instances known to the current node.
     /// </summary>
     public static List<Blockchain> Blockchains { get; } = new();
+
     [JsonInclude] internal string ChainId { get; }
     [JsonInclude] internal string MinerAdress { get; }
+
     /// <summary>
     ///     Gets the ordered collection of blocks that make up the chain.
     /// </summary>
     [JsonInclude]
     public List<Block> Chain { get; internal set; }
+
     [JsonInclude] internal List<Transaction> PendingTransactions { get; private set; }
     [JsonInclude] internal static decimal CurrentNetworkLoad { get; private set; } = (decimal).5;
 
@@ -92,7 +95,8 @@ public class Blockchain
         {
             Sender = SystemAddress,
             Recipient = minerAdress,
-            Data = Convert.ToBase64String(Encoding.ASCII.GetBytes(Config.Default.NodeAddress)), // Store data as Base64 string
+            Data = Convert.ToBase64String(
+                Encoding.ASCII.GetBytes(Config.Default.NodeAddress)), // Store data as Base64 string
             Info = "IP",
             Timestamp = DateTime.UtcNow,
             TransactionType = TransactionTypes.Server
@@ -319,8 +323,10 @@ public class Blockchain
             if (!await PayGas("Transaction", transaction.Sender, gas))
                 return false;
 
-        lock (PendingTransactions) 
-            PendingTransactions.Add(transaction); 
+        lock (PendingTransactions)
+        {
+            PendingTransactions.Add(transaction);
+        }
 
         if (mine) await MinePendingTransactions(transaction.Sender);
         return true;
@@ -422,7 +428,7 @@ public class Blockchain
             // Select the validators (excluding own server address)
             var selectedValidators = Node.CurrentNodes
                 .Where(nodeAddress =>
-                    !Config.Default.NodeAddress.Contains(nodeAddress)) 
+                    !Config.Default.NodeAddress.Contains(nodeAddress))
                 .OrderBy(_ => Guid.NewGuid()) // Random selection
                 .Take(selectionSize) // Select the desired number of validators
                 .ToList();
@@ -724,13 +730,14 @@ public class Blockchain
                 if (blockAdded)
                 {
                     // Broadcast the new block   
-                    var blocks = new List<Block> { block }; 
-                    var compressedBlocks = Convert.ToBase64String(Compress.CompressString(JsonSerializer.Serialize(blocks)));
+                    var blocks = new List<Block> { block };
+                    var compressedBlocks =
+                        Convert.ToBase64String(Compress.CompressString(JsonSerializer.Serialize(blocks)));
                     var messageModel = new BroadcastMessageModel
                     {
                         Type = BroadcastMessageType.Blocks,
                         Info = await Info(compressedBlocks)
-                    }; 
+                    };
                     var jsonMessage = JsonSerializer.Serialize(messageModel);
                     await SignalR.BroadcastMessage(jsonMessage);
 
@@ -766,7 +773,6 @@ public class Blockchain
                 Logger.LogError("Blocks rejected.");
                 break;
             }
-
         } while (!blockAdded && retryCount < _maxBlockRetries);
 
         if (!blockAdded) Logger.LogError($"Failed to add block after {_maxBlockRetries} attempts.");
@@ -843,8 +849,7 @@ public class Blockchain
                 if (current.PreviousHash != previous.Hash)
                     return false;
             }
-
-        } 
+        }
 
         return true;
     }
@@ -1002,8 +1007,8 @@ public class Blockchain
                             ?? new List<Block>(),
                     PendingTransactions =
                         JsonSerializer.Deserialize<List<Transaction>>(root.GetProperty("PendingTransactions")
-                                .GetRawText())
-                            ?? new List<Transaction>()
+                            .GetRawText())
+                        ?? new List<Transaction>()
                 };
 
                 if (root.TryGetProperty("Balances", out var balancesJson))

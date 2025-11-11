@@ -25,4 +25,3 @@ public sealed class ContractStateTransferResponse
     [JsonPropertyName("error")]
     public string? Error { get; init; }
 }
-

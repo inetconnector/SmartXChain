@@ -8,12 +8,12 @@ using SmartXChain.Utils;
 namespace SmartXChain.BlockchainCore;
 
 /// <summary>
-/// Represents a blockchain block containing transactions, hash, issuer, and optional smart contracts.
+///     Represents a blockchain block containing transactions, hash, issuer, and optional smart contracts.
 /// </summary>
 public sealed class Block
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="Block"/> class with the specified transactions and previous hash.
+    ///     Initializes a new instance of the <see cref="Block" /> class with the specified transactions and previous hash.
     /// </summary>
     /// <param name="transactions">The list of transactions included in this block.</param>
     /// <param name="previousHash">The hash of the previous block in the chain.</param>
@@ -28,7 +28,7 @@ public sealed class Block
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Block"/> class for deserialization.
+    ///     Initializes a new instance of the <see cref="Block" /> class for deserialization.
     /// </summary>
     public Block()
     {
@@ -42,28 +42,35 @@ public sealed class Block
     }
 
     /// <summary>Gets or sets the UTC timestamp when this block was created.</summary>
-    [JsonInclude] public DateTime Timestamp { get; internal set; }
+    [JsonInclude]
+    public DateTime Timestamp { get; internal set; }
 
     /// <summary>Gets or sets the list of transactions contained in this block.</summary>
-    [JsonInclude] public List<Transaction> Transactions { get; internal set; } = new();
+    [JsonInclude]
+    public List<Transaction> Transactions { get; internal set; } = new();
 
     /// <summary>Gets or sets the hash of the previous block in the chain.</summary>
-    [JsonInclude] public string PreviousHash { get; internal set; } = string.Empty;
+    [JsonInclude]
+    public string PreviousHash { get; internal set; } = string.Empty;
 
     /// <summary>Gets or sets the unique hash of this block.</summary>
-    [JsonInclude] public string Hash { get; internal set; } = string.Empty;
+    [JsonInclude]
+    public string Hash { get; internal set; } = string.Empty;
 
     /// <summary>Gets or sets the address of the node that mined or issued this block.</summary>
-    [JsonInclude] public string Issuer { get; internal set; } = string.Empty;
+    [JsonInclude]
+    public string Issuer { get; internal set; } = string.Empty;
 
     /// <summary>Gets or sets the network node address that created this block.</summary>
-    [JsonInclude] public string NodeAddress { get; internal set; } = string.Empty;
+    [JsonInclude]
+    public string NodeAddress { get; internal set; } = string.Empty;
 
     /// <summary>Gets or sets the nonce value used in proof-of-work mining.</summary>
-    [JsonInclude] public int Nonce { get; internal set; }
+    [JsonInclude]
+    public int Nonce { get; internal set; }
 
     /// <summary>
-    /// Gets a dictionary of <see cref="SmartContract"/> objects deployed within this block.
+    ///     Gets a dictionary of <see cref="SmartContract" /> objects deployed within this block.
     /// </summary>
     [JsonInclude]
     public Dictionary<string, SmartContract?> SmartContracts
@@ -72,14 +79,12 @@ public sealed class Block
         {
             var contracts = new Dictionary<string, SmartContract?>();
             foreach (var transaction in Transactions)
-            {
                 if (transaction.Recipient == Blockchain.SystemAddress &&
                     transaction.Info.StartsWith("$$") &&
                     !string.IsNullOrEmpty(transaction.Data))
                 {
                     var contractName = transaction.Info.Substring(2);
                     if (!contracts.ContainsKey(contractName))
-                    {
                         try
                         {
                             var contractCode = Serializer.DeserializeFromBase64<string>(transaction.Data);
@@ -94,9 +99,8 @@ public sealed class Block
                         {
                             Logger.LogException(ex, $"Failed to deserialize contract '{contractName}'");
                         }
-                    }
                 }
-            }
+
             return contracts;
         }
     }
@@ -110,7 +114,7 @@ public sealed class Block
     public List<string> Approves { get; private set; } = new();
 
     /// <summary>
-    /// Calculates the SHA-256 hash of this block.
+    ///     Calculates the SHA-256 hash of this block.
     /// </summary>
     /// <returns>The Base64-encoded SHA-256 hash string.</returns>
     public string CalculateHash()
@@ -127,7 +131,7 @@ public sealed class Block
     }
 
     /// <summary>
-    /// Mines the block by incrementing the nonce until the hash meets the specified difficulty.
+    ///     Mines the block by incrementing the nonce until the hash meets the specified difficulty.
     /// </summary>
     /// <param name="difficulty">The number of leading zeros required in the hash prefix.</param>
     public void Mine(int difficulty)
@@ -152,7 +156,7 @@ public sealed class Block
     }
 
     /// <summary>
-    /// Serializes and compresses this block into a byte array.
+    ///     Serializes and compresses this block into a byte array.
     /// </summary>
     /// <returns>The compressed byte array representing this block.</returns>
     public byte[] GetBytes()
@@ -162,16 +166,19 @@ public sealed class Block
     }
 
     /// <summary>
-    /// Converts this block to a Base64 string representation.
+    ///     Converts this block to a Base64 string representation.
     /// </summary>
     /// <returns>The Base64-encoded string representing this block.</returns>
-    public string ToBase64() => Convert.ToBase64String(GetBytes());
+    public string ToBase64()
+    {
+        return Convert.ToBase64String(GetBytes());
+    }
 
     /// <summary>
-    /// Reconstructs a <see cref="Block"/> instance from a Base64 string.
+    ///     Reconstructs a <see cref="Block" /> instance from a Base64 string.
     /// </summary>
     /// <param name="base64">The Base64-encoded block data.</param>
-    /// <returns>The deserialized <see cref="Block"/> instance, or <c>null</c> if deserialization fails.</returns>
+    /// <returns>The deserialized <see cref="Block" /> instance, or <c>null</c> if deserialization fails.</returns>
     public static Block? FromBase64(string base64)
     {
         try
@@ -188,7 +195,7 @@ public sealed class Block
     }
 
     /// <summary>
-    /// Saves this block to disk as compressed data.
+    ///     Saves this block to disk as compressed data.
     /// </summary>
     /// <param name="path">The file path where the block should be stored.</param>
     public void Save(string path)
@@ -198,10 +205,10 @@ public sealed class Block
     }
 
     /// <summary>
-    /// Loads a <see cref="Block"/> from compressed file data.
+    ///     Loads a <see cref="Block" /> from compressed file data.
     /// </summary>
     /// <param name="path">The path to the file containing the serialized block.</param>
-    /// <returns>The deserialized <see cref="Block"/> instance.</returns>
+    /// <returns>The deserialized <see cref="Block" /> instance.</returns>
     public static Block? Load(string path)
     {
         var bytes = File.ReadAllBytes(path);
@@ -210,7 +217,7 @@ public sealed class Block
     }
 
     /// <summary>
-    /// Returns a formatted JSON string representation of the block for debugging and logging.
+    ///     Returns a formatted JSON string representation of the block for debugging and logging.
     /// </summary>
     /// <returns>A human-readable JSON string describing the block.</returns>
     public override string ToString()

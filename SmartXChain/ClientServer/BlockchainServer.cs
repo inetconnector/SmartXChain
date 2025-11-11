@@ -1,16 +1,13 @@
 ﻿using System.Collections.Concurrent;
-using System.Linq;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading;
 using Microsoft.AspNetCore.SignalR.Client;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.IdentityModel.Tokens; 
+using Microsoft.IdentityModel.Tokens;
 using SmartXChain.BlockchainCore;
-using SmartXChain.Contracts; 
+using SmartXChain.Contracts;
 using SmartXChain.Utils;
 using Node = SmartXChain.Validators.Node;
 
@@ -22,16 +19,27 @@ namespace SmartXChain.ClientServer;
 /// </summary>
 public class BlockchainServer
 {
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum BroadcastMessageType
+    {
+        Availability,
+        Blocks
+    }
+
     /// <summary>
     ///     Fetches the public key of a peer for establishing secure communication.
-    /// </summary> 
+    /// </summary>
     /// <returns>The public key of the peer as a byte array, or null if retrieval fails.</returns>
     private static readonly ConcurrentDictionary<string, byte[]> PublicKeyCache = new();
+
+    private string _offer;
 
     /// <summary>
     ///     Represents the startup state of the blockchain node.
     /// </summary>
     internal static NodeStartupResult Startup { get; private set; }
+
+    public static SignalRClient SignalR { get; set; }
 
 
     /// <summary>
@@ -123,21 +131,14 @@ public class BlockchainServer
         return Startup;
     }
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public enum BroadcastMessageType
-    {
-        Availability,
-        Blocks
-    }
-
-    private string _offer;
     public static async Task<ChainInfo> Info(string info)
     {
-        var chaininfo = ChainInfo.CreateChainInfo(Startup.Blockchain, info); 
+        var chaininfo = ChainInfo.CreateChainInfo(Startup.Blockchain, info);
         var connection = new WebRTC();
-        await connection.InitializeAsync();  
+        await connection.InitializeAsync();
         return chaininfo;
     }
+
     private static Task BroadcastAvailability()
     {
         _ = Task.Run(async () =>
@@ -145,7 +146,7 @@ public class BlockchainServer
             while (true)
             {
                 try
-                { 
+                {
                     var messageModel = new BroadcastMessageModel
                     {
                         Type = BroadcastMessageType.Availability,
@@ -220,6 +221,7 @@ public class BlockchainServer
             Node.CurrentNodes_LastActive[nodeInfo.NodeAddress] = DateTime.UtcNow;
             return;
         }
+
         Node.AddNode(nodeInfo.NodeAddress, sdp);
     }
 
@@ -352,19 +354,19 @@ public class BlockchainServer
         {
             var broadcast = JsonSerializer.Deserialize<BroadcastMessageModel>(message);
             if (broadcast != null)
-            {
                 switch (broadcast.Type)
                 {
                     case BroadcastMessageType.Availability:
                     {
-                        if (broadcast.Info.Message != Config.Default.NodeAddress && !Node.CurrentNodes.Contains(broadcast.Info.Message))
+                        if (broadcast.Info.Message != Config.Default.NodeAddress &&
+                            !Node.CurrentNodes.Contains(broadcast.Info.Message))
                         {
                             Logger.Log($"Available node: {broadcast.Info.Message}");
                             if (!Node.CurrentNodes.Contains(broadcast.Info.Message))
-                            { 
+                            {
                                 //get sdp via signalR
-                                var sdp = await SignalR.GetOfferFromServer(broadcast.Info.NodeAddress); 
-                                Node.AddNode(broadcast.Info.Message, sdp); 
+                                var sdp = await SignalR.GetOfferFromServer(broadcast.Info.NodeAddress);
+                                Node.AddNode(broadcast.Info.Message, sdp);
 
                                 var messageModel = new BroadcastMessageModel
                                 {
@@ -375,7 +377,8 @@ public class BlockchainServer
                                 var jsonMessage = JsonSerializer.Serialize(messageModel);
                                 await SignalR.BroadcastMessage(jsonMessage);
                             }
-                        } 
+                        }
+
                         break;
                     }
                     case BroadcastMessageType.Blocks:
@@ -384,21 +387,12 @@ public class BlockchainServer
                         //await WebRtc.SendAsync(broadcast.Info.Message); 
                         break;
                 }
-            }
         }
         catch (Exception ex)
         {
             Logger.LogError($"Fehler beim Verarbeiten der Broadcast-Nachricht: {ex.Message}");
         }
     }
-
-    public class BroadcastMessageModel
-    {
-        public BroadcastMessageType Type { get; set; }
-        public ChainInfo Info { get; set; } 
-    }
-       
-    public static SignalRClient SignalR { get; set; }
 
     private static async Task<SignalRClient> CreatePeerConnection(string signalHub, Blockchain blockchain)
     {
@@ -424,7 +418,7 @@ public class BlockchainServer
 
         return signalRClient;
     }
-     
+
 
     // JWT generator for SignalR authentication
     private static string GenerateJwtToken(string issuer, string signingKey)
@@ -460,8 +454,7 @@ public class BlockchainServer
         var combined = Encoding.UTF8.GetBytes($"{issuer}:{signingKey}");
         return SHA256.HashData(combined);
     }
-      
-     
+
 
     private static async Task GetRemoteChain(ChainInfo responseObject, string sdpAddress, int fromBlock,
         int? chunkSizeOverride = null)
@@ -553,7 +546,8 @@ public class BlockchainServer
 
             if (completedTask != sendTask)
             {
-                Logger.LogWarning($"{operationDescription} with peer {nodeAddress} timed out after {timeout.TotalSeconds} seconds.");
+                Logger.LogWarning(
+                    $"{operationDescription} with peer {nodeAddress} timed out after {timeout.TotalSeconds} seconds.");
                 return null;
             }
 
@@ -603,7 +597,8 @@ public class BlockchainServer
                         var remoteSdp = Node.CurrentNodes_SDP[targetValidator];
 
                         // Call the manager method with all four parameters.
-                        string response = await WebRTC.Manager.InitOpenAndSendAsync(targetValidator, remoteSdp, "Vote", block.Base64Encoded);
+                        var response = await WebRTC.Manager.InitOpenAndSendAsync(targetValidator, remoteSdp, "Vote",
+                            block.Base64Encoded);
 
                         if (Config.Default.Debug)
                             Logger.Log($"Response from {targetValidator}: {response}");
@@ -631,7 +626,7 @@ public class BlockchainServer
                 var remoteSdp = Node.CurrentNodes_SDP[nodeAddress];
 
                 // Now call the manager method with all 4 parameters.
-                string response = await WebRTC.Manager.InitOpenAndSendAsync(
+                var response = await WebRTC.Manager.InitOpenAndSendAsync(
                     nodeAddress,
                     remoteSdp,
                     "VerifyCode",
@@ -658,6 +653,12 @@ public class BlockchainServer
         return false;
     }
 
+    public class BroadcastMessageModel
+    {
+        public BroadcastMessageType Type { get; set; }
+        public ChainInfo Info { get; set; }
+    }
+
 
     /// <summary>
     ///     Represents the result of the node startup process, including the blockchain and the node instance.
@@ -669,7 +670,8 @@ public class BlockchainServer
         /// </summary>
         /// <param name="blockchain">The initialized blockchain instance.</param>
         /// <param name="node">The node associated with the blockchain.</param>
-        public NodeStartupResult(Blockchain? blockchain, Node node, BlockchainServer server, SignalRClient signalRClient)
+        public NodeStartupResult(Blockchain? blockchain, Node node, BlockchainServer server,
+            SignalRClient signalRClient)
         {
             Blockchain = blockchain;
             Node = node;
@@ -692,5 +694,5 @@ public class BlockchainServer
         ///     Gets the node instance associated with the blockchain.
         /// </summary>
         public Node Node { get; }
-    } 
+    }
 }
