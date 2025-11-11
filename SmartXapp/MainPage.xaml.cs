@@ -44,8 +44,15 @@ public partial class MainPage : ContentPage
         var fileResult = await FilePicker.Default.PickAsync(new PickOptions
         {
             PickerTitle = "Select SCX token export",
-            FileTypes = FilePickerFileType.PlainText
+            FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+            {
+                { DevicePlatform.Android, new[] { "text/plain" } },
+                { DevicePlatform.WinUI, new[] { ".txt" } },
+                { DevicePlatform.iOS, new[] { "public.plain-text" } },
+                { DevicePlatform.MacCatalyst, new[] { "public.plain-text" } }
+            })
         });
+
 
         if (fileResult == null)
         {
