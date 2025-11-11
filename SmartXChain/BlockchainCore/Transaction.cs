@@ -31,9 +31,9 @@ public class Transaction
         Import
     }
 
-    private string _data;
-    private string _info;
-    private string _sender;
+    private string _data = string.Empty;
+    private string _info = string.Empty;
+    private string _sender = string.Empty;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="Transaction" /> class with default SmartXChain values.
@@ -66,7 +66,7 @@ public class Transaction
     ///     Represents the parent Blocks
     /// </summary>
     [JsonInclude]
-    internal string ParentBlock { get; set; }
+    internal string ParentBlock { get; set; } = string.Empty;
 
     /// <summary>
     ///     Holds the allowances for transactions between accounts.
@@ -97,7 +97,7 @@ public class Transaction
         get => _sender;
         set
         {
-            _sender = value;
+            _sender = value ?? string.Empty;
             RecalculateGas();
         }
     }
@@ -107,7 +107,7 @@ public class Transaction
     ///     Represents the recipient's address for the transaction.
     /// </summary>
     [JsonInclude]
-    internal string Recipient { get; set; }
+    internal string Recipient { get; set; } = string.Empty;
 
     /// <summary>
     ///     The amount of tokens to be transferred in the transaction.
@@ -126,7 +126,7 @@ public class Transaction
     ///     The cryptographic signature of the transaction for validation purposes.
     /// </summary>
     [JsonInclude]
-    internal string Signature { get; private set; }
+    internal string Signature { get; private set; } = string.Empty;
 
     /// <summary>
     ///     The gas required to execute the transaction.
@@ -140,14 +140,14 @@ public class Transaction
     ///     Default value is "SmartXchain".
     /// </summary>
     [JsonInclude]
-    internal string Name { get; private set; }
+    internal string Name { get; private set; } = string.Empty;
 
     /// <summary>
     ///     The symbol of the blockchain's currency.
     ///     Default value is "SXC".
     /// </summary>
     [JsonInclude]
-    internal string Symbol { get; private set; }
+    internal string Symbol { get; private set; } = string.Empty;
 
     /// <summary>
     ///     The number of decimals supported by the blockchain's currency.
@@ -169,7 +169,7 @@ public class Transaction
     ///     Default value is "1.0.0".
     /// </summary>
     [JsonInclude]
-    internal string Version { get; private set; }
+    internal string Version { get; private set; } = string.Empty;
 
     /// <summary>
     ///     Additional data associated with the transaction.
@@ -181,7 +181,7 @@ public class Transaction
         get => _data;
         set
         {
-            _data = value;
+            _data = value ?? string.Empty;
             RecalculateGas();
         }
     }
@@ -196,7 +196,7 @@ public class Transaction
         get => _info;
         set
         {
-            _info = value;
+            _info = value ?? string.Empty;
             RecalculateGas();
         }
     }
@@ -269,6 +269,9 @@ public class Transaction
     {
         try
         {
+            if (string.IsNullOrWhiteSpace(privateKeyWif))
+                return false;
+
             var privateKey = Key.Parse(privateKeyWif, Network.Main);
             var account = new Account(privateKey.ToHex());
             var generatedAddress = prefix + account.Address.Substring(2);
@@ -556,6 +559,9 @@ public class Transaction
     /// </summary>
     private static string HashKey(string? key)
     {
+        if (string.IsNullOrEmpty(key))
+            throw new ArgumentException("Key cannot be null or empty.", nameof(key));
+
         using var sha256 = SHA256.Create();
         var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(key));
         return Convert.ToBase64String(hashedBytes);

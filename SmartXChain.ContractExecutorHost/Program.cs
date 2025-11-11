@@ -170,8 +170,10 @@ public static class Program
         var root = tree.GetRoot();
 
         var invalidNamespace = root.DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.UsingDirectiveSyntax>()
-            .Select(u => u.Name.ToString())
-            .FirstOrDefault(ns => AllowedNamespaces.All(allowed => !ns.StartsWith(allowed, StringComparison.Ordinal)));
+            .Select(u => u.Name?.ToString())
+            .FirstOrDefault(ns => !string.IsNullOrWhiteSpace(ns) &&
+                                  AllowedNamespaces.All(allowed =>
+                                      !ns.StartsWith(allowed, StringComparison.Ordinal)));
 
         if (!string.IsNullOrEmpty(invalidNamespace))
             throw new InvalidOperationException($"Using directive '{invalidNamespace}' is not allowed in sandboxed contracts.");

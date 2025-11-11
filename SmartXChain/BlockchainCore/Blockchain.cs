@@ -964,7 +964,7 @@ public class Blockchain
         {
             var jsonString = Compress.DecompressString(compressedData);
 
-            var jsonDocument = JsonDocument.Parse(jsonString);
+            using var jsonDocument = JsonDocument.Parse(jsonString);
             var root = jsonDocument.RootElement;
 
             if (!root.TryGetProperty("Chain", out var chainElement))
@@ -981,10 +981,12 @@ public class Blockchain
             {
                 var blockchain = new Blockchain(minerAddress, chainId, difficulty)
                 {
-                    Chain = JsonSerializer.Deserialize<List<Block>>(innerChainElement.GetRawText()),
+                    Chain = JsonSerializer.Deserialize<List<Block>>(innerChainElement.GetRawText())
+                            ?? new List<Block>(),
                     PendingTransactions =
                         JsonSerializer.Deserialize<List<Transaction>>(root.GetProperty("PendingTransactions")
-                            .GetRawText())
+                                .GetRawText())
+                            ?? new List<Transaction>()
                 };
 
                 if (root.TryGetProperty("Balances", out var balancesJson))
@@ -1063,7 +1065,7 @@ public class Blockchain
     }
 
     /// <summary>
-    ///     Decodes a list<Blocks>
+    ///     Decodes a List&lt;Block&gt; from a Base64-encoded payload.
     /// </summary>
     /// <param name="base64Data"></param>
     /// <returns></returns>

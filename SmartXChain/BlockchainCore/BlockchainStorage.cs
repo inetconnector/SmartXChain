@@ -441,14 +441,14 @@ public static class BlockchainStorage
     public class DBTransaction
     {
         public Guid ID { get; set; }
-        public string ParentBlock { get; set; }
-        public string Sender { get; set; }
-        public string Recipient { get; set; }
+        public string ParentBlock { get; set; } = string.Empty;
+        public string Sender { get; set; } = string.Empty;
+        public string Recipient { get; set; } = string.Empty;
         public decimal Amount { get; set; }
         public DateTime Timestamp { get; set; }
         public decimal Gas { get; set; }
-        public string Data { get; set; }
-        public string Info { get; set; }
+        public string Data { get; set; } = string.Empty;
+        public string Info { get; set; } = string.Empty;
     }
 
     /// <summary>
@@ -457,10 +457,10 @@ public static class BlockchainStorage
     public class DBBlock
     {
         public DateTime Timestamp { get; set; } = DateTime.MinValue;
-        public string PreviousHash { get; set; }
-        public string Hash { get; set; }
+        public string PreviousHash { get; set; } = string.Empty;
+        public string Hash { get; set; } = string.Empty;
         public int Nonce { get; set; }
-        public string SmartContractsJson { get; set; }
-        public string ApprovesJson { get; set; }
+        public string SmartContractsJson { get; set; } = string.Empty;
+        public string ApprovesJson { get; set; } = string.Empty;
     }
 }
