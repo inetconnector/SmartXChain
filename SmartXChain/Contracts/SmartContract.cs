@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
+using System.Threading;
 using SmartXChain.BlockchainCore;
+using SmartXChain.Contracts.Execution;
 using SmartXChain.Utils;
 
 namespace SmartXChain.Contracts;
@@ -73,26 +75,29 @@ public class SmartContract
         // Deserialize state before execution
         var contractCode = Serializer.DeserializeFromBase64<string>(SerializedContractCode);
 
-        var codeRunner = new CodeRunner();
-        (string, string) result;
+        var executor = ContractExecutionManager.Executor;
+        IContractExecutionSession? session = null;
 
         try
         {
-            using (var cts = new CancellationTokenSource())
-            {
-                result = await codeRunner.RunScriptAsync(contractCode, inputs, currentState, cts.Token);
-            }
+            using var cts = new CancellationTokenSource();
+            session = await executor.CompileAsync(contractCode, cts.Token).ConfigureAwait(false);
+            var normalizedState = await executor.TransferStateAsync(session, currentState, cts.Token)
+                .ConfigureAwait(false);
+            var executionResult = await executor.ExecuteAsync(session, inputs, normalizedState, cts.Token)
+                .ConfigureAwait(false);
+            return (executionResult.Result, executionResult.SerializedState);
         }
         catch (Exception ex)
         {
             Logger.LogException(ex, $"Execution of {Name} failed: {ex.Message}");
-            if (ex.InnerException == null)
-                result = (ex.Message, currentState);
-            else
-                result = (ex.Message + ex.InnerException.Message, currentState);
+            return (ex.Message, currentState);
         }
-
-        return result;
+        finally
+        {
+            if (session != null)
+                await session.DisposeAsync().ConfigureAwait(false);
+        }
     }
 
     /// <summary>
