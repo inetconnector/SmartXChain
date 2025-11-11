@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent; 
+﻿using System.Collections.Concurrent;
+using System.Linq;
 using SmartXChain.Utils;
 using static SmartXChain.ClientServer.BlockchainServer;
 
@@ -17,6 +18,7 @@ public class Node
     /// </summary>
     /// <returns>A Task representing the asynchronous operation.</returns>
     private static readonly ConcurrentDictionary<string, DateTime> LastResponseTimes = new();
+    private static readonly ConcurrentDictionary<string, int> SyncFailureCounts = new();
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="Node" /> class.
@@ -102,6 +104,8 @@ public class Node
 
                 CurrentNodes_LastActive.TryRemove(nodeAddress, out _);
                 CurrentNodes_SDP.TryRemove(nodeAddress, out _);
+                LastResponseTimes.TryRemove(nodeAddress, out _);
+                SyncFailureCounts.TryRemove(nodeAddress, out _);
             }
         }
     }
@@ -114,12 +118,46 @@ public class Node
     /// <param name="sdp">Webrtc offer</param>
     public static void AddNode(string server, string sdp)
     {
-        CurrentNodes_SDP[server] = sdp;
+        if (!string.IsNullOrEmpty(sdp))
+            CurrentNodes_SDP[server] = sdp;
+
         if (!CurrentNodes.Contains(server))
         {
             CurrentNodes.Add(server);
             if (Config.Default.Debug) Logger.Log($"New server added: {server}");
         }
-        CurrentNodes_LastActive[server] = DateTime.UtcNow;
+
+        MarkNodeActive(server);
+    }
+
+    public static void MarkNodeActive(string nodeAddress)
+    {
+        var now = DateTime.UtcNow;
+        LastResponseTimes[nodeAddress] = now;
+        CurrentNodes_LastActive[nodeAddress] = now;
+        SyncFailureCounts[nodeAddress] = 0;
+    }
+
+    public static void RegisterSyncFailure(string nodeAddress)
+    {
+        var failures = SyncFailureCounts.AddOrUpdate(nodeAddress, 1, (_, count) => count + 1);
+        if (failures < Config.Default.MaxSyncFailures)
+            return;
+
+        if (!CurrentNodes_LastActive.TryGetValue(nodeAddress, out var lastActive))
+        {
+            RemoveNodeAddress(nodeAddress);
+            return;
+        }
+
+        if (DateTime.UtcNow - lastActive > TimeSpan.FromSeconds(Config.Default.NodeStaleTimeoutSeconds))
+            RemoveNodeAddress(nodeAddress);
+    }
+
+    public static void PruneInactiveNodes(TimeSpan staleThreshold)
+    {
+        foreach (var kvp in CurrentNodes_LastActive.ToArray())
+            if (DateTime.UtcNow - kvp.Value > staleThreshold)
+                RemoveNodeAddress(kvp.Key);
     }
 }
