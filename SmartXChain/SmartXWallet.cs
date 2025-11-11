@@ -27,6 +27,8 @@ public class SmartXWallet
     {
         Key privateKey = null;
         Mnemonic mnemonic = null;
+        string mnemonicSecretId = string.Empty;
+        string privateKeySecretId = string.Empty;
 
         try
         {
@@ -34,16 +36,13 @@ public class SmartXWallet
 
             // 1. Generate a 12-word Mnemonic phrase (BIP-39)
             mnemonic = new Mnemonic(Wordlist.English, WordCount.Twelve);
-            Logger.LogLine("Your Mnemonic Phrase (Keep it secure!)");
-            Logger.Log(mnemonic.ToString(), false);
+            Logger.LogLine("Mnemonic phrase generated");
+            Logger.Log("Mnemonic stored securely in the hardware vault. Record it from the vault before continuing.");
 
             // 2. Derive the seed from the Mnemonic (BIP-39)
             var seed = mnemonic.DeriveSeed();
-
-            // Securely save the mnemonic and seed
-            var secretWords = mnemonic.ToString();
-            SaveToFile("mnemonic.txt", secretWords);
-            SaveToFile("seed.txt", seed.ToHex());
+            var seedSecretId = SecureVault.StoreSecret(BuildVaultKey("wallet_seed"), seed.ToHex());
+            Logger.Log($"Seed stored in secure vault reference '{seedSecretId}'.");
 
             // 3. Create the master key from the seed
             var masterKey = ExtKey.CreateFromSeed(seed);
@@ -51,7 +50,10 @@ public class SmartXWallet
             // 4. Derive the Ethereum account path (BIP-44)
             var ethKey = masterKey.Derive(new KeyPath("m/44'/60'/0'/0/0"));
             privateKey = ethKey.PrivateKey;
-            SaveToFile("privatekey.txt", privateKey.ToString(Network.Main));
+            privateKeySecretId = SecureVault.StoreSecret(BuildVaultKey("wallet_private_key"),
+                privateKey.ToString(Network.Main));
+            mnemonicSecretId = SecureVault.StoreSecret(BuildVaultKey("wallet_mnemonic"), mnemonic.ToString());
+            Logger.Log("Wallet keys stored in secure vault. No secrets were written to plaintext files.");
 
             // 5. Convert the private key to an Ethereum-compatible address
             var account = new Account(privateKey.ToHex());
@@ -82,8 +84,10 @@ public class SmartXWallet
 
         // Update miner configuration with the generated wallet 
         Config.Default.SetProperty(Config.ConfigKey.MinerAddress, WalletAddresses[0]);
-        Config.Default.SetProperty(Config.ConfigKey.Mnemonic, mnemonic.ToString());
-        Config.Default.SetProperty(Config.ConfigKey.WalletPrivateKey, privateKey.ToString(Network.Main));
+        if (!string.IsNullOrEmpty(mnemonicSecretId))
+            Config.Default.SetProperty(Config.ConfigKey.Mnemonic, $"vault:{mnemonicSecretId}");
+        if (!string.IsNullOrEmpty(privateKeySecretId))
+            Config.Default.SetProperty(Config.ConfigKey.WalletPrivateKey, $"vault:{privateKeySecretId}");
 
         Logger.Log("New miner address generated and saved.");
         return WalletAddresses[0];
@@ -119,6 +123,10 @@ public class SmartXWallet
             if (File.Exists(file))
                 File.Delete(file);
 
+            SecureVault.DeleteSecret(BuildVaultKey("wallet_seed"));
+            SecureVault.DeleteSecret(BuildVaultKey("wallet_private_key"));
+            SecureVault.DeleteSecret(BuildVaultKey("wallet_mnemonic"));
+
             Config.Default.Delete();
 
             Logger.Log("Wallet successfully deleted.");
@@ -134,7 +142,7 @@ public class SmartXWallet
 
 
     /// <summary>
-    ///     Saves sensitive data to a specified file securely.
+    ///     Saves data to a specified file.
     /// </summary>
     /// <param name="fileName">The name of the file.</param>
     /// <param name="content">The content to save in the file.</param>
@@ -145,10 +153,9 @@ public class SmartXWallet
             Directory.CreateDirectory(FileSystem.AppDirectory);
             var path = Path.Combine(FileSystem.AppDirectory, fileName);
 
-            // Write the content to the file securely
             File.WriteAllText(path, content);
 
-            Logger.Log($"[INFO] Securely saved: {path}");
+            Logger.Log($"[INFO] Saved: {path}");
         }
         catch (Exception ex)
         {
@@ -175,7 +182,7 @@ public class SmartXWallet
             {
                 var content = File.ReadAllText(path);
 
-                Logger.Log($"[INFO] Securely loaded: {fileName}");
+                Logger.Log($"[INFO] Loaded: {fileName}");
                 var walletAddresses = content.Split(new[] { Environment.NewLine }, StringSplitOptions.None).ToList();
                 WalletAddresses = walletAddresses;
                 return walletAddresses;
@@ -187,5 +194,10 @@ public class SmartXWallet
         }
 
         return new List<string>();
+    }
+
+    private static string BuildVaultKey(string suffix)
+    {
+        return $"{Config.ChainName.ToString().ToLowerInvariant()}_{suffix}";
     }
 }

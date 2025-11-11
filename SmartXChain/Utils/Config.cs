@@ -10,6 +10,12 @@ namespace SmartXChain.Utils;
 /// </summary>
 public class Config
 {
+    private static readonly HashSet<ConfigKey> SensitiveConfigKeys = new()
+    {
+        ConfigKey.Mnemonic,
+        ConfigKey.WalletPrivateKey,
+        ConfigKey.PrivateKey
+    };
     public enum ChainNames
     {
         SmartXChain_Testnet,
@@ -182,11 +188,12 @@ public class Config
         var filePath = FileSystem.ConfigFile;
         var keyName = key.ToString();
         var section = GetSectionForKey(key);
+        var persistedValue = PrepareValueForPersistence(key, value);
 
         if (!File.Exists(filePath))
         {
             Logger.Log($"Config file not found: {filePath}");
-            File.WriteAllText(filePath, $"[{section}]\n{keyName}={value}\n");
+            File.WriteAllText(filePath, $"[{section}]\n{keyName}={persistedValue}\n");
             Logger.Log($"New config file created: {filePath}");
             return;
         }
@@ -201,19 +208,20 @@ public class Config
                 l.TrimStart().StartsWith($"{keyName}=", StringComparison.OrdinalIgnoreCase));
 
             if (keyIndex >= 0)
-                lines[keyIndex] = $"{keyName}={value}";
+                lines[keyIndex] = $"{keyName}={persistedValue}";
             else
-                lines.Insert(sectionIndex + 1, $"{keyName}={value}");
+                lines.Insert(sectionIndex + 1, $"{keyName}={persistedValue}");
         }
         else
         {
             lines.Add("");
             lines.Add(sectionHeader);
-            lines.Add($"{keyName}={value}");
+            lines.Add($"{keyName}={persistedValue}");
         }
 
         File.WriteAllLines(filePath, lines);
-        Logger.Log($"Property '{keyName}' in section '{section}' set to '{value}'.");
+        var valueForLog = IsSensitiveKey(key) ? "[redacted]" : value;
+        Logger.Log($"Property '{keyName}' in section '{section}' set to '{valueForLog}'.");
         ReloadConfig();
     }
 
@@ -258,7 +266,10 @@ public class Config
             {
                 var parts = trimmedLine.Split('=', StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 2 && parts[0].Trim().Equals(keyName, StringComparison.OrdinalIgnoreCase))
-                    return parts[1].Trim();
+                {
+                    var rawValue = parts[1].Trim();
+                    return ResolveStoredValue(key, rawValue);
+                }
             }
         }
 
@@ -277,7 +288,7 @@ public class Config
             ConfigKey.ChainId => "Config",
             ConfigKey.BlockchainPath => "Config",
             ConfigKey.Debug => "Config",
-            ConfigKey.NodeAddress => "Config", 
+            ConfigKey.NodeAddress => "Config",
             ConfigKey.MaxParallelConnections => "Config",
 
             ConfigKey.MinerAddress => "Miner",
@@ -292,40 +303,109 @@ public class Config
         };
     }
 
+    private string PrepareValueForPersistence(ConfigKey key, string value)
+    {
+        if (!IsSensitiveKey(key))
+            return value;
+
+        if (TryParseVaultReference(value, out var existingIdentifier))
+            return $"vault:{existingIdentifier}";
+
+        var identifier = SecureVault.StoreSecret(BuildSecretIdentifier(key), value);
+        return $"vault:{identifier}";
+    }
+
+    private static bool TryParseVaultReference(string value, out string identifier)
+    {
+        const string prefix = "vault:";
+        if (!string.IsNullOrWhiteSpace(value) &&
+            value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            identifier = value[prefix.Length..];
+            return !string.IsNullOrWhiteSpace(identifier);
+        }
+
+        identifier = string.Empty;
+        return false;
+    }
+
+    private string? ResolveStoredValue(ConfigKey key, string? persistedValue)
+    {
+        if (persistedValue == null)
+            return null;
+
+        if (!IsSensitiveKey(key))
+            return persistedValue;
+
+        if (TryParseVaultReference(persistedValue, out var identifier))
+            return SecureVault.RetrieveSecret(identifier);
+
+        if (string.IsNullOrWhiteSpace(persistedValue))
+            return null;
+
+        Logger.LogWarning($"Sensitive config value for {key} stored in plaintext. Migrating to secure vault.");
+        var newIdentifier = SecureVault.StoreSecret(BuildSecretIdentifier(key), persistedValue);
+        UpdateConfigWithVaultReference(key, newIdentifier);
+        return SecureVault.RetrieveSecret(newIdentifier);
+    }
+
+    private static string BuildSecretIdentifier(ConfigKey key)
+    {
+        return $"{ChainName.ToString().ToLowerInvariant()}_{key.ToString().ToLowerInvariant()}";
+    }
+
+    private void UpdateConfigWithVaultReference(ConfigKey key, string identifier)
+    {
+        var filePath = FileSystem.ConfigFile;
+        if (!File.Exists(filePath))
+            return;
+
+        var lines = File.ReadAllLines(filePath);
+        var section = GetSectionForKey(key);
+        var sectionHeader = $"[{section}]";
+        var keyName = key.ToString();
+        var isInSection = false;
+
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var trimmedLine = lines[i].Trim();
+
+            if (trimmedLine.Equals(sectionHeader, StringComparison.OrdinalIgnoreCase))
+            {
+                isInSection = true;
+                continue;
+            }
+
+            if (isInSection && trimmedLine.StartsWith("[") && trimmedLine.EndsWith("]"))
+                break;
+
+            if (isInSection && trimmedLine.StartsWith($"{keyName}=", StringComparison.OrdinalIgnoreCase))
+            {
+                lines[i] = $"{keyName}=vault:{identifier}";
+                File.WriteAllLines(filePath, lines);
+                return;
+            }
+        }
+    }
+
+    private static bool IsSensitiveKey(ConfigKey key)
+    {
+        return SensitiveConfigKeys.Contains(key);
+    }
+
     public void GenerateServerKeys()
     {
         using var rsa = RSA.Create(2048);
         PublicKey = Convert.ToBase64String(rsa.ExportRSAPublicKey());
         PrivateKey = Convert.ToBase64String(rsa.ExportRSAPrivateKey());
 
-        var filePath = FileSystem.ConfigFile;
+        SetProperty(ConfigKey.PublicKey, PublicKey);
+        SetProperty(ConfigKey.PrivateKey, PrivateKey);
 
-        if (!File.Exists(filePath)) File.WriteAllText(filePath, "[Server]\n");
+        if (!string.IsNullOrWhiteSpace(SSLCertificate))
+            SetProperty(ConfigKey.SSLCertificate, SSLCertificate);
 
-        var lines = File.ReadAllLines(filePath).ToList();
-        var serverSectionIndex = lines.FindIndex(l => l.Trim().Equals("[Server]", StringComparison.OrdinalIgnoreCase));
-
-        if (serverSectionIndex >= 0)
-        {
-            for (var i = serverSectionIndex + 1; i < lines.Count; i++)
-                if (string.IsNullOrWhiteSpace(lines[i]) || lines[i].StartsWith("["))
-                {
-                    lines.Insert(i, $"PublicKey={PublicKey}");
-                    lines.Insert(i + 1, $"PrivateKey={PrivateKey}");
-                    break;
-                }
-        }
-        else
-        {
-            lines.Add("");
-            lines.Add("[Server]");
-            lines.Add($"PublicKey={PublicKey}");
-            lines.Add($"PrivateKey={PrivateKey}");
-            lines.Add($"SSLCertificate={SSLCertificate}");
-        }
-
-        File.WriteAllLines(filePath, lines);
-        Logger.Log("Server keys generated and saved to config.");
+        Logger.Log("Server keys generated and stored securely.");
     }
 
     private void LoadConfig(string filePath)
@@ -389,16 +469,16 @@ public class Config
                         if (key.Equals("MinerAddress", StringComparison.OrdinalIgnoreCase))
                             MinerAddress = value;
                         if (key.Equals("Mnemonic", StringComparison.OrdinalIgnoreCase))
-                            Mnemonic = value;
+                            Mnemonic = ResolveStoredValue(ConfigKey.Mnemonic, value);
                         if (key.Equals("WalletPrivateKey", StringComparison.OrdinalIgnoreCase))
-                            WalletPrivateKey = value;
+                            WalletPrivateKey = ResolveStoredValue(ConfigKey.WalletPrivateKey, value);
                         break;
 
                     case "[Server]":
                         if (key.Equals("PublicKey", StringComparison.OrdinalIgnoreCase))
                             PublicKey = value;
                         if (key.Equals("PrivateKey", StringComparison.OrdinalIgnoreCase))
-                            PrivateKey = value;
+                            PrivateKey = ResolveStoredValue(ConfigKey.PrivateKey, value);
                         if (key.Equals("SSLCertificate", StringComparison.OrdinalIgnoreCase))
                             SSLCertificate = value;
                         break;
