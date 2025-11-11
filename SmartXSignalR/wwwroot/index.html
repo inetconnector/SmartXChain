@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SmartX SignalR Test</title>
+</head>
+<body>
+  <h1>SmartX SignalR Hub Test</h1>
+  <p>
+    1) Hole dir ein Token: <code>/token?user=Daniel</code><br>
+    2) Kopiere das <b>token</b> hier hinein und klicke Connect.
+  </p>
+  <label>JWT Token: <input id="token" size="120" /></label>
+  <button id="connect">Connect</button>
+  <div id="status"></div>
+  <hr>
+  <input id="msg" placeholder="Nachricht" size="60" />
+  <button id="echo">Echo</button>
+  <button id="broadcast">Broadcast</button>
+  <pre id="log"></pre>
+
+  <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.5/dist/browser/signalr.min.js"></script>
+  <script>
+    const status = document.getElementById('status');
+    const log = document.getElementById('log');
+
+    function write(line) {
+      log.textContent += line + "\n";
+      log.scrollTop = log.scrollHeight;
+    }
+
+    let connection;
+
+    document.getElementById('connect').onclick = async () => {
+      const jwt = document.getElementById('token').value.trim();
+      if (!jwt) return alert('Bitte Token einfügen.');
+
+      connection = new signalR.HubConnectionBuilder()
+        .withUrl("/signalrhub", { accessTokenFactory: () => jwt })
+        .withAutomaticReconnect()
+        .build();
+
+      connection.on("echo", m => write("[echo] " + m));
+      connection.on("broadcast", m => write("[broadcast] " + m));
+      connection.on("group", (g, m) => write(`[group ${g}] ` + m));
+
+      connection.onreconnecting(() => status.textContent = "Reconnecting...");
+      connection.onreconnected(() => status.textContent = "Connected.");
+      connection.onclose(() => status.textContent = "Closed.");
+
+      try {
+        await connection.start();
+        status.textContent = "Connected.";
+        write("Connected.");
+      } catch (e) {
+        status.textContent = "Error: " + e;
+        console.error(e);
+      }
+    };
+
+    document.getElementById('echo').onclick = async () => {
+      const m = document.getElementById('msg').value;
+      await connection.invoke("Echo", m);
+    };
+    document.getElementById('broadcast').onclick = async () => {
+      const m = document.getElementById('msg').value;
+      await connection.invoke("Broadcast", m);
+    };
+  </script>
+</body>
+</html>

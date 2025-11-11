@@ -13,4 +13,4 @@ HeartbeatSeconds=10
 NodeTtlSeconds=45
 
 [SignalHubs]
-https://discovery.netregservice.com:5050
+https://signalr.netregservice.com:5050
