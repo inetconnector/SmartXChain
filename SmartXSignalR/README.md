@@ -1,165 +1,110 @@
-# SmartX SignalR Hub (Plesk, Windows/IIS)
+# SmartX SignalR Hub
 
-Ready for deployment under **Plesk (Windows)** as an ASP.NET Core app.
-Includes: - Secured **SignalR Hub** under `/signalrhub` (JWT Bearer,
-HS256) - `web.config` for IIS/Plesk including **WebSockets** - Test page
-at `/index.html` - Test token endpoint `/token?user=Name` (for testing
-only; remove in production)
+SmartXSignalR provides the realtime backbone for SmartXChain nodes. The hub
+handles:
 
-## 1) Requirements
+- **Secure node authentication** via JWT (HS256).
+- **Availability broadcasts** so peers discover each other immediately.
+- **WebRTC signalling** (SDP offers/answers and ICE candidates) for high-bandwidth
+  blockchain sync channels.
+- **Request/response relays** for future cross-node coordination features.
 
--   Install the **.NET 8 Hosting Bundle** on your Windows server
-    (restart afterward).
--   In Plesk: enable SSL/TLS (Let's Encrypt).
+The implementation is optimised for long running node clusters and recovers
+automatically from transient network failures.
 
-## 2) Deployment (Plesk)
+---
 
--   Use a new or existing domain/subdomain, e.g.,
-    signalr.yourdomain.tld.
--   Folder (document root) e.g., `httpdocs\signalr`.
--   Upload **all files** from this ZIP into the folder.
--   No compilation needed on the server -- it's a framework-dependent
-    app.
+## 1. Configure authentication
 
-## 3) Set secret (HMAC key)
+SmartXChain nodes expect the hub to accept tokens derived from the environment
+variable `SIGNALR_PASSWORD`. Configure one of the following options **before**
+starting the hub:
 
-Best set as an **environment variable** in Plesk/IIS: - Name:
-`SMARTX_HMAC_B64` - Value: 32 random bytes, Base64 encoded.
+1. **Recommended (shared secret)**
 
-### Generate token (PowerShell on Windows):
+   ```text
+   SIGNALR_PASSWORD = <your strong passphrase>
+   SIGNALR_JWT_ISSUER = smartXchain   # optional, defaults to smartXchain
+   ```
 
-``` powershell
-$bytes = New-Object 'System.Byte[]' 32
-[System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
-[Convert]::ToBase64String($bytes)
+   The server derives the HS256 key from `issuer:password` using SHA-256, which
+   matches the client implementation.
+
+2. **Explicit HMAC key**
+
+   Provide the raw 32-byte signing key (Base64 encoded):
+
+   ```text
+   SMARTX_HMAC_B64 = <Base64-encoded 32 byte secret>
+   ```
+
+   or set `Auth:HmacKeyBase64` inside `appsettings.json` for local testing.
+
+If none of the above are supplied, the hub generates a volatile key on startup.
+Restarting the process will invalidate previously issued tokens.
+
+---
+
+## 2. Hub tuning options
+
+The section `SignalRHub` in `appsettings.json` (or environment overrides) allows
+fine-tuning without touching code:
+
+| Setting                          | Default | Description                                                        |
+| -------------------------------- | ------- | ------------------------------------------------------------------ |
+| `OfferResponseTimeoutSeconds`    | `15`    | Seconds to wait for a peer to return a WebRTC SDP offer.          |
+| `OfferCacheDurationSeconds`      | `30`    | Accept cached offers newer than this value to reduce churn.       |
+| `MaxPendingOfferRequests`        | `2048`  | Upper bound for concurrent outstanding offer requests.            |
+
+All values can be overridden via environment variables using the
+`SignalRHub__SettingName` syntax (e.g. `SignalRHub__OfferResponseTimeoutSeconds`).
+
+---
+
+## 3. Running locally
+
+```bash
+cd SmartXSignalR
+export SIGNALR_PASSWORD="super-secure"
+dotnet run
 ```
 
-Alternatively, set `Auth:HmacKeyBase64` in `appsettings.json` (not
-recommended in repo).
+During development a helper endpoint issues temporary tokens:
+`GET /token?user=alice`. The endpoint is **disabled** automatically in
+production environments.
 
-## 4) Enable WebSockets
+A diagnostics client is available at `/index.html`. Paste a JWT token and use
+"Broadcast" to watch node discovery messages in real time.
 
--   In Windows Server roles: enable **WebSocket Protocol**.
--   In `web.config`, `<webSocket enabled="true" />` is already
-    configured.
+---
 
-## 5) Start & test
+## 4. Deployment on Windows / IIS / Plesk
 
--   Browser: `https://yourdomain.tld/index.html`
--   Get test token: `https://yourdomain.tld/token?user=Daniel`
--   Paste token into the page → **Connect**.
--   Test messages using **Echo** or **Broadcast**.
+1. Install the **.NET 8 Hosting Bundle** on the server (reboot afterwards).
+2. Deploy the published output (or the repo) to your site (e.g. `httpdocs\signalr`).
+3. Ensure WebSockets are enabled (`web.config` already contains `<webSocket enabled="true" />`).
+4. Configure one of the authentication secrets described above.
+5. Start the application. The hub endpoint lives at `/signalrhub`.
 
-> Note: `/token` is for testing only. Please remove or protect it in
-> production.
+### Troubleshooting
 
-## 6) Client configuration (C#)
+| Symptom                         | Cause & Fix                                                                |
+|--------------------------------|----------------------------------------------------------------------------|
+| `IDX10653 Key too small`       | The derived HMAC key is shorter than 32 bytes – provide a stronger secret. |
+| WebSocket upgrade fails        | WebSocket role missing or blocked by hosting provider.                      |
+| Clients reconnect repeatedly   | Check firewall / reverse proxy idle timeouts and enable forward headers.   |
 
-``` csharp
-var jwt = "YOUR_TOKEN"; // e.g., from your login flow
-var connection = new HubConnectionBuilder()
-    .WithUrl("https://yourdomain.tld/signalrhub", options =>
-    {
-        options.AccessTokenProvider = () => Task.FromResult(jwt);
-    })
-    .WithAutomaticReconnect()
-    .Build();
+---
 
-await connection.StartAsync();
-```
+## 5. Hinweise (Deutsch)
 
-## 7) Common errors
+- **Authentifizierung:** Am einfachsten `SIGNALR_PASSWORD` setzen (siehe oben);
+  alternativ `SMARTX_HMAC_B64` für einen festen HS256-Schlüssel verwenden.
+- **Konfiguration:** Werte im Abschnitt `SignalRHub` steuern Timeout und Caching
+  für SDP-Angebote.
+- **Testclient:** `/index.html` liefert ein kleines Diagnose-Tool. Token kann
+  lokal über `/token?user=<Name>` erzeugt werden (nur in Nicht-Produktiv-Umgebungen verfügbar).
+- **Bereitstellung:** .NET 8 Hosting Bundle installieren, WebSockets aktivieren,
+  Dateien in den Zielordner kopieren und Site starten.
 
--   **502.5 Process Failure** → .NET Hosting Bundle missing or wrong
-    version.
--   **WebSocket connection failed** → Role not installed or disabled by
-    hoster.
--   **IDX10653 Key too small** → HMAC key \< 16 bytes. Use 32 bytes.
--   **CORS error** → Adjust CORS in `Program.cs` (use whitelist instead
-    of `AllowAny...`).
-
-Good luck!
-
-------------------------------------------------------------------------
-
-# SmartX SignalR Hub (Plesk, Windows/IIS)
-
-Bereit für Deployment unter **Plesk (Windows)** als ASP.NET Core App.
-Enthält: - Gesicherten **SignalR Hub** unter `/signalrhub` (JWT Bearer,
-HS256) - `web.config` für IIS/Plesk inkl. **WebSockets** - Testseite
-unter `/index.html` - Test-Token-Endpoint `/token?user=Name` (nur für
-Tests; in Produktion entfernen)
-
-## 1) Voraussetzungen
-
--   **.NET 8 Hosting Bundle** auf dem Windows-Server installieren
-    (danach Neustart).
--   In Plesk: SSL/TLS (Let's Encrypt) aktivieren.
-
-## 2) Deployment (Plesk)
-
--   Neue Domain/Subdomain oder bestehende verwenden, z. B.
-    signalr.deinedomain.tld.
--   Ordner (Dokumentstamm) z. B. `httpdocs\signalr`.
--   **Alle Dateien** aus diesem ZIP in den Ordner hochladen.
--   Nichts kompilieren auf dem Server -- es ist eine Framework-dependent
-    App.
-
-## 3) Geheimnis (HMAC Key) setzen
-
-Am besten als **Umgebungsvariable** in Plesk/IIS: - Name:
-`SMARTX_HMAC_B64` - Wert: 32 Byte zufällig, Base64-kodiert.
-
-### Token generieren (PowerShell auf Windows):
-
-``` powershell
-$bytes = New-Object 'System.Byte[]' 32
-[System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
-[Convert]::ToBase64String($bytes)
-```
-
-Alternativ `appsettings.json` → `Auth:HmacKeyBase64` setzen (nicht
-empfohlen im Repo).
-
-## 4) WebSockets aktivieren
-
--   In Windows Server-Rollen: **WebSocket-Protokoll** aktivieren.
--   In `web.config` ist `<webSocket enabled="true" />` bereits gesetzt.
-
-## 5) Start & Test
-
--   Browser: `https://deinedomain.tld/index.html`
--   Hole Testtoken: `https://deinedomain.tld/token?user=Daniel`
--   Token in die Seite einfügen → **Connect**.
--   Nachrichten mit **Echo**/**Broadcast** testen.
-
-> Hinweis: `/token` ist nur zu Testzwecken gedacht. In Produktion bitte
-> entfernen oder hinter Adminschutz legen.
-
-## 6) Client-Konfiguration (C#)
-
-``` csharp
-var jwt = "DEIN_TOKEN"; // erhalten z. B. aus deinem Login-Flow
-var connection = new HubConnectionBuilder()
-    .WithUrl("https://deinedomain.tld/signalrhub", options =>
-    {
-        options.AccessTokenProvider = () => Task.FromResult(jwt);
-    })
-    .WithAutomaticReconnect()
-    .Build();
-
-await connection.StartAsync();
-```
-
-## 7) Häufige Fehler
-
--   **502.5 Process Failure** → .NET Hosting Bundle fehlt oder falsche
-    Version.
--   **WebSocket schlägt fehl** → Rolle nicht installiert oder vom Hoster
-    deaktiviert.
--   **IDX10653 Key too small** → HMAC-Key \< 16 Bytes. 32 Bytes
-    verwenden.
--   **CORS Fehler** → In `Program.cs` CORS anpassen (Whitelist statt
-    `AllowAny...`).
-
-Viel Erfolg!
+Viel Erfolg beim Betrieb des SmartX Netzwerks!
