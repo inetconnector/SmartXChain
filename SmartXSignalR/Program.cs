@@ -1,50 +1,40 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.IdentityModel.Tokens;
+using SmartXSignalR.Hubs;
+using SmartXSignalR.Options;
+using SmartXSignalR.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// === Auth Key Loading (prefer ENV) ===
-var b64 = Environment.GetEnvironmentVariable("SMARTX_HMAC_B64")
-          ?? builder.Configuration["Auth:HmacKeyBase64"];
-byte[] keyBytes;
-if (string.IsNullOrWhiteSpace(b64))
-{
-    // Fallback: generate volatile key (for local test). NOTE: App restarts will invalidate old tokens.
-    keyBytes = RandomNumberGenerator.GetBytes(32);
-    Console.WriteLine(
-        "WARNING: No HMAC key provided. Generated a volatile key. Set SMARTX_HMAC_B64 in environment or Auth:HmacKeyBase64 in appsettings.json");
-}
-else
-{
-    try
-    {
-        keyBytes = Convert.FromBase64String(b64);
-    }
-    catch
-    {
-        throw new InvalidOperationException("Auth:HmacKeyBase64 / SMARTX_HMAC_B64 is not valid Base64.");
-    }
-}
+builder.Services.Configure<SignalRHubOptions>(builder.Configuration.GetSection("SignalRHub"));
+builder.Services.AddSingleton<HubState>();
 
-if (keyBytes.Length < 32) // 256-bit recommended
-    throw new InvalidOperationException(
-        $"HMAC key too short: {keyBytes.Length} bytes. Provide >= 16 bytes (128-bit), ideally 32 bytes (256-bit).");
-
-var signingKey = new SymmetricSecurityKey(keyBytes);
-
-// Services
-builder.Services.AddSignalR();
-builder.Services.AddCors(o =>
+builder.Services.AddSignalR(options =>
 {
-    o.AddDefaultPolicy(p =>
-        p.AllowAnyHeader().AllowAnyMethod().AllowCredentials().SetIsOriginAllowed(_ => true));
+    options.EnableDetailedErrors = false;
+    options.MaximumReceiveMessageSize = 10 * 1024 * 1024; // 10 MB to accommodate block payloads
+    options.StreamBufferCapacity = 64;
 });
+
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+        policy.AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials()
+            .SetIsOriginAllowed(_ => true));
+});
+
+var issuer = builder.Configuration["Auth:Issuer"]
+             ?? Environment.GetEnvironmentVariable("SIGNALR_JWT_ISSUER")
+             ?? "smartXchain";
+var signingKey = ResolveSigningKey(builder.Configuration, issuer);
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -52,33 +42,37 @@ builder.Services
     {
         options.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidateIssuer = false,
-            ValidateAudience = false,
+            ValidateIssuer = true,
+            ValidIssuer = issuer,
+            ValidateAudience = true,
+            ValidAudience = issuer,
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = signingKey,
             RequireExpirationTime = true,
             ValidateLifetime = true,
-            ClockSkew = TimeSpan.FromMinutes(1)
+            ClockSkew = TimeSpan.FromMinutes(1),
+            NameClaimType = ClaimTypes.NameIdentifier,
+            RoleClaimType = ClaimTypes.Role
         };
 
-        // Allow SignalR to send token via query string `access_token` on WebSockets/ServerSentEvents
         options.Events = new JwtBearerEvents
         {
-            OnMessageReceived = ctx =>
+            OnMessageReceived = context =>
             {
-                var accessToken = ctx.Request.Query["access_token"];
-                var path = ctx.HttpContext.Request.Path;
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
                 if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/signalrhub"))
-                    ctx.Token = accessToken;
+                    context.Token = accessToken;
+
                 return Task.CompletedTask;
             }
         };
     });
+
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// Behind IIS / reverse proxy
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
@@ -91,61 +85,77 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapHub<SmartXHub>("/signalrhub").RequireAuthorization(); // secured hub
+app.MapHub<SmartXHub>("/signalrhub").RequireAuthorization();
 
-// Minimal test token endpoint (REMOVE FOR PRODUCTION)
-app.MapGet("/token", ([FromQuery] string user) =>
+if (!app.Environment.IsProduction())
 {
-    if (string.IsNullOrWhiteSpace(user))
-        return Results.BadRequest("Provide ?user=yourname");
+    app.MapGet("/token", ([FromQuery] string user) =>
+    {
+        if (string.IsNullOrWhiteSpace(user))
+            return Results.BadRequest("Provide ?user=yourname");
 
-    var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
-    var token = new JwtSecurityToken(
-        claims: new[]
-        {
-            new Claim(ClaimTypes.Name, user),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"))
-        },
-        notBefore: DateTime.UtcNow,
-        expires: DateTime.UtcNow.AddHours(1),
-        signingCredentials: creds
-    );
-    var jwt = new JwtSecurityTokenHandler().WriteToken(token);
-    return Results.Ok(new { token = jwt });
-});
+        var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+        var token = new JwtSecurityToken(
+            issuer: issuer,
+            audience: issuer,
+            claims: new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, user),
+                new Claim(ClaimTypes.Name, user),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"))
+            },
+            notBefore: DateTime.UtcNow,
+            expires: DateTime.UtcNow.AddHours(1),
+            signingCredentials: credentials);
 
-// Root info
-app.MapGet("/", () => Results.Text("SmartX SignalR Hub is running. Visit /index.html for client test.", "text/plain"));
+        var jwt = new JwtSecurityTokenHandler().WriteToken(token);
+        return Results.Ok(new { token = jwt });
+    });
+}
+
+app.MapGet("/", () =>
+    Results.Text("SmartX SignalR Hub is running. Visit /index.html for the diagnostics client.", "text/plain"));
 
 app.Run();
 
-public class SmartXHub : Hub
+static SymmetricSecurityKey ResolveSigningKey(IConfiguration configuration, string issuer)
 {
-    public async Task Echo(string message)
+    var base64Key = Environment.GetEnvironmentVariable("SMARTX_HMAC_B64")
+                    ?? configuration["Auth:HmacKeyBase64"];
+
+    if (string.IsNullOrWhiteSpace(base64Key))
     {
-        var name = Context.User?.Identity?.Name ?? "anonymous";
-        await Clients.Caller.SendAsync("echo", $"{name}: {message}");
+        var signingPassword = Environment.GetEnvironmentVariable("SIGNALR_PASSWORD")
+                              ?? configuration["Auth:SigningPassword"];
+
+        if (!string.IsNullOrWhiteSpace(signingPassword))
+        {
+            var derived = SHA256.HashData(Encoding.UTF8.GetBytes($"{issuer}:{signingPassword}"));
+            base64Key = Convert.ToBase64String(derived);
+        }
     }
 
-    public async Task Broadcast(string message)
+    if (string.IsNullOrWhiteSpace(base64Key))
     {
-        var name = Context.User?.Identity?.Name ?? "anonymous";
-        await Clients.All.SendAsync("broadcast", $"{name}: {message}");
+        var generated = RandomNumberGenerator.GetBytes(32);
+        base64Key = Convert.ToBase64String(generated);
+        Console.WriteLine(
+            "WARNING: No signing key configured. Generated a volatile key. Configure SMARTX_HMAC_B64 or SIGNALR_PASSWORD for persistent tokens.");
     }
 
-    public Task JoinGroup(string group)
+    byte[] keyBytes;
+    try
     {
-        return Groups.AddToGroupAsync(Context.ConnectionId, group);
+        keyBytes = Convert.FromBase64String(base64Key);
+    }
+    catch (FormatException ex)
+    {
+        throw new InvalidOperationException("Auth:HmacKeyBase64 / SMARTX_HMAC_B64 must be valid Base64.", ex);
     }
 
-    public Task LeaveGroup(string group)
-    {
-        return Groups.RemoveFromGroupAsync(Context.ConnectionId, group);
-    }
+    if (keyBytes.Length < 32)
+        throw new InvalidOperationException(
+            $"HMAC key too short: {keyBytes.Length} bytes. Provide >= 32 bytes (256-bit) for HS256 tokens.");
 
-    public Task SendToGroup(string group, string message)
-    {
-        var name = Context.User?.Identity?.Name ?? "anonymous";
-        return Clients.Group(group).SendAsync("group", group, $"{name}: {message}");
-    }
+    return new SymmetricSecurityKey(keyBytes);
 }

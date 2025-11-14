@@ -10,6 +10,7 @@ namespace SmartXChain.ClientServer;
 public class SignalRClient
 {
     private readonly ConcurrentDictionary<string, TaskCompletionSource<string?>> _pendingRequests = new();
+    private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);
 
     /// <summary>
     ///     Gets the underlying SignalR hub connection used for communication.
@@ -92,7 +93,7 @@ public class SignalRClient
         Connection.On<string>("ReceiveRequestResponse", OnRequestResponseReceived);
         Connection.On<string>("ReceiveOffer", HandleOfferReceived);
         Connection.On<string>("ReceiveAnswer", HandleAnswerReceived);
-        Connection.On<string>("GetOffer", HandleGetOffer);
+        Connection.On<string>("GetOffer", HandleGetOfferAsync);
         Connection.On<string>("ReceiveIceCandidate", HandleIceCandidateReceived);
 
         Connection.Closed += async error =>
@@ -156,19 +157,38 @@ public class SignalRClient
         }
     }
 
-    private void HandleGetOffer(string answer)
+    private async Task HandleGetOfferAsync(string payload)
     {
         try
         {
+            var request = string.IsNullOrWhiteSpace(payload)
+                ? new OfferRequestPayload()
+                : JsonSerializer.Deserialize<OfferRequestPayload>(payload, _jsonOptions)
+                  ?? new OfferRequestPayload();
+
             var rtc = new WebRTC();
-            rtc.InitializeAsync();
+            await rtc.InitializeAsync();
             var offer = rtc.GetOffer();
             OnGetOfferReceived?.Invoke(offer);
-            Logger.Log($"SignalR Offer sent {offer}");
+            Logger.Log($"SignalR Offer generated for request {request.RequestId}");
+
+            if (Connection == null)
+                return;
+
+            if (!string.IsNullOrWhiteSpace(request.RequestId))
+            {
+                await SafeInvokeAsync(() =>
+                    Connection.InvokeAsync("SubmitOffer", request.RequestId, offer, request.RequesterConnectionId));
+            }
+            else if (!string.IsNullOrWhiteSpace(request.RequesterConnectionId))
+            {
+                await SafeInvokeAsync(() =>
+                    Connection.InvokeAsync("SendOffer", request.RequesterConnectionId, offer));
+            }
         }
         catch (Exception ex)
         {
-            Logger.LogException(ex, "[SignalR] Error handling answer");
+            Logger.LogException(ex, "[SignalR] Error handling offer request");
         }
     }
 
@@ -326,5 +346,11 @@ public class SignalRClient
     {
         public string CorrelationId { get; set; }
         public string Payload { get; set; }
+    }
+
+    private class OfferRequestPayload
+    {
+        public string RequestId { get; set; } = string.Empty;
+        public string RequesterConnectionId { get; set; } = string.Empty;
     }
 }
